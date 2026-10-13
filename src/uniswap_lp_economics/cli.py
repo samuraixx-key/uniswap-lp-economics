@@ -8,7 +8,7 @@ import polars as pl
 
 from uniswap_lp_economics import build, config, snapshot, validate
 from uniswap_lp_economics.data import bigquery, binance
-from uniswap_lp_economics.io import write_exact
+from uniswap_lp_economics.io import write_exact, write_text_atomic
 from uniswap_lp_economics.rpc import RpcClient
 
 
@@ -39,7 +39,8 @@ def fetch_snapshot() -> None:
     ticks, meta = snapshot.read_tick_book(client, block)
     write_exact(ticks, config.RAW_DIR / "tickbook_snapshot.parquet")
     meta["timestamp"] = client.block_timestamp(block)
-    meta_path.write_text(json.dumps(meta, indent=2))
+    # snapshot_meta.json is the skip marker, so it comes last and atomically.
+    write_text_atomic(meta_path, json.dumps(meta, indent=2))
     print(f"snapshot at block {block}: {ticks.height} initialized ticks")
 
 

@@ -5,7 +5,7 @@ import polars as pl
 import pyarrow.parquet as pq
 import pytest
 
-from uniswap_lp_economics.io import read_exact, write_exact
+from uniswap_lp_economics.io import read_exact, write_exact, write_text_atomic
 
 BIG = 2**120 + 12_345
 MAX38 = 10**38 - 1  # largest value Decimal(38, 0) holds
@@ -59,3 +59,11 @@ def test_value_beyond_38_digits_fails_loudly(tmp_path: Path) -> None:
     with pytest.raises(pl.exceptions.PolarsError):
         write_exact(df, tmp_path / "t.parquet")
     assert list(tmp_path.iterdir()) == []
+
+
+def test_write_text_atomic_replaces_and_leaves_no_part(tmp_path: Path) -> None:
+    path = tmp_path / "m.json"
+    path.write_text("old")
+    write_text_atomic(path, "new")
+    assert path.read_text() == "new"
+    assert list(tmp_path.iterdir()) == [path]

@@ -27,3 +27,10 @@ def read_exact(path: Path | list[Path]) -> pl.DataFrame:
     df = pl.read_parquet(path)
     exact = [name for name, dtype in df.schema.items() if dtype == DISK_DECIMAL]
     return df.with_columns(pl.col(exact).cast(pl.Int128)) if exact else df
+
+
+def write_text_atomic(path: Path, text: str) -> None:
+    """Write text via a .part file then a rename, so a crash never leaves a half-written target."""
+    part = path.with_name(path.name + ".part")
+    part.write_text(text)
+    part.replace(path)

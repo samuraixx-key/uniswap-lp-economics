@@ -1,5 +1,7 @@
+import json
 from pathlib import Path
 
+import polars as pl
 import pytest
 
 from uniswap_lp_economics import cli, config, rpc
@@ -66,3 +68,58 @@ def test_fetch_samples_requires_snapshot(tmp_path: Path, monkeypatch: pytest.Mon
     monkeypatch.setattr(config, "RAW_DIR", tmp_path)
     with pytest.raises(SystemExit, match="fetch-snapshot"):
         cli.fetch_samples()
+
+
+class SnapshotClient:
+    def __init__(self, fail_timestamp: bool = False) -> None:
+        self.fail_timestamp = fail_timestamp
+
+    def block_timestamp(self, block: int) -> int:
+        if self.fail_timestamp:
+            raise RuntimeError("rpc down")
+        return 1_788_220_799
+
+
+def _patch_fetch_snapshot(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, client: SnapshotClient
+) -> None:
+    ticks = pl.DataFrame(
+        {"tick": [-10, 10], "liquidity_gross": [5, 5], "liquidity_net": [5, -5]},
+        schema={"tick": pl.Int64, "liquidity_gross": pl.Int128, "liquidity_net": pl.Int128},
+    )
+    meta = {"block": 99, "sqrt_price_x96": 2**96, "tick": 0, "fee_protocol": 68, "liquidity": 7}
+    monkeypatch.setattr(config, "RAW_DIR", tmp_path)
+    monkeypatch.setattr(cli, "_rpc", lambda: client)
+    monkeypatch.setattr(cli, "_raw_logs", lambda: pl.DataFrame({"block_number": [1_000, 2_000]}))
+    monkeypatch.setattr(cli.snapshot, "find_last_block_before", lambda *a, **k: 99)
+    monkeypatch.setattr(cli.snapshot, "read_tick_book", lambda c, b: (ticks, dict(meta)))
+
+
+def test_fetch_snapshot_writes_meta_last_and_atomically(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_fetch_snapshot(monkeypatch, tmp_path, SnapshotClient())
+    calls: list[str] = []
+    real = cli.write_text_atomic
+
+    def spy(path: Path, text: str) -> None:
+        assert (tmp_path / "tickbook_snapshot.parquet").exists()  # ticks first, meta last
+        calls.append(path.name)
+        real(path, text)
+
+    monkeypatch.setattr(cli, "write_text_atomic", spy)
+    cli.fetch_snapshot()
+    assert calls == ["snapshot_meta.json"]
+    meta = json.loads((tmp_path / "snapshot_meta.json").read_text())
+    assert meta["block"] == 99 and meta["timestamp"] == 1_788_220_799
+    assert (tmp_path / "tickbook_snapshot.parquet").exists()
+    assert sorted(p.name for p in tmp_path.iterdir() if p.name.endswith(".part")) == []
+
+
+def test_fetch_snapshot_failure_before_meta_leaves_no_skip_marker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_fetch_snapshot(monkeypatch, tmp_path, SnapshotClient(fail_timestamp=True))
+    with pytest.raises(RuntimeError, match="rpc down"):
+        cli.fetch_snapshot()
+    assert not (tmp_path / "snapshot_meta.json").exists()  # a rerun will redo the snapshot
