@@ -67,14 +67,18 @@ def test_build_swaps_direction_fee_pre_price_and_protocol_share() -> None:
                 fee_log(2, 0, 4, 5),
                 swap_log(3, 0, -2_000 * 10**6, 10**18, 1999.0),  # trader sells ETH
                 swap_log(4, 0, 0, 0, 1999.0),  # zero-amount swap
+                swap_log(5, 0, 1, 0, 1999.0),  # dust: 1 raw USDC in, no ETH out
+                swap_log(6, 0, 0, 1, 1999.0),  # dust: 1 raw WETH in, no USDC out
             ]
         )
     )
     start = eth_price_to_sqrt_price_x96(2000.0)
     s = build_swaps(ev, start_sqrt_price_x96=start, start_fee_protocol=0)
-    assert s["direction"].to_list() == ["buy_eth", "sell_eth", "none"]
-    assert s["fee_token"].to_list() == ["USDC", "WETH", None]
-    assert s["fee_amount_raw"].to_list() == [10**6, 5 * 10**14, 0]
+    # Dust swaps (one amount is 0): direction must agree with zero_for_one and fee_token.
+    assert s["direction"].to_list() == ["buy_eth", "sell_eth", "none", "buy_eth", "sell_eth"]
+    assert s["zero_for_one"].to_list() == [True, False, False, True, False]
+    assert s["fee_token"].to_list() == ["USDC", "WETH", None, "USDC", "WETH"]
+    assert s["fee_amount_raw"].to_list() == [10**6, 5 * 10**14, 0, 1, 1]
     assert s["pre_sqrt_price_x96"].to_list()[0] == start
     assert s["pre_price_usd"].to_list()[1] == pytest.approx(2001.0, rel=1e-9)
     assert s["fee_usd"].to_list()[0] == pytest.approx(1.0)
@@ -82,7 +86,7 @@ def test_build_swaps_direction_fee_pre_price_and_protocol_share() -> None:
     # Before the switch: 0. After SetFeeProtocol(4, 5): ETH-in swaps use token1's 1/5.
     # The zero-amount swap has no token0 input, so it also reads token1's share
     # (its fee is 0 anyway).
-    assert s["fee_protocol_share"].to_list() == [0.0, 0.2, 0.2]
+    assert s["fee_protocol_share"].to_list() == [0.0, 0.2, 0.2, 0.25, 0.2]
 
 
 def test_missing_raw_logs_names_command(tmp_path: Path) -> None:

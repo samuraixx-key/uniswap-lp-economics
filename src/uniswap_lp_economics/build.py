@@ -85,12 +85,14 @@ def build_swaps(
     pre_sqrt = [start_sqrt_price_x96, *swaps["sqrt_price_x96"].to_list()[:-1]]
     pre = pl.Series("pre_sqrt_price_x96", pre_sqrt, dtype=pl.Int128).cast(pl.Float64) / Q96
 
+    # direction follows zero_for_one (token0 in = buy ETH) so it always agrees with fee_token;
+    # "none" only when both amounts are 0.
+    direction = [
+        "buy_eth" if z else ("sell_eth" if y > 0 else "none")
+        for z, y in zip(zero_for_one, a1, strict=True)
+    ]
     return swaps.with_columns(
-        direction=pl.when(pl.col("amount1") < 0)
-        .then(pl.lit("buy_eth"))
-        .when(pl.col("amount1") > 0)
-        .then(pl.lit("sell_eth"))
-        .otherwise(pl.lit("none")),
+        direction=pl.Series(direction, dtype=pl.String),
         zero_for_one=pl.Series(zero_for_one),
         notional_usd=pl.col("amount_usdc").abs(),
         fee_token=pl.Series(fee_token, dtype=pl.String),
