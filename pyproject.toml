@@ -44,3 +44,5 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = ["live: needs network access and credentials (run with -m live)"]
+addopts = "-m 'not live'"
