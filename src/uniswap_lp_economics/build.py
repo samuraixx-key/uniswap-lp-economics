@@ -9,6 +9,7 @@ import polars as pl
 from uniswap_lp_economics.config import DECIMALS0, DECIMALS1
 from uniswap_lp_economics.data.binance import parse_agg_trades, parse_klines_close
 from uniswap_lp_economics.events import decode_event
+from uniswap_lp_economics.io import write_exact
 from uniswap_lp_economics.v3math import Q96, fee_protocol_share, swap_fee_raw
 
 EVENT_SCHEMA: dict[str, Any] = {
@@ -128,9 +129,9 @@ def build_all(raw_dir: Path, interim_dir: Path) -> None:
     interim_dir.mkdir(parents=True, exist_ok=True)
     meta = load_snapshot_meta(raw_dir)
     events = decode_logs(load_raw_logs(raw_dir))
-    events.write_parquet(interim_dir / "events.parquet")
+    write_exact(events, interim_dir / "events.parquet")
     swaps = build_swaps(events, int(meta["sqrt_price_x96"]), int(meta["fee_protocol"]))
-    swaps.write_parquet(interim_dir / "swaps.parquet")
+    write_exact(swaps, interim_dir / "swaps.parquet")
     trades, klines = build_cex(raw_dir)
     trades.write_parquet(interim_dir / "cex_ethusdc.parquet")
     klines.write_parquet(interim_dir / "cex_ethusdt_1s.parquet")

@@ -13,6 +13,7 @@ import polars as pl
 
 from uniswap_lp_economics import config
 from uniswap_lp_economics.build import load_snapshot_meta
+from uniswap_lp_economics.io import read_exact
 from uniswap_lp_economics.tickbook import TickBook
 from uniswap_lp_economics.v3math import get_sqrt_ratio_at_tick, get_tick_at_sqrt_ratio
 
@@ -370,12 +371,12 @@ def run_validation() -> str:
         if not p.exists():
             raise FileNotFoundError(f"{p} missing; run `ulpe fetch-samples` first")
     meta = load_snapshot_meta(raw)
-    snap = pl.read_parquet(raw / "tickbook_snapshot.parquet")
-    events = pl.read_parquet(interim / "events.parquet")
-    swaps = pl.read_parquet(interim / "swaps.parquet")
+    snap = read_exact(raw / "tickbook_snapshot.parquet")
+    events = read_exact(interim / "events.parquet")
+    swaps = read_exact(interim / "swaps.parquet")
     trades = pl.read_parquet(interim / "cex_ethusdc.parquet")
-    samples = pl.read_parquet(raw / "onchain_samples.parquet")
-    sample_ticks = pl.read_parquet(raw / "onchain_sample_ticks.parquet")
+    samples = read_exact(raw / "onchain_samples.parquet")
+    sample_ticks = read_exact(raw / "onchain_sample_ticks.parquet")
     raw_logs = pl.read_parquet(sorted(raw.glob("pool_logs_*.parquet")))
 
     full = set(samples.filter("full_book")["block"].to_list())

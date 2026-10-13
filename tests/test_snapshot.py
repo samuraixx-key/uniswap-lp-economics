@@ -1,6 +1,5 @@
 from pathlib import Path
 
-import polars as pl
 import pytest
 
 from uniswap_lp_economics import cli, config, rpc
@@ -67,9 +66,3 @@ def test_fetch_samples_requires_snapshot(tmp_path: Path, monkeypatch: pytest.Mon
     monkeypatch.setattr(config, "RAW_DIR", tmp_path)
     with pytest.raises(SystemExit, match="fetch-snapshot"):
         cli.fetch_samples()
-
-
-def test_write_atomic_leaves_no_part_file(tmp_path: Path) -> None:
-    target = tmp_path / "x.parquet"
-    cli._write_atomic(pl.DataFrame({"a": [1]}), target)
-    assert target.exists() and not (tmp_path / "x.parquet.part").exists()

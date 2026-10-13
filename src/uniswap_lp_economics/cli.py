@@ -3,12 +3,12 @@
 import argparse
 import json
 from datetime import UTC, date, datetime
-from pathlib import Path
 
 import polars as pl
 
 from uniswap_lp_economics import build, config, snapshot, validate
 from uniswap_lp_economics.data import bigquery, binance
+from uniswap_lp_economics.io import write_exact
 from uniswap_lp_economics.rpc import RpcClient
 
 
@@ -25,13 +25,6 @@ def _raw_logs() -> pl.DataFrame:
     return pl.read_parquet(files)
 
 
-def _write_atomic(df: pl.DataFrame, path: Path) -> None:
-    """Write to a .part file, then rename, so a crash never leaves a half-written target."""
-    part = path.with_name(path.name + ".part")
-    df.write_parquet(part)
-    part.replace(path)
-
-
 def fetch_snapshot() -> None:
     meta_path = config.RAW_DIR / "snapshot_meta.json"
     if meta_path.exists():
@@ -44,7 +37,7 @@ def fetch_snapshot() -> None:
         client, start_ts, first_log_block - 2_000, first_log_block
     )
     ticks, meta = snapshot.read_tick_book(client, block)
-    ticks.write_parquet(config.RAW_DIR / "tickbook_snapshot.parquet")
+    write_exact(ticks, config.RAW_DIR / "tickbook_snapshot.parquet")
     meta["timestamp"] = client.block_timestamp(block)
     meta_path.write_text(json.dumps(meta, indent=2))
     print(f"snapshot at block {block}: {ticks.height} initialized ticks")
@@ -86,8 +79,8 @@ def fetch_samples() -> None:
         },
     )
     # onchain_samples.parquet is the skip marker, so it must appear last and atomically.
-    _write_atomic(pl.concat(tick_frames), config.RAW_DIR / "onchain_sample_ticks.parquet")
-    _write_atomic(samples, out)
+    write_exact(pl.concat(tick_frames), config.RAW_DIR / "onchain_sample_ticks.parquet")
+    write_exact(samples, out)
     print(f"wrote {len(blocks)} samples ({len(full)} full-book)")
 
 

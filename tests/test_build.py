@@ -1,9 +1,12 @@
+import json
+import zipfile
 from pathlib import Path
 
 import polars as pl
+import pyarrow.parquet as pq
 import pytest
 
-from uniswap_lp_economics.build import build_swaps, decode_logs, load_raw_logs
+from uniswap_lp_economics.build import build_all, build_swaps, decode_logs, load_raw_logs
 from uniswap_lp_economics.events import SET_FEE_PROTOCOL_TOPIC, SWAP_TOPIC
 from uniswap_lp_economics.v3math import eth_price_to_sqrt_price_x96
 
@@ -92,3 +95,28 @@ def test_build_swaps_direction_fee_pre_price_and_protocol_share() -> None:
 def test_missing_raw_logs_names_command(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError, match="ulpe fetch-logs"):
         load_raw_logs(tmp_path)
+
+
+def test_build_all_writes_exact_ints_readable_outside_polars(tmp_path: Path) -> None:
+    raw, interim = tmp_path / "raw", tmp_path / "interim"
+    (raw / "binance").mkdir(parents=True)
+    rows = [swap_log(1, 0, 2_000 * 10**6, -(10**18), 2001.0), swap_log(2, 0, 1, 0, 2001.0)]
+    logs(rows).write_parquet(raw / "pool_logs_2026-07-01_2026-08-01.parquet")
+    start = eth_price_to_sqrt_price_x96(2000.0)
+    (raw / "snapshot_meta.json").write_text(
+        json.dumps({"sqrt_price_x96": start, "fee_protocol": 0})
+    )
+    trades = "1,2500.5,0.1,1,1,1751328000123,True,True\n"
+    klines = "1751328000000,1,2,0.5,1.5,10,1751328000999,15,3,5,7,0\n"
+    for name, text in (
+        ("ETHUSDC-aggTrades-2026-07.zip", trades),
+        ("ETHUSDT-1s-2026-07.zip", klines),
+    ):
+        with zipfile.ZipFile(raw / "binance" / name, "w") as z:
+            z.writestr("a.csv", text)
+    build_all(raw, interim)
+    for name, col in (("events", "sqrt_price_x96"), ("swaps", "fee_amount_raw")):
+        schema = pq.read_schema(interim / f"{name}.parquet")  # fails on Polars' private Int128
+        assert str(schema.field(col).type) == "decimal128(38, 0)"
+    swaps = pq.read_table(interim / "swaps.parquet").to_pydict()
+    assert [int(x) for x in swaps["fee_amount_raw"]] == [10**6, 1]

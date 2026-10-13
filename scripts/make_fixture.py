@@ -10,6 +10,7 @@ from pathlib import Path
 import polars as pl
 
 from uniswap_lp_economics import config
+from uniswap_lp_economics.io import read_exact, write_exact
 from uniswap_lp_economics.tickbook import TickBook
 from uniswap_lp_economics.validate import replay
 
@@ -35,7 +36,7 @@ COLS = [
 def main() -> None:
     meta = json.loads((config.RAW_DIR / "snapshot_meta.json").read_text())
     events = (
-        pl.read_parquet(config.INTERIM_DIR / "events.parquet")
+        read_exact(config.INTERIM_DIR / "events.parquet")
         .sort("block_number", "log_index")
         .head(N_EVENTS)
     )
@@ -44,7 +45,7 @@ def main() -> None:
     assert events.filter(pl.col("event") == "swap")["tick"].is_between(lo, hi).all(), (
         "price left the band"
     )
-    ticks = pl.read_parquet(config.RAW_DIR / "tickbook_snapshot.parquet").filter(
+    ticks = read_exact(config.RAW_DIR / "tickbook_snapshot.parquet").filter(
         pl.col("tick").is_between(lo, hi)
     )
     # Self-check: the fixture must replay cleanly on its own, or generation fails here.
@@ -58,8 +59,8 @@ def main() -> None:
     assert r.c1.passed, f"fixture fails C1 replay: {r.c1.mismatches}"
     assert r.c2.passed, f"fixture fails C2 replay: {r.c2.mismatches}"
     OUT.mkdir(parents=True, exist_ok=True)
-    events.write_parquet(OUT / "fixture_events.parquet")
-    ticks.write_parquet(OUT / "fixture_ticks.parquet")
+    write_exact(events, OUT / "fixture_events.parquet")
+    write_exact(ticks, OUT / "fixture_ticks.parquet")
     (OUT / "fixture_meta.json").write_text(json.dumps(meta, indent=2) + "\n")
     print(f"fixture: {events.height} events, {ticks.height} ticks")
 
