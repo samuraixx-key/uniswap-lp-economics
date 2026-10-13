@@ -1,9 +1,10 @@
-import pytest
-
 from uniswap_lp_economics.events import (
     BURN_TOPIC,
+    COLLECT_PROTOCOL_TOPIC,
     COLLECT_TOPIC,
+    FLASH_TOPIC,
     MINT_TOPIC,
+    SET_FEE_PROTOCOL_TOPIC,
     SWAP_TOPIC,
     decode_event,
 )
@@ -73,6 +74,45 @@ def test_collect() -> None:
     assert (ev["recipient"], ev["amount0"], ev["amount1"]) == (SENDER, 11, 22)
 
 
-def test_unknown_topic_raises() -> None:
-    with pytest.raises(ValueError, match="unknown event"):
-        decode_event(["0x" + "00" * 32], "0x")
+def test_unknown_topic_is_other() -> None:
+    assert decode_event(["0x" + "00" * 32], "0x") == {"event": "other"}
+
+
+def test_flash() -> None:
+    data = "0x" + word(10) + word(20) + word(1) + word(2)
+    ev = decode_event([FLASH_TOPIC, "0x" + addr_word(SENDER), "0x" + addr_word(OWNER)], data)
+    assert ev == {
+        "event": "flash",
+        "sender": SENDER,
+        "recipient": OWNER,
+        "amount0": 10,
+        "amount1": 20,
+        "paid0": 1,
+        "paid1": 2,
+    }
+
+
+def test_collect_protocol() -> None:
+    data = "0x" + word(5) + word(6)
+    ev = decode_event(
+        [COLLECT_PROTOCOL_TOPIC, "0x" + addr_word(SENDER), "0x" + addr_word(OWNER)], data
+    )
+    assert ev == {
+        "event": "collect_protocol",
+        "sender": SENDER,
+        "recipient": OWNER,
+        "amount0": 5,
+        "amount1": 6,
+    }
+
+
+def test_set_fee_protocol() -> None:
+    data = "0x" + word(0) + word(0) + word(4) + word(5)
+    ev = decode_event([SET_FEE_PROTOCOL_TOPIC], data)
+    assert ev == {
+        "event": "set_fee_protocol",
+        "fee_protocol0_old": 0,
+        "fee_protocol1_old": 0,
+        "fee_protocol0_new": 4,
+        "fee_protocol1_new": 5,
+    }
