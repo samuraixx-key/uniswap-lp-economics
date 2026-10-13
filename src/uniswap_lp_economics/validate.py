@@ -14,6 +14,7 @@ import polars as pl
 from uniswap_lp_economics import config
 from uniswap_lp_economics.build import load_snapshot_meta
 from uniswap_lp_economics.io import read_exact
+from uniswap_lp_economics.replay import apply_event, iter_event_rows, required
 from uniswap_lp_economics.tickbook import TickBook
 from uniswap_lp_economics.v3math import get_sqrt_ratio_at_tick, get_tick_at_sqrt_ratio
 
@@ -70,19 +71,6 @@ def replay(
     c1_bad: list[dict[str, Any]] = []
     c2_bad: list[dict[str, Any]] = []
     n_swaps = c1_count = c2_count = boundary = 0
-    cols = [
-        "block_number",
-        "log_index",
-        "event",
-        "tick",
-        "sqrt_price_x96",
-        "liquidity",
-        "tick_lower",
-        "tick_upper",
-        "amount",
-        "fee_protocol0_new",
-        "fee_protocol1_new",
-    ]
 
     def flush(before_block: int | None) -> None:
         while pending and (before_block is None or pending[0] < before_block):
@@ -91,39 +79,30 @@ def replay(
                 book, fee_protocol, None if b in full_blocks else sample_ticks.get(b, [])
             )
 
-    for blk, idx, kind, tick, sqrt, liq, lo, hi, amount, fp0, fp1 in (
-        events.sort("block_number", "log_index").select(cols).iter_rows()
-    ):
-        flush(blk)
-        if kind == "mint":
-            book.apply_mint(lo, hi, amount)
-        elif kind == "burn":
-            book.apply_burn(lo, hi, amount)
-        elif kind == "set_fee_protocol":
-            fee_protocol = fp0 + (fp1 << 4)
-        elif kind == "swap":
-            n_swaps += 1
-            book.apply_swap(sqrt, tick)
-            if book.liquidity != liq:
-                c1_count += 1
-                if len(c1_bad) < MAX_LISTED:
-                    c1_bad.append(
-                        {
-                            "block": blk,
-                            "log_index": idx,
-                            "expected": liq,
-                            "replayed": book.liquidity,
-                        }
-                    )
-                book.liquidity = liq  # resync so one bug doesn't cascade into every later swap
-            ok, is_boundary = c2_tick_ok(sqrt, tick)
-            boundary += is_boundary
-            if not ok:
-                c2_count += 1
-                if len(c2_bad) < MAX_LISTED:
-                    c2_bad.append(
-                        {"block": blk, "log_index": idx, "tick": tick, "sqrt_price_x96": sqrt}
-                    )
+    for row in iter_event_rows(events):
+        flush(row.block_number)
+        fee_protocol = apply_event(book, row, fee_protocol)
+        if row.event != "swap":
+            continue
+        n_swaps += 1
+        blk, idx = row.block_number, row.log_index
+        sqrt, tick = required(row, "sqrt_price_x96"), required(row, "tick")
+        liq = required(row, "liquidity")
+        if book.liquidity != liq:
+            c1_count += 1
+            if len(c1_bad) < MAX_LISTED:
+                c1_bad.append(
+                    {"block": blk, "log_index": idx, "expected": liq, "replayed": book.liquidity}
+                )
+            book.liquidity = liq  # resync so one bug doesn't cascade into every later swap
+        ok, is_boundary = c2_tick_ok(sqrt, tick)
+        boundary += is_boundary
+        if not ok:
+            c2_count += 1
+            if len(c2_bad) < MAX_LISTED:
+                c2_bad.append(
+                    {"block": blk, "log_index": idx, "tick": tick, "sqrt_price_x96": sqrt}
+                )
     flush(None)
 
     c1 = CheckResult(

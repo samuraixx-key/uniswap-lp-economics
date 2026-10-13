@@ -1,6 +1,6 @@
 """Replayable Uniswap V3 liquidity state: per-tick liquidity, current tick, active liquidity."""
 
-from bisect import bisect_right, insort
+from bisect import bisect_left, bisect_right, insort
 from dataclasses import dataclass, field
 
 import polars as pl
@@ -94,3 +94,11 @@ class TickBook:
 
     def initialized_ticks(self) -> list[int]:
         return list(self._sorted)
+
+    def nearest_initialized(self, tick: int, lte: bool) -> int | None:
+        """Largest initialized tick <= tick (lte) or smallest initialized tick >= tick (not lte)."""
+        if lte:
+            i = bisect_right(self._sorted, tick)
+            return self._sorted[i - 1] if i else None
+        i = bisect_left(self._sorted, tick)
+        return self._sorted[i] if i < len(self._sorted) else None

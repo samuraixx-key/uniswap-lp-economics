@@ -130,3 +130,14 @@ def test_from_snapshot() -> None:
     )
     b = TickBook.from_snapshot(ticks, {"tick": 0, "sqrt_price_x96": sqrt_at(0), "liquidity": 1000})
     assert b.active_liquidity() == 1000 and b.initialized_ticks() == [-100, 100]
+
+
+def test_nearest_initialized() -> None:
+    b = TickBook(tick=0, sqrt_price_x96=sqrt_at(0), liquidity=0)
+    b.apply_mint(-20, 30, 5)
+    assert b.nearest_initialized(30, lte=True) == 30
+    assert b.nearest_initialized(29, lte=True) == -20
+    assert b.nearest_initialized(-21, lte=True) is None
+    assert b.nearest_initialized(-20, lte=False) == -20
+    assert b.nearest_initialized(-19, lte=False) == 30
+    assert b.nearest_initialized(31, lte=False) is None

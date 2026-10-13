@@ -18,20 +18,6 @@ N_EVENTS = 400
 BAND = 3_000
 OUT = Path(__file__).resolve().parents[1] / "tests" / "fixtures"
 
-COLS = [
-    "block_number",
-    "log_index",
-    "event",
-    "tick",
-    "sqrt_price_x96",
-    "liquidity",
-    "tick_lower",
-    "tick_upper",
-    "amount",
-    "fee_protocol0_new",
-    "fee_protocol1_new",
-]
-
 
 def main() -> None:
     meta = json.loads((config.RAW_DIR / "snapshot_meta.json").read_text())
@@ -40,7 +26,6 @@ def main() -> None:
         .sort("block_number", "log_index")
         .head(N_EVENTS)
     )
-    events = events.select(COLS)
     lo, hi = meta["tick"] - BAND, meta["tick"] + BAND
     assert events.filter(pl.col("event") == "swap")["tick"].is_between(lo, hi).all(), (
         "price left the band"
