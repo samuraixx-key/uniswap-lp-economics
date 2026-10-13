@@ -1,12 +1,15 @@
 import math
+from decimal import Decimal, localcontext
 
 import pytest
 
 from uniswap_lp_economics.v3math import (
+    _TICK_FACTORS,
     MAX_SQRT_RATIO,
     MAX_TICK,
     MIN_SQRT_RATIO,
     MIN_TICK,
+    Q96,
     eth_price_to_sqrt_price_x96,
     fee_protocol_share,
     get_sqrt_ratio_at_tick,
@@ -44,20 +47,32 @@ def test_tick_matches_sqrt_price() -> None:
     )
 
 
-Q96 = 2**96
-
-
 def test_tickmath_extremes_match_v3_constants() -> None:
     assert get_sqrt_ratio_at_tick(MIN_TICK) == MIN_SQRT_RATIO
     assert get_sqrt_ratio_at_tick(MAX_TICK) == MAX_SQRT_RATIO
 
 
 def test_tickmath_every_bit_matches_float() -> None:
-    # Each power of two exercises one magic constant; a typo in any constant fails here.
+    # Each power of two exercises one magic constant against the float formula at rel=1e-9.
+    # This catches gross errors only; low-digit typos are caught by test_tick_factors_exact.
     for k in range(20):
         for t in (2**k, -(2**k)):
             exact = get_sqrt_ratio_at_tick(t) / Q96
             assert exact == pytest.approx(1.0001 ** (t / 2), rel=1e-9), t
+
+
+_BASE_FACTOR = 0xFFFCB933BD6FAD37AA2D162D1A594001  # bit 0x1: 2**128 / 1.0001**(1/2)
+
+
+def test_tick_factors_exact() -> None:
+    # Each constant is 2**128 / 1.0001**(bit/2) rounded to an integer. Comparing at 80 digits,
+    # within 1 unit, detects a typo in any digit, including the low hex digits.
+    with localcontext() as ctx:
+        ctx.prec = 80
+        ln_base = Decimal("1.0001").ln()
+        for bit, factor in ((0x1, _BASE_FACTOR), *_TICK_FACTORS):
+            exact = Decimal(2) ** 128 * (-Decimal(bit) / 2 * ln_base).exp()
+            assert abs(factor - exact) <= 1, hex(bit)
 
 
 def test_tick_at_sqrt_ratio_inverts_exactly() -> None:
