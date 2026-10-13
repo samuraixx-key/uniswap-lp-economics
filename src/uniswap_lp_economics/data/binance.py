@@ -57,11 +57,17 @@ def _sha256(path: Path) -> str:
 def download_verified(url: str, dest: Path, client: httpx.Client) -> Path:
     """Download url to dest unless a file matching Binance's published SHA256 is already there.
 
-    The .CHECKSUM text is saved next to the zip so validation (C5) can re-verify offline.
+    The .CHECKSUM text is saved next to the zip so validation (C5) can re-verify offline. If both
+    files exist and the zip matches the stored checksum, nothing is requested at all. A zip that
+    is missing, corrupt, or has no stored checksum goes through the network path.
     """
+    checksum_path = dest.with_name(dest.name + ".CHECKSUM")
+    if dest.exists() and checksum_path.exists():
+        stored = checksum_path.read_text().split()
+        if stored and _sha256(dest) == stored[0]:
+            return dest
     checksum_text = client.get(url + ".CHECKSUM").raise_for_status().text
     expected = checksum_text.split()[0]
-    checksum_path = dest.with_name(dest.name + ".CHECKSUM")
     if dest.exists() and _sha256(dest) == expected:
         checksum_path.write_text(checksum_text)
         return dest
@@ -93,11 +99,19 @@ def _to_us(col: str) -> pl.Expr:
 
 
 def parse_agg_trades(zip_path: Path) -> pl.DataFrame:
-    return _read_zip_csv(zip_path, AGG_COLS).select(
+    df = _read_zip_csv(zip_path, AGG_COLS)
+    flag = pl.col("is_buyer_maker").str.to_lowercase()
+    bad = df.filter(~flag.is_in(["true", "false"]).fill_null(False))
+    if bad.height:
+        raise ValueError(
+            f"{zip_path.name}: {bad.height} rows with is_buyer_maker other than true/false, "
+            f"e.g. {bad['is_buyer_maker'][0]!r}"
+        )
+    return df.select(
         ts_us=_to_us("ts"),
         price=pl.col("price").cast(pl.Float64),
         qty=pl.col("qty").cast(pl.Float64),
-        is_buyer_maker=pl.col("is_buyer_maker").str.to_lowercase() == "true",
+        is_buyer_maker=flag == "true",
     )
 
 

@@ -49,6 +49,12 @@ def test_parse_agg_trades_with_header(tmp_path: Path) -> None:
     assert parse_agg_trades(tmp_path / "h.zip").height == 1
 
 
+def test_parse_agg_trades_rejects_unknown_is_buyer_maker(tmp_path: Path) -> None:
+    make_zip(tmp_path / "bad.zip", "b.csv", "1,2500.5,0.1,1,1,1751328000123,maybe,True\n")
+    with pytest.raises(ValueError, match=r"bad\.zip.*is_buyer_maker"):
+        parse_agg_trades(tmp_path / "bad.zip")
+
+
 def test_parse_klines_close(tmp_path: Path) -> None:
     make_zip(tmp_path / "k.zip", "k.csv", "1751328000000,1,2,0.5,1.5,10,1751328000999,15,3,5,7,0\n")
     df = parse_klines_close(tmp_path / "k.zip")
@@ -72,8 +78,46 @@ def test_download_verified_ok_and_skip(tmp_path: Path) -> None:
     assert dest.read_bytes() == payload
     assert (tmp_path / "f.zip.CHECKSUM").read_text().startswith(digest)  # kept for C5
     n = len(hits)
-    download_verified("https://x.invalid/f.zip", dest, client)  # valid file present: no re-download
-    assert len(hits) == n + 1  # only the checksum is fetched again
+    download_verified("https://x.invalid/f.zip", dest, client)  # file + checksum verify locally
+    assert len(hits) == n  # skipped without any request
+
+
+def test_download_verified_skips_offline_when_local_files_verify(tmp_path: Path) -> None:
+    payload = b"zip-bytes"
+    digest = hashlib.sha256(payload).hexdigest()
+    dest = tmp_path / "f.zip"
+    dest.write_bytes(payload)
+    (tmp_path / "f.zip.CHECKSUM").write_text(f"{digest}  f.zip\n")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError(f"unexpected network request: {request.url}")
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    assert download_verified("https://x.invalid/f.zip", dest, client) == dest
+
+
+def test_download_verified_refetches_corrupt_or_unchecked_local_file(tmp_path: Path) -> None:
+    payload = b"zip-bytes"
+    digest = hashlib.sha256(payload).hexdigest()
+    hits: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        hits.append(str(request.url))
+        if str(request.url).endswith(".CHECKSUM"):
+            return httpx.Response(200, text=f"{digest}  f.zip\n")
+        return httpx.Response(200, content=payload)
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    dest = tmp_path / "f.zip"
+    checksum = tmp_path / "f.zip.CHECKSUM"
+    dest.write_bytes(b"corrupt")  # checksum file present but the zip does not match it
+    checksum.write_text(f"{digest}  f.zip\n")
+    download_verified("https://x.invalid/f.zip", dest, client)
+    assert dest.read_bytes() == payload and hits
+    hits.clear()
+    checksum.unlink()  # valid zip but no stored checksum: the network confirms and stores it
+    download_verified("https://x.invalid/f.zip", dest, client)
+    assert hits and checksum.read_text().startswith(digest)
 
 
 def test_download_verified_bad_checksum_leaves_nothing(tmp_path: Path) -> None:
