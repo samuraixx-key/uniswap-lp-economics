@@ -8,7 +8,7 @@ from pathlib import Path
 import polars as pl
 
 from uniswap_lp_economics import config, snapshot
-from uniswap_lp_economics.data import bigquery
+from uniswap_lp_economics.data import bigquery, binance
 from uniswap_lp_economics.rpc import RpcClient
 
 
@@ -89,6 +89,12 @@ def fetch_samples() -> None:
     print(f"wrote {len(blocks)} samples ({len(full)} full-book)")
 
 
+def fetch_cex() -> None:
+    windows = bigquery.month_windows(config.WINDOW_START, config.WINDOW_END)
+    months = [(d.year, d.month) for d, _ in windows]
+    binance.fetch_cex(months, config.RAW_DIR)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="ulpe", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -101,6 +107,7 @@ def main() -> None:
     fetch.add_argument("--dry-run", action="store_true", help="only report bytes scanned")
     sub.add_parser("fetch-snapshot", help="read the full tick book just before the window (RPC)")
     sub.add_parser("fetch-samples", help="read on-chain state at 500 random blocks (RPC)")
+    sub.add_parser("fetch-cex", help="download Binance ETHUSDC trades and ETHUSDT 1s klines")
 
     args = parser.parse_args()
     if args.command == "fetch-logs":
@@ -113,6 +120,8 @@ def main() -> None:
         fetch_snapshot()
     elif args.command == "fetch-samples":
         fetch_samples()
+    elif args.command == "fetch-cex":
+        fetch_cex()
 
 
 if __name__ == "__main__":
