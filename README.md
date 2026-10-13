@@ -39,8 +39,10 @@ Study window: `[2026-07-01, 2026-10-01)` UTC. Pool: USDC/WETH 0.05%
 **How liquidity is reconstructed.** Pool logs say what changed, not the full state, so the tick book
 is rebuilt by replaying events in `(block, log_index)` order, starting from an on-chain snapshot of
 the full tick book at block 25,433,938 (2026-06-30 23:59:59 UTC). State values (prices, liquidity)
-are exact integers (`int`, or `Int128` in parquet); floats appear only in readable columns such as
-`amount_usdc`, `amount_eth` and `price_usd`.
+are exact integers: Python `int` in code, `Int128` in Polars, and `Decimal(38, 0)` in the parquet
+files (so pyarrow, pandas and DuckDB can read them too; use `uniswap_lp_economics.io.read_exact` to
+get `Int128` back in Polars). Floats appear only in readable columns such as `amount_usdc`,
+`amount_eth` and `price_usd`.
 
 **Protocol fee.** Read from chain, `feeProtocol` is 68 (`0x44`) at the snapshot block and throughout
 the window: the protocol takes 1/4 of every swap fee, in both tokens. There were no `SetFeeProtocol`
@@ -60,7 +62,7 @@ and the git commit). Overall status: **PASS**.
 | C3 | Replayed state vs on-chain `slot0`, `liquidity()` and `ticks()` at 500 random blocks (5 of them with the full set of initialized ticks) | 500/500 blocks, 17,625 ticks compared, 0 mismatches, 0 blocks missing data |
 | C4 | Snapshot self-consistency | 1,557 initialized ticks; `liquidity_net` sums to 0; rebuilt active liquidity 2,811,825,879,343,074,188 equals on-chain `liquidity()` |
 | C5 | Raw data integrity | 556,664 logs, 0 duplicates, 0 without a transaction, 0 outside the window, 0 of unknown event type; 6 Binance files, no bad checksums |
-| C6 | Pool price vs the last Binance ETHUSDC trade before each swap | 534,377/534,377 matched; median gap 3.757 bp, 95th percentile 6.656 bp, against a 10 bp bound |
+| C6 | Pool price vs the last Binance ETHUSDC trade before each swap | 534,377/534,377 matched; median gap 3.757 bp (gated: must be below 10 bp); 95th percentile 6.656 bp (reported, not bounded) |
 
 What this proves and what it does not:
 
@@ -70,7 +72,7 @@ What this proves and what it does not:
   proof that the replay code is correct for other pools.
 - C3 checks a sample of blocks and ticks (the 20 initialized ticks nearest the price at each block,
   taken from the on-chain bitmap, plus the full book at 5 blocks), not every tick at every block.
-  C1 covers every swap and is the stronger guard.
+  C1 covers every swap; C3 checks more fields (ticks not crossed by swaps) at sampled blocks.
 - The C6 median is a sanity bound that catches gross errors such as a wrong decimal or an inverted
   price. It is not a finding, and it says nothing about who gains or loses from the pool/CEX gap.
 - C5 reports a longest gap of 169.371924 s between consecutive Binance ETHUSDC trades. That is a
@@ -102,9 +104,10 @@ Requirements:
 
 - Python 3.13 and [uv](https://docs.astral.sh/uv/).
 - A `.env` (copy `.env.example`) with `ETH_RPC_URL` set to an **archive** Ethereum RPC, e.g. the
-  Alchemy free tier. Keep it private: the URL contains your API key, and this code never logs it.
-- `gcloud auth application-default login` for BigQuery (the free sandbox is enough), and
-  `GCP_PROJECT` in `.env` set to your project.
+  Alchemy (the free tier worked for us as of Oct 2026). Keep it private: the URL contains your API
+  key. The code never prints or logs the RPC URL; server-supplied error messages are passed through.
+- `gcloud auth application-default login` for BigQuery (the free sandbox worked for us as of
+  Oct 2026), and `GCP_PROJECT` in `.env` set to your project.
 
 ```bash
 uv sync
@@ -141,6 +144,7 @@ src/uniswap_lp_economics/
   tickbook.py       replayable per-tick liquidity state and active liquidity
   rpc.py            JSON-RPC client with retries, Multicall3 batching, pool call codecs
   snapshot.py       read the tick book and sampled state from chain
+  io.py             parquet read/write for exact integers (Int128 in memory, Decimal(38,0) on disk)
   data/
     bigquery.py     download pool logs from BigQuery, one file per month
     binance.py      checksum-verified Binance downloads and parsing
@@ -149,6 +153,7 @@ src/uniswap_lp_economics/
   cli.py            `ulpe` command-line entry point
 scripts/
   make_fixture.py   cut the small real-data test fixture
+  migrate_int128_to_decimal.py   one-off: convert early raw files from Int128 to Decimal(38,0)
 tests/              unit tests and the real-data fixture test
   fixtures/         real pool events and tick book for the offline fixture test
 data_validation/    committed validation report (.md and .json)
