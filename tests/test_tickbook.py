@@ -41,6 +41,27 @@ def test_burn_more_than_minted_raises() -> None:
         b.apply_burn(-100, 100, 11)
 
 
+def test_burn_is_atomic_when_upper_tick_would_go_negative() -> None:
+    b = book_at(0)
+    b.apply_mint(-100, 100, 10)
+    b.apply_mint(100, 200, 5)
+    before = (
+        dict(b.liquidity_gross),
+        dict(b.liquidity_net),
+        b.initialized_ticks(),
+        b.active_liquidity(),
+    )
+    with pytest.raises(ValueError):
+        b.apply_burn(100, 200, 6)  # lower tick 100 has 15 gross, upper tick 200 only 5
+    after = (
+        dict(b.liquidity_gross),
+        dict(b.liquidity_net),
+        b.initialized_ticks(),
+        b.active_liquidity(),
+    )
+    assert after == before
+
+
 def test_zero_amount_burn_is_a_noop() -> None:
     b = book_at(0)
     b.apply_mint(-100, 100, 10)

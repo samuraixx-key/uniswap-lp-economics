@@ -58,6 +58,9 @@ class TickBook:
     def apply_burn(self, tick_lower: int, tick_upper: int, amount: int) -> None:
         if amount == 0:
             return
+        for t in (tick_lower, tick_upper):
+            if self.liquidity_gross.get(t, 0) < amount:
+                raise ValueError(f"liquidity_gross at tick {t} would go negative")
         self._update(tick_lower, -amount, -amount)
         self._update(tick_upper, -amount, amount)
         if self._in_range(tick_lower, tick_upper):
