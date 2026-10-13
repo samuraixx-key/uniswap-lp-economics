@@ -55,7 +55,7 @@ data/interim/      (rebuilt by `ulpe build`; git-ignored)
   swaps.parquet                         swaps with derived fields
   cex_ethusdc.parquet                   trades: ts_ms, price, qty, is_buyer_maker
   cex_ethusdt_1s.parquet                1-second close prices
-data/validation/   (committed)
+data_validation/   (committed; outside the git-ignored /data/)
   validation_report.json / .md
 tests/fixtures/    (committed, small)
   real event slice + matching partial tick book
