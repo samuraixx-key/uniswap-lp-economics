@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import math
 import subprocess
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -126,13 +127,13 @@ def replay(
 
     c1 = CheckResult(
         "C1 active liquidity per swap",
-        c1_count == 0,
+        c1_count == 0 and n_swaps > 0,  # zero swaps would pass vacuously
         {"swaps": n_swaps, "mismatches": c1_count},
         c1_bad,
     )
     c2 = CheckResult(
         "C2 tick vs sqrt price",
-        c2_count == 0,
+        c2_count == 0 and n_swaps > 0,
         {"swaps": n_swaps, "mismatches": c2_count, "boundary_cases": boundary},
         c2_bad,
     )
@@ -140,30 +141,42 @@ def replay(
 
 
 def check_c3(
-    states: dict[int, dict[str, Any]], samples: pl.DataFrame, sample_ticks: pl.DataFrame
+    states: dict[int, dict[str, Any]],
+    samples: pl.DataFrame,
+    sample_ticks: pl.DataFrame,
+    n_samples: int = config.N_SAMPLES,
+    n_full: int = config.N_FULL_BOOK,
 ) -> CheckResult:
+    """Compare replayed state with on-chain samples; the sample set itself must be complete."""
     bad: list[dict[str, Any]] = []
-    n_bad = n_ticks = 0
-    ticks_by_block = sample_ticks.partition_by("block", as_dict=True)
+    n_bad = n_ticks = n_missing = 0
+    ticks_by_block: dict[int, dict[int, tuple[int, int]]] = {}
+    for b, t, g, n in sample_ticks.select(
+        "block", "tick", "liquidity_gross", "liquidity_net"
+    ).iter_rows():
+        ticks_by_block.setdefault(b, {})[t] = (g, n)
+    n_full_blocks = int(samples["full_book"].sum())
     for row in samples.iter_rows(named=True):
         b = row["block"]
+        if b not in states or b not in ticks_by_block:  # no state / no on-chain tick rows
+            n_missing += 1
+            n_bad += 1
+            if len(bad) < MAX_LISTED:
+                bad.append(
+                    {
+                        "block": b,
+                        "missing_state": b not in states,
+                        "missing_onchain_ticks": b not in ticks_by_block,
+                    }
+                )
+            continue
         s = states[b]
         for key in ("sqrt_price_x96", "tick", "liquidity", "fee_protocol"):
             if s[key] != row[key]:
                 n_bad += 1
                 if len(bad) < MAX_LISTED:
                     bad.append({"block": b, "field": key, "onchain": row[key], "replayed": s[key]})
-        onchain = ticks_by_block.get((b,), pl.DataFrame())
-        onchain_ticks = (
-            {
-                t: (g, n)
-                for t, g, n in onchain.select(
-                    "tick", "liquidity_gross", "liquidity_net"
-                ).iter_rows()
-            }
-            if onchain.height
-            else {}
-        )
+        onchain_ticks = ticks_by_block[b]
         replayed = s["ticks"]
         compare = set(onchain_ticks) | (set(replayed) if row["full_book"] else set())
         for t in compare:
@@ -179,12 +192,16 @@ def check_c3(
                             "replayed": replayed.get(t),
                         }
                     )
+    coverage_ok = samples.height == n_samples and n_full_blocks == n_full and n_ticks > 0
     return CheckResult(
         "C3 on-chain samples",
-        n_bad == 0,
+        n_bad == 0 and coverage_ok,
         {
             "blocks": samples.height,
-            "full_book_blocks": int(samples["full_book"].sum()),
+            "expected_blocks": n_samples,
+            "full_book_blocks": n_full_blocks,
+            "expected_full_book_blocks": n_full,
+            "blocks_missing_data": n_missing,
             "ticks_compared": n_ticks,
             "mismatches": n_bad,
         },
@@ -254,21 +271,28 @@ def check_c6(swaps: pl.DataFrame, trades: pl.DataFrame) -> CheckResult:
         trades.select("ts_us", "price").sort("ts_us"), on="ts_us", strategy="backward"
     )
     dev = (joined["price_usd"] / joined["price"] - 1).abs() * 1e4
-    median = float(dev.median() or 0.0)  # type: ignore[arg-type]
+    unmatched = joined["price"].null_count()  # swaps with no prior Binance trade
+    matched = joined.height - unmatched
+    # median/quantile are None when nothing matched; that must FAIL, never coerce to 0.
+    median = float("nan") if (m := dev.median()) is None else float(m)  # type: ignore[arg-type]
+    p95 = float("nan") if (q := dev.quantile(0.95)) is None else float(q)
+    passed = unmatched == 0 and matched > 0 and math.isfinite(median) and median < C6_MAX_MEDIAN_BP
     return CheckResult(
         "C6 pool vs Binance sanity",
-        median < C6_MAX_MEDIAN_BP,
+        passed,
         {
             "swaps": joined.height,
+            "matched": matched,
+            "unmatched": unmatched,
             "median_bp": median,
-            "p95_bp": float(dev.quantile(0.95) or 0.0),
+            "p95_bp": p95,
             "bound_bp": C6_MAX_MEDIAN_BP,
         },
     )
 
 
 def write_report(results: list[CheckResult], out_dir: Path, extra: dict[str, Any]) -> str:
-    status = "PASS" if all(r.passed for r in results) else "FAIL"
+    status = "PASS" if results and all(r.passed for r in results) else "FAIL"
     out_dir.mkdir(parents=True, exist_ok=True)
     body = {
         "status": status,
@@ -312,7 +336,25 @@ def require_validated(report_dir: Path = config.VALIDATION_DIR) -> None:
 
 
 def _file_hash(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()[:16]
+    digest = hashlib.sha256()
+    with path.open("rb") as f:
+        while chunk := f.read(1 << 20):
+            digest.update(chunk)
+    return digest.hexdigest()[:16]
+
+
+def input_hashes(raw: Path, interim: Path) -> dict[str, str]:
+    """First 16 hex chars of sha256 for every file validation reads, keyed by data-relative path."""
+    files = [
+        *sorted(raw.glob("pool_logs_*.parquet")),
+        raw / "tickbook_snapshot.parquet",
+        raw / "snapshot_meta.json",
+        *sorted(raw.glob("onchain_sample*.parquet")),
+        *sorted((raw / "binance").glob("*.zip")),
+        *sorted(interim.glob("*.parquet")),
+    ]
+    root = raw.parent
+    return {p.relative_to(root).as_posix(): _file_hash(p) for p in files}
 
 
 def run_validation() -> str:
@@ -353,15 +395,15 @@ def run_validation() -> str:
         check_c6(swaps, trades),
     ]
     commit = subprocess.run(
-        ["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True
+        ["git", "describe", "--always", "--dirty"], capture_output=True, text=True, cwd=config.ROOT
     ).stdout.strip()
     extra = {
         "generated_utc": datetime.now(UTC).isoformat(timespec="seconds"),
-        "git_commit": commit,
+        "git_commit": commit or "unknown",
         "window": f"[{config.WINDOW_START}, {config.WINDOW_END})",
         "snapshot_block": meta["block"],
         "snapshot_fee_protocol": meta["fee_protocol"],
-        "input_sha256_16": {p.name: _file_hash(p) for p in sorted(raw.glob("pool_logs_*.parquet"))},
+        "input_sha256_16": input_hashes(raw, interim),
     }
     status = write_report(results, config.VALIDATION_DIR, extra)
     for res in results:

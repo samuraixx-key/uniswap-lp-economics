@@ -61,7 +61,9 @@ def fetch_samples() -> None:
     client = _rpc()
     meta = json.loads(meta_path.read_text())
     last_block = int(_raw_logs()["block_number"].max())  # type: ignore[arg-type]
-    blocks, full = snapshot.pick_sample_blocks(meta["block"] + 1, last_block)
+    blocks, full = snapshot.pick_sample_blocks(
+        meta["block"] + 1, last_block, n=config.N_SAMPLES, n_full=config.N_FULL_BOOK
+    )
     states, tick_frames = [], []
     for i, block in enumerate(blocks):
         if block in full:

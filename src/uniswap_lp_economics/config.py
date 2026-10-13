@@ -24,6 +24,10 @@ DATA_DIR = Path(os.getenv("DATA_DIR", ROOT / "data"))
 WINDOW_START = date(2026, 7, 1)
 WINDOW_END = date(2026, 10, 1)  # exclusive
 
+# On-chain validation samples (fetch-samples) and the coverage C3 demands of them.
+N_SAMPLES = 500
+N_FULL_BOOK = 5  # of the N_SAMPLES blocks, how many read the full tick book
+
 RAW_DIR = DATA_DIR / "raw"
 INTERIM_DIR = DATA_DIR / "interim"
 VALIDATION_DIR = ROOT / "data_validation"

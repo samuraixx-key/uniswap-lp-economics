@@ -4,7 +4,7 @@ import random
 
 import polars as pl
 
-from uniswap_lp_economics.config import POOL_ADDRESS, TICK_SPACING
+from uniswap_lp_economics.config import N_FULL_BOOK, N_SAMPLES, POOL_ADDRESS, TICK_SPACING
 from uniswap_lp_economics.rpc import (
     LIQUIDITY_CALL,
     SLOT0_CALL,
@@ -101,7 +101,7 @@ def read_sample(
 
 
 def pick_sample_blocks(
-    first: int, last: int, n: int = 500, n_full: int = 5, seed: int = 42
+    first: int, last: int, n: int = N_SAMPLES, n_full: int = N_FULL_BOOK, seed: int = 42
 ) -> tuple[list[int], list[int]]:
     """n distinct blocks in [first, last] (sorted); n_full of them spread evenly (full-book)."""
     blocks = sorted(random.Random(seed).sample(range(first, last + 1), n))

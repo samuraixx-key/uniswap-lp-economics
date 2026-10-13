@@ -12,6 +12,7 @@ from uniswap_lp_economics.validate import (
     check_c3,
     check_c4,
     check_c6,
+    input_hashes,
     replay,
     require_validated,
     write_report,
@@ -115,9 +116,9 @@ def test_c3_compares_exactly() -> None:
     ticks = pl.DataFrame(
         {"block": [5], "tick": [10], "liquidity_gross": [4], "liquidity_net": [-4]}
     )
-    assert check_c3(states, samples, ticks).passed
+    assert check_c3(states, samples, ticks, n_samples=1, n_full=0).passed
     bad = ticks.with_columns(liquidity_net=pl.lit(-5))
-    assert not check_c3(states, samples, bad).passed
+    assert not check_c3(states, samples, bad, n_samples=1, n_full=0).passed
 
 
 def test_c4_snapshot_consistency() -> None:
@@ -153,3 +154,112 @@ def test_report_and_require_validated(tmp_path: Path) -> None:
 def test_require_validated_missing_report(tmp_path: Path) -> None:
     with pytest.raises(RuntimeError, match="ulpe validate"):
         require_validated(tmp_path)
+
+
+def _c6_inputs(trade_offset_us: int) -> tuple[pl.DataFrame, pl.DataFrame]:
+    ts = pl.datetime(2026, 7, 1, time_zone="UTC")
+    swaps = pl.DataFrame({"block_timestamp": [1_000_000, 2_000_000], "price_usd": [2000.0, 2001.0]})
+    swaps = swaps.with_columns(
+        block_timestamp=ts + pl.duration(microseconds=pl.col("block_timestamp"))
+    )
+    base = int(swaps["block_timestamp"].dt.epoch("us").min())  # type: ignore[arg-type]
+    trades = pl.DataFrame({"ts_us": [base + trade_offset_us], "price": [2000.0]})
+    return swaps, trades
+
+
+def test_c6_fails_when_a_swap_has_no_prior_trade() -> None:
+    swaps, trades = _c6_inputs(500_000)  # first swap precedes the only trade
+    r = check_c6(swaps, trades)
+    assert not r.passed
+    assert r.summary["unmatched"] == 1
+
+
+def test_c6_fails_when_no_swap_is_matched() -> None:
+    swaps, trades = _c6_inputs(10_000_000)
+    r = check_c6(swaps, trades)
+    assert not r.passed
+    assert r.summary["unmatched"] == 2 and r.summary["matched"] == 0
+
+
+def test_c6_fails_with_no_swaps() -> None:
+    swaps, trades = _c6_inputs(-10)
+    assert not check_c6(swaps.head(0), trades).passed
+
+
+def test_c1_c2_fail_without_swaps() -> None:
+    e = events([ev(1, 0, "mint", tick_lower=0, tick_upper=200, amount=500)])
+    r = replay(e, fresh_book(), fee_protocol=0, sample_ticks={}, full_blocks=set())
+    assert not r.c1.passed and not r.c2.passed
+    assert r.c1.summary["swaps"] == 0
+
+
+def _c3_inputs() -> tuple[dict[int, dict[str, object]], pl.DataFrame, pl.DataFrame]:
+    states: dict[int, dict[str, object]] = {
+        5: {
+            "sqrt_price_x96": 1,
+            "tick": 2,
+            "liquidity": 3,
+            "fee_protocol": 0,
+            "ticks": {10: (4, -4)},
+        }
+    }
+    samples = pl.DataFrame(
+        {
+            "block": [5],
+            "sqrt_price_x96": [1],
+            "tick": [2],
+            "fee_protocol": [0],
+            "liquidity": [3],
+            "full_book": [True],
+        }
+    )
+    ticks = pl.DataFrame(
+        {"block": [5], "tick": [10], "liquidity_gross": [4], "liquidity_net": [-4]}
+    )
+    return states, samples, ticks
+
+
+def test_c3_requires_expected_sample_counts() -> None:
+    states, samples, ticks = _c3_inputs()
+    assert check_c3(states, samples, ticks, n_samples=1, n_full=1).passed
+    assert not check_c3(states, samples, ticks, n_samples=2, n_full=1).passed  # too few samples
+    assert not check_c3(states, samples, ticks, n_samples=1, n_full=2).passed  # too few full books
+    assert not check_c3(states, samples, ticks).passed  # defaults demand the configured counts
+
+
+def test_c3_fails_on_empty_inputs() -> None:
+    states, samples, ticks = _c3_inputs()
+    assert not check_c3({}, samples.head(0), ticks, n_samples=0, n_full=0).passed
+    assert not check_c3(states, samples, ticks.head(0), n_samples=1, n_full=1).passed
+
+
+def test_c3_fails_when_a_sample_block_has_no_onchain_tick_rows() -> None:
+    states, samples, ticks = _c3_inputs()
+    other = ticks.with_columns(block=pl.lit(99))  # lookup for block 5 misses
+    assert not check_c3(states, samples, other, n_samples=1, n_full=1).passed
+
+
+def test_report_with_no_results_is_not_pass(tmp_path: Path) -> None:
+    assert write_report([], tmp_path, {}) == "FAIL"
+
+
+def test_input_hashes_cover_every_input(tmp_path: Path) -> None:
+    raw, interim = tmp_path / "raw", tmp_path / "interim"
+    (raw / "binance").mkdir(parents=True)
+    interim.mkdir()
+    names = [
+        raw / "pool_logs_a.parquet",
+        raw / "tickbook_snapshot.parquet",
+        raw / "snapshot_meta.json",
+        raw / "onchain_samples.parquet",
+        raw / "onchain_sample_ticks.parquet",
+        raw / "binance" / "x.zip",
+        interim / "events.parquet",
+        interim / "swaps.parquet",
+        interim / "cex_ethusdc.parquet",
+    ]
+    for p in names:
+        p.write_bytes(p.name.encode())
+    hashes = input_hashes(raw, interim)
+    assert set(hashes) == {p.relative_to(tmp_path).as_posix() for p in names}
+    assert all(len(h) == 16 for h in hashes.values())
