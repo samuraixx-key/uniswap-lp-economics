@@ -3,6 +3,7 @@
 import argparse
 import json
 from datetime import UTC, date, datetime
+from pathlib import Path
 
 import polars as pl
 
@@ -22,6 +23,13 @@ def _raw_logs() -> pl.DataFrame:
     if not files:
         raise SystemExit(f"no pool logs in {config.RAW_DIR}; run `ulpe fetch-logs` first")
     return pl.read_parquet(files)
+
+
+def _write_atomic(df: pl.DataFrame, path: Path) -> None:
+    """Write to a .part file, then rename, so a crash never leaves a half-written target."""
+    part = path.with_name(path.name + ".part")
+    df.write_parquet(part)
+    part.replace(path)
 
 
 def fetch_snapshot() -> None:
@@ -47,8 +55,11 @@ def fetch_samples() -> None:
     if out.exists():
         print("samples already downloaded, skipping")
         return
+    meta_path = config.RAW_DIR / "snapshot_meta.json"
+    if not meta_path.exists():
+        raise SystemExit(f"no snapshot in {config.RAW_DIR}; run `ulpe fetch-snapshot` first")
     client = _rpc()
-    meta = json.loads((config.RAW_DIR / "snapshot_meta.json").read_text())
+    meta = json.loads(meta_path.read_text())
     last_block = int(_raw_logs()["block_number"].max())  # type: ignore[arg-type]
     blocks, full = snapshot.pick_sample_blocks(meta["block"] + 1, last_block)
     states, tick_frames = [], []
@@ -61,7 +72,7 @@ def fetch_samples() -> None:
         tick_frames.append(ticks.with_columns(block=pl.lit(block, dtype=pl.Int64)))
         if (i + 1) % 50 == 0:
             print(f"  {i + 1}/{len(blocks)} samples")
-    pl.DataFrame(
+    samples = pl.DataFrame(
         states,
         schema={
             "block": pl.Int64,
@@ -71,8 +82,10 @@ def fetch_samples() -> None:
             "liquidity": pl.Int128,
             "full_book": pl.Boolean,
         },
-    ).write_parquet(out)
-    pl.concat(tick_frames).write_parquet(config.RAW_DIR / "onchain_sample_ticks.parquet")
+    )
+    # onchain_samples.parquet is the skip marker, so it must appear last and atomically.
+    _write_atomic(pl.concat(tick_frames), config.RAW_DIR / "onchain_sample_ticks.parquet")
+    _write_atomic(samples, out)
     print(f"wrote {len(blocks)} samples ({len(full)} full-book)")
 
 

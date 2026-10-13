@@ -1,4 +1,9 @@
-from uniswap_lp_economics import rpc
+from pathlib import Path
+
+import polars as pl
+import pytest
+
+from uniswap_lp_economics import cli, config, rpc
 from uniswap_lp_economics.snapshot import (
     bitmap_word_range,
     find_last_block_before,
@@ -56,3 +61,15 @@ def test_pick_sample_blocks_is_deterministic_and_sorted() -> None:
     assert blocks == sorted(blocks) and len(blocks) == 50 and len(set(blocks)) == 50
     assert len(full) == 5 and set(full) <= set(blocks)
     assert full[0] == blocks[0] and full[-1] == blocks[-1]
+
+
+def test_fetch_samples_requires_snapshot(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(config, "RAW_DIR", tmp_path)
+    with pytest.raises(SystemExit, match="fetch-snapshot"):
+        cli.fetch_samples()
+
+
+def test_write_atomic_leaves_no_part_file(tmp_path: Path) -> None:
+    target = tmp_path / "x.parquet"
+    cli._write_atomic(pl.DataFrame({"a": [1]}), target)
+    assert target.exists() and not (tmp_path / "x.parquet.part").exists()
