@@ -327,16 +327,35 @@ def write_report(results: list[CheckResult], out_dir: Path, extra: dict[str, Any
     return status
 
 
-def require_validated(report_dir: Path = config.VALIDATION_DIR) -> None:
+def require_validated(
+    report_dir: Path = config.VALIDATION_DIR, data_dir: Path = config.DATA_DIR
+) -> None:
+    """Refuse to analyse unless validation passed on exactly the interim files now on disk."""
     path = report_dir / "validation_report.json"
     if not path.exists():
         raise RuntimeError(f"{path} missing; run `ulpe validate` first")
-    status = json.loads(path.read_text())["status"]
+    report = json.loads(path.read_text())
+    status = report["status"]
     if status != "PASS":
         raise RuntimeError(f"validation status is {status}; fix the data before analysis")
+    hashes: dict[str, str] = report.get("input_sha256_16", {})
+    interim = {k: v for k, v in hashes.items() if k.startswith("interim/")}
+    if not interim:
+        raise RuntimeError(
+            "validation report lists no interim file hashes; run `ulpe validate` again"
+        )
+    for rel, expected in sorted(interim.items()):
+        p = data_dir / rel
+        if not p.exists():
+            raise RuntimeError(
+                f"{rel} was validated but is now missing; run `ulpe build` and `ulpe validate`"
+            )
+        if file_hash(p) != expected:
+            raise RuntimeError(f"{rel} changed since validation; run `ulpe validate` again")
 
 
-def _file_hash(path: Path) -> str:
+def file_hash(path: Path) -> str:
+    """First 16 hex chars of the SHA-256 of a file's bytes."""
     digest = hashlib.sha256()
     with path.open("rb") as f:
         while chunk := f.read(1 << 20):
@@ -355,7 +374,7 @@ def input_hashes(raw: Path, interim: Path) -> dict[str, str]:
         *sorted(interim.glob("*.parquet")),
     ]
     root = raw.parent
-    return {p.relative_to(root).as_posix(): _file_hash(p) for p in files}
+    return {p.relative_to(root).as_posix(): file_hash(p) for p in files}
 
 
 def run_validation() -> str:

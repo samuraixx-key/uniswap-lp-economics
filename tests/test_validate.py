@@ -140,15 +140,53 @@ def test_c6_median_deviation() -> None:
     assert r.passed and r.summary["median_bp"] == pytest.approx(0.5, abs=0.01)
 
 
+def _validated(tmp_path: Path) -> tuple[Path, Path]:
+    """A PASS report whose hashes match the files in a small data dir; returns (report, data)."""
+    data = tmp_path / "data"
+    (data / "interim").mkdir(parents=True)
+    (data / "raw").mkdir()
+    (data / "raw" / "tickbook_snapshot.parquet").write_bytes(b"ticks")
+    (data / "raw" / "snapshot_meta.json").write_bytes(b"{}")
+    (data / "interim" / "swaps.parquet").write_bytes(b"swaps v1")
+    report_dir = tmp_path / "report"
+    write_report(
+        [CheckResult("C1", True, {"n": 1}, [])],
+        report_dir,
+        {"input_sha256_16": input_hashes(data / "raw", data / "interim")},
+    )
+    return report_dir, data
+
+
 def test_report_and_require_validated(tmp_path: Path) -> None:
-    ok = CheckResult("C1", True, {"n": 1}, [])
-    assert write_report([ok], tmp_path, {"commit": "abc"}) == "PASS"
-    require_validated(tmp_path)
-    assert "C1" in (tmp_path / "validation_report.md").read_text()
-    write_report([ok, CheckResult("C2", False, {}, [{"x": 1}])], tmp_path, {})
+    report_dir, data = _validated(tmp_path)
+    require_validated(report_dir, data)
+    assert "C1" in (report_dir / "validation_report.md").read_text()
+    write_report(
+        [CheckResult("C1", True, {}, []), CheckResult("C2", False, {}, [{"x": 1}])], report_dir, {}
+    )
     with pytest.raises(RuntimeError, match="FAIL"):
-        require_validated(tmp_path)
-    assert json.loads((tmp_path / "validation_report.json").read_text())["status"] == "FAIL"
+        require_validated(report_dir, data)
+    assert json.loads((report_dir / "validation_report.json").read_text())["status"] == "FAIL"
+
+
+def test_require_validated_detects_changed_interim_file(tmp_path: Path) -> None:
+    report_dir, data = _validated(tmp_path)
+    (data / "interim" / "swaps.parquet").write_bytes(b"swaps v2")
+    with pytest.raises(RuntimeError, match="interim/swaps.parquet changed"):
+        require_validated(report_dir, data)
+
+
+def test_require_validated_detects_missing_interim_file(tmp_path: Path) -> None:
+    report_dir, data = _validated(tmp_path)
+    (data / "interim" / "swaps.parquet").unlink()
+    with pytest.raises(RuntimeError, match=r"interim/swaps.parquet .*missing"):
+        require_validated(report_dir, data)
+
+
+def test_require_validated_rejects_report_without_hashes(tmp_path: Path) -> None:
+    write_report([CheckResult("C1", True, {}, [])], tmp_path, {})
+    with pytest.raises(RuntimeError, match="no interim file hashes"):
+        require_validated(tmp_path, tmp_path)
 
 
 def test_require_validated_missing_report(tmp_path: Path) -> None:
