@@ -7,7 +7,7 @@ from pathlib import Path
 
 import polars as pl
 
-from uniswap_lp_economics import config, snapshot
+from uniswap_lp_economics import build, config, snapshot
 from uniswap_lp_economics.data import bigquery, binance
 from uniswap_lp_economics.rpc import RpcClient
 
@@ -108,6 +108,7 @@ def main() -> None:
     sub.add_parser("fetch-snapshot", help="read the full tick book just before the window (RPC)")
     sub.add_parser("fetch-samples", help="read on-chain state at 500 random blocks (RPC)")
     sub.add_parser("fetch-cex", help="download Binance ETHUSDC trades and ETHUSDT 1s klines")
+    sub.add_parser("build", help="decode raw data into interim tables")
 
     args = parser.parse_args()
     if args.command == "fetch-logs":
@@ -122,6 +123,11 @@ def main() -> None:
         fetch_samples()
     elif args.command == "fetch-cex":
         fetch_cex()
+    elif args.command == "build":
+        try:
+            build.build_all(config.RAW_DIR, config.INTERIM_DIR)
+        except FileNotFoundError as e:
+            raise SystemExit(str(e)) from e
 
 
 if __name__ == "__main__":
