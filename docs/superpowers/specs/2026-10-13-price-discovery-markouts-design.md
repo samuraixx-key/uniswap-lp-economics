@@ -1,6 +1,6 @@
 # Sub-project 2 — Price discovery and markouts: design
 
-Date: 2026-10-13 · Status: approved in conversation, awaiting written-spec review
+Date: 2026-10-13 · Status: approved; amended with the implementation plan's rulings 1–6
 
 ## 1. Context and intent
 
@@ -58,7 +58,7 @@ strategies (sub-project 4), making the repo public.
 data/raw/                      (git-ignored)
   blocks.parquet               NEW  BigQuery `blocks`: number, timestamp, miner, base_fee_per_gas
   bot_tx_other_logs.parquet    NEW  BigQuery `logs`: per top-bot tx, count of logs from addresses outside the allowed set
-  bot_transfers.parquet        NEW  Alchemy internal ETH transfers from top bot contracts
+  bot_transfers/<address>.parquet  NEW  Alchemy internal ETH transfers, one cached file per top bot
 data/processed/                NEW  (git-ignored; rebuilt by `ulpe analyze`)
   aligned.parquet              one row per swap (section 5)
   blocks_state.parquet         one row per block in the window (section 6)
@@ -80,7 +80,7 @@ one of them.
 | Module | Responsibility |
 |---|---|
 | `replay.py` | Public replay. From the snapshot tick book and `events.parquet` in `(block_number, log_index)` order, yields pool state (`sqrt_price_x96`, `tick`, `liquidity`, plus read access to the `TickBook`) after every event, and a per-block iterator giving state at each block's start and end. `validate.py` uses it. |
-| `v3swap.py` | Float swap math across ticks over a `TickBook` state: `simulate_exact_input(state, amount_in, zero_for_one, fee_pips)` returning amount out and final sqrt price, and `arb_to_price(state, target_price, fee_pips)` returning the amounts traded and the profit at a reference price. Uses the standard V3 per-range formulas (`Δx = L·(1/√Pa − 1/√Pb)`, `Δy = L·(√Pb − √Pa)`), fee taken from the input. |
+| `v3swap.py` | Exact-integer port of the V3 swap over a `TickBook` state (SqrtPriceMath, SwapMath, tick-bitmap word stepping): `swap_exact_input(...)` returning amounts and final state, and `arb_to_price(...)` returning the amounts traded and the profit at a reference price. |
 | `labels/addresses.csv` + `flows.py` | Loads and validates the CSV, labels each swap (section 5.4), selects the top bot contracts. |
 | `data/blocks.py` | Guarded BigQuery fetches (dry run, byte cap, atomic write, same style as `data/bigquery.py`): blocks in the window; and per top-bot transaction, the count of logs emitted by any address other than our pool, USDC, WETH and the transaction's `to_address` (the bot contract itself). |
 | `data/transfers.py` | Alchemy `alchemy_getAssetTransfers` for `category=["internal"]`, `fromAddress` = each top bot, the window's block range, paginated with `pageKey` (`maxCount` 1000), through the existing `RpcClient` (retries, no URL in errors). Cached; reruns skip contracts already fetched. |
@@ -199,8 +199,9 @@ half-life `= ln(0.5) / ln(φ)` blocks, and in seconds using the median block int
 
 ### 6.5 Available vs captured arbitrage
 - **Available** at each block start: `v3swap.arb_to_price` moves the pool to the price where its
-  marginal price after the fee equals `P_cex`, i.e. `P_cex × (1 + fee)` if the pool is cheap and
-  `P_cex / (1 + fee)` if it is expensive, crossing ticks as needed. Profit = USD value at `P_cex` of
+  marginal price after the fee equals `P_cex`, i.e. `P_cex × (1 − fee)` if the pool is cheap (buy ETH)
+  and `P_cex / (1 − fee)` if it is expensive (sell ETH), crossing ticks as needed. With a Binance fee
+  `c`: `P_cex × (1 − fee)(1 − c)` and `P_cex × (1 + c) / (1 − fee)`. Profit = USD value at `P_cex` of
   what the arbitrageur receives minus what they pay. Assumes no gas, unlimited Binance liquidity and no
   Binance trading fee. Sensitivity: the same with a 1 bp Binance fee (target band widened by 1 bp).
 - **Captured:** sum of 0s trader markouts of `searcher` swaps in the same block.
@@ -213,10 +214,10 @@ Written to `results/analysis_checks.{json,md}` before any result; a failed gated
 
 | Check | Verifies | Gate |
 |---|---|---|
-| A1 | `v3swap.simulate_exact_input` reproduces every historical swap: from the replayed state before the swap, with the swap's actual input amount and direction, the simulated output amount and final sqrt price match the event's | max relative error < 1e-9 on both |
-| A2 | Block series complete: every block 25,433,939–26,093,736 present once; each block's start state equals the previous block's end state | exact |
+| A1 | `v3swap.swap_exact_input` (exact-integer port of the V3 swap) reproduces every historical swap: from the replayed state before the swap, with the swap's actual input amount and direction, the simulated output amount and final sqrt price match the event's | final sqrtPriceX96 relative error < 1e-9; output within max(2 raw units, 1e-9 × output), since the event does not record exact-input vs exact-output or the price limit; bit-exact matches reported |
+| A2 | Block series complete: every block from 25,433,939 to the window's last block present once; each block's start state equals the previous block's end state; each block's end price equals its last swap's sqrtPriceX96; blocks without pool events end in their start state | exact |
 | A3 | Per swap and horizon: trader markout + LP markout + protocol fee = 0 | abs < 1e-6 USD |
-| A4 | Reference coverage: per horizon, swaps without a reference; swaps with reference age > 5s | gated: a reference at horizon h may be null only if `t0 + h` is after the last Binance trade (or `t0` before the first); any other null fails; counts reported |
+| A4 | Reference coverage: per horizon, swaps without a reference; swaps with reference age > 5s | gated: a reference at horizon h may be null only if `t0 + h` is at or after the window end (where the Binance data ends) or before the first Binance trade; any other null fails; counts reported |
 | A5 | Label coverage: notional share of `other_contract`; top unlabelled addresses | reported |
 | A6 | Builder payments: matched transfers, share of top-bot txs with a coinbase payment, count of internal transfers from top bots to non-miners | reported |
 
