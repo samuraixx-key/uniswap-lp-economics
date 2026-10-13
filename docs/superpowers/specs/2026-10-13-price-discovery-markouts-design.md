@@ -158,7 +158,7 @@ coinbase_usd     = Σ internal transfers from the bot contract to the block's mi
 our pool are split across them by notional.
 
 **Single-pool vs multi-pool:** a top-bot transaction is `single_pool` (classic CEX-DEX
-arbitrage) when every log it emits comes from our pool, USDC, WETH or the bot contract itself; it and get the full breakdown: gross (0s markout) → minus gas
+arbitrage) when every log it emits comes from our pool, USDC, WETH or the bot contract itself. These get the full breakdown: gross (0s markout) → minus gas
 burned → minus priority fee → minus coinbase payment → kept. `multi_pool` transactions are reported
 separately, gross only, because their costs cannot be split per pool. Swaps outside the top bots get
 gas costs only.
