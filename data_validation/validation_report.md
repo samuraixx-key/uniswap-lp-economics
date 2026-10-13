@@ -1,11 +1,11 @@
 # Validation report: **PASS**
 
-- generated_utc: `2026-10-13T21:00:32+00:00`
-- git_commit: `c3c5448`
+- generated_utc: `2026-10-13T21:25:59+00:00`
+- git_commit: `1a37269`
 - window: `[2026-07-01, 2026-10-01)`
 - snapshot_block: `25433938`
 - snapshot_fee_protocol: `68`
-- input_sha256_16: `{'raw/pool_logs_2026-07-01_2026-08-01.parquet': 'd63cecd2087cf703', 'raw/pool_logs_2026-08-01_2026-09-01.parquet': '969de26de6bbddd1', 'raw/pool_logs_2026-09-01_2026-10-01.parquet': '4219a9635468c2cb', 'raw/tickbook_snapshot.parquet': '4ed62361af955188', 'raw/snapshot_meta.json': '3b93b79ce12ca7b0', 'raw/onchain_sample_ticks.parquet': 'eff620eed3500e13', 'raw/onchain_samples.parquet': 'bed05253349933c7', 'raw/binance/ETHUSDC-aggTrades-2026-07.zip': 'c921f1d08e49cb19', 'raw/binance/ETHUSDC-aggTrades-2026-08.zip': 'c1ce03be89ddb1ce', 'raw/binance/ETHUSDC-aggTrades-2026-09.zip': 'e86dd47bd5dffe00', 'raw/binance/ETHUSDT-1s-2026-07.zip': '093f882bd1c0bea9', 'raw/binance/ETHUSDT-1s-2026-08.zip': 'cf65149d610676dc', 'raw/binance/ETHUSDT-1s-2026-09.zip': 'aecc6196852931e5', 'interim/cex_ethusdc.parquet': 'cd806aa6a7f87d7e', 'interim/cex_ethusdt_1s.parquet': '02a5ea793a51eea0', 'interim/events.parquet': '2d05b757e9574203', 'interim/swaps.parquet': 'b398c9b7a2d59bbe'}`
+- input_sha256_16: `{'raw/pool_logs_2026-07-01_2026-08-01.parquet': 'd63cecd2087cf703', 'raw/pool_logs_2026-08-01_2026-09-01.parquet': '969de26de6bbddd1', 'raw/pool_logs_2026-09-01_2026-10-01.parquet': '4219a9635468c2cb', 'raw/tickbook_snapshot.parquet': 'ccaa9baa98726baf', 'raw/snapshot_meta.json': '3b93b79ce12ca7b0', 'raw/onchain_sample_ticks.parquet': 'b0e8c024793beb26', 'raw/onchain_samples.parquet': 'd0c103ee0ba63119', 'raw/binance/ETHUSDC-aggTrades-2026-07.zip': 'c921f1d08e49cb19', 'raw/binance/ETHUSDC-aggTrades-2026-08.zip': 'c1ce03be89ddb1ce', 'raw/binance/ETHUSDC-aggTrades-2026-09.zip': 'e86dd47bd5dffe00', 'raw/binance/ETHUSDT-1s-2026-07.zip': '093f882bd1c0bea9', 'raw/binance/ETHUSDT-1s-2026-08.zip': 'cf65149d610676dc', 'raw/binance/ETHUSDT-1s-2026-09.zip': 'aecc6196852931e5', 'interim/cex_ethusdc.parquet': 'cd806aa6a7f87d7e', 'interim/cex_ethusdt_1s.parquet': '02a5ea793a51eea0', 'interim/events.parquet': 'fcb1cfcb7c07a6e7', 'interim/swaps.parquet': 'eb31e774d75fb9d3'}`
 
 | Check | Result | Summary |
 |---|---|---|
