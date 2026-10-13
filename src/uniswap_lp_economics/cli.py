@@ -7,7 +7,7 @@ from pathlib import Path
 
 import polars as pl
 
-from uniswap_lp_economics import build, config, snapshot
+from uniswap_lp_economics import build, config, snapshot, validate
 from uniswap_lp_economics.data import bigquery, binance
 from uniswap_lp_economics.rpc import RpcClient
 
@@ -109,6 +109,8 @@ def main() -> None:
     sub.add_parser("fetch-samples", help="read on-chain state at 500 random blocks (RPC)")
     sub.add_parser("fetch-cex", help="download Binance ETHUSDC trades and ETHUSDT 1s klines")
     sub.add_parser("build", help="decode raw data into interim tables")
+    sub.add_parser("validate", help="run checks C1-C6 and write data_validation/validation_report")
+    sub.add_parser("all", help="fetch anything missing, build, then validate")
 
     args = parser.parse_args()
     if args.command == "fetch-logs":
@@ -128,6 +130,21 @@ def main() -> None:
             build.build_all(config.RAW_DIR, config.INTERIM_DIR)
         except FileNotFoundError as e:
             raise SystemExit(str(e)) from e
+    elif args.command == "validate":
+        try:
+            status = validate.run_validation()
+        except FileNotFoundError as e:
+            raise SystemExit(str(e)) from e
+        raise SystemExit(0 if status == "PASS" else 1)
+    elif args.command == "all":
+        for start, end in bigquery.month_windows(config.WINDOW_START, config.WINDOW_END):
+            if not bigquery.raw_logs_path(start, end).exists():
+                bigquery.fetch_pool_logs(start, end)
+        fetch_snapshot()
+        fetch_cex()
+        fetch_samples()
+        build.build_all(config.RAW_DIR, config.INTERIM_DIR)
+        raise SystemExit(0 if validate.run_validation() == "PASS" else 1)
 
 
 if __name__ == "__main__":
