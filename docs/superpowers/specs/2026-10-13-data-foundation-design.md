@@ -68,12 +68,17 @@ binary search on `eth_getBlockByNumber` timestamps and recorded in `snapshot_met
 - Ordering and source: `block_number`, `block_timestamp`, `transaction_index`, `log_index`, `tx_hash`,
   `from_address`, `to_address`, gas fields.
 - Event fields: `event` (swap/mint/burn/collect/flash/set_fee_protocol/other), then the decoded fields
-  as **Int128**: `amount0`, `amount1`, `sqrt_price_x96`, `liquidity`, `amount`, `tick`, `tick_lower`,
+  as **exact integers**: `amount0`, `amount1`, `sqrt_price_x96`, `liquidity`, `amount`, `tick`, `tick_lower`,
   `tick_upper`, `owner`, `sender`, `recipient`, `paid0`, `paid1`, fee-protocol fields.
+  *Amended at implementation (ruling R17):* in memory these are `pl.Int128` / Python `int`. On disk the
+  parquet stores them as `Decimal(38, 0)` (via `io.write_exact` / `io.read_exact`), so pyarrow, DuckDB and
+  pandas can read them exactly. Polars' native Int128 parquet encoding is Polars-only.
 - Readable float columns: `amount_usdc`, `amount_eth`, `price_usd` (USD per ETH, swaps only).
 
 **swaps.parquet** adds, per swap:
-- `direction`: `buy_eth` or `sell_eth`.
+- `direction`: `buy_eth` (USDC in, i.e. `zero_for_one`) or `sell_eth`. It is derived from the same sign
+  test as `fee_token`. *Amended (ruling R18):* `none` appears only for a swap moving no tokens
+  (`amount0 == amount1 == 0`).
 - `notional_usd`.
 - `fee_token`, `fee_amount_raw`, `fee_usd`. The fee is charged on the input amount, and the event's
   input amount `a` already includes it. We define `fee_amount_raw = ceil(a * 500 / 1e6)`. This is an
