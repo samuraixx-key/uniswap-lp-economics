@@ -3,6 +3,7 @@
 Never include the RPC URL in messages: it contains the API key.
 """
 
+import logging
 import time
 from typing import Any
 
@@ -13,6 +14,10 @@ from uniswap_lp_economics import abi
 MULTICALL3 = "0xca11bde05977b3631167028862be2a173976ca11"
 _AGGREGATE3 = abi.selector("aggregate3((address,bool,bytes)[])")
 _RETRYABLE_JSON_CODES = {429, -32005}
+
+# httpx and httpcore log the full request URL at INFO/DEBUG, and the URL holds the API key.
+for _name in ("httpx", "httpcore"):
+    logging.getLogger(_name).setLevel(logging.WARNING)
 
 SLOT0_CALL = abi.selector("slot0()")
 LIQUIDITY_CALL = abi.selector("liquidity()")
@@ -41,23 +46,41 @@ class RpcClient:
         payload = {"jsonrpc": "2.0", "id": 1, "method": method, "params": params}
         last = "no attempt made"
         for attempt in range(self.max_retries):
+            # Failures are recorded and raised after the try block, so the RpcError carries
+            # no __cause__/__context__ (exceptions from httpx can embed the URL).
+            fatal: str | None = None
             try:
                 r = self._client.post(self._url, json=payload)
-            except httpx.TransportError as e:
+            except httpx.InvalidURL:
+                fatal = f"{method}: invalid request URL"
+            except httpx.RequestError as e:
                 last = f"transport error ({type(e).__name__})"
             else:
                 if r.status_code == 429 or r.status_code >= 500:
                     last = f"HTTP {r.status_code}"
                 elif r.status_code != 200:
-                    raise RpcError(f"{method}: HTTP {r.status_code}")
+                    fatal = f"{method}: HTTP {r.status_code}"
                 else:
-                    body = r.json()
-                    error = body.get("error")
-                    if error is None:
-                        return body["result"]
-                    if error.get("code") not in _RETRYABLE_JSON_CODES:
-                        raise RpcError(f"{method}: {error.get('message', error)}")
-                    last = f"rate limited ({error.get('code')})"
+                    try:
+                        body = r.json()
+                    except ValueError:
+                        # Gateways and proxies sometimes answer 200 with an HTML page: transient.
+                        body = None
+                        last = "non-JSON response"
+                    if body is not None:
+                        error = body.get("error") if isinstance(body, dict) else None
+                        if not isinstance(body, dict) or (error is None and "result" not in body):
+                            fatal = f"{method}: malformed response"
+                        elif error is None:
+                            return body["result"]
+                        elif not isinstance(error, dict):
+                            fatal = f"{method}: malformed response"
+                        elif error.get("code") not in _RETRYABLE_JSON_CODES:
+                            fatal = f"{method}: {error.get('message', error)}"
+                        else:
+                            last = f"rate limited ({error.get('code')})"
+            if fatal is not None:
+                raise RpcError(fatal)
             time.sleep(self.backoff_s * 2**attempt)
         raise RpcError(f"{method} failed after {self.max_retries} attempts: {last}")
 

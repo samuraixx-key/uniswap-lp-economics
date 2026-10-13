@@ -1,4 +1,5 @@
 import json
+import logging
 from collections.abc import Callable
 
 import httpx
@@ -137,6 +138,50 @@ def test_request_payload_shape() -> None:
     )
     assert seen[0]["method"] == "eth_call"
     assert seen[0]["params"] == [{"to": "0x" + "22" * 20, "data": "0x3850c7bd"}, "0xff"]
+
+
+def test_info_logging_never_contains_url(caplog: pytest.LogCaptureFixture) -> None:
+    c, _ = client_with([ok("0x10")])
+    with caplog.at_level(logging.INFO):
+        assert c.block_number() == 16
+    assert "SECRETKEY" not in caplog.text
+
+
+def test_invalid_url_error_is_wrapped_without_chaining() -> None:
+    def bad(request: httpx.Request) -> httpx.Response:
+        raise httpx.InvalidURL(f"bad {URL}")
+
+    c = RpcClient(URL, transport=httpx.MockTransport(bad), backoff_s=0)
+    with pytest.raises(RpcError) as exc:
+        c.block_number()
+    assert "SECRETKEY" not in str(exc.value)
+    assert exc.value.__cause__ is None
+    assert exc.value.__context__ is None
+
+
+def test_non_json_200_is_retried_then_raises_rpc_error() -> None:
+    c, calls = client_with([lambda: httpx.Response(200, text="<html>bad gateway</html>")])
+    with pytest.raises(RpcError, match="non-JSON") as exc:
+        c.block_number()
+    assert calls[0] == c.max_retries
+    assert exc.value.__context__ is None
+
+
+def test_non_json_200_then_success() -> None:
+    c, calls = client_with([lambda: httpx.Response(200, text="oops"), ok("0x10")])
+    assert c.block_number() == 16
+    assert calls[0] == 2
+
+
+@pytest.mark.parametrize(
+    "body", [{"jsonrpc": "2.0", "id": 1}, {"error": "boom"}, {"error": None}, [1, 2]]
+)
+def test_malformed_response_shape_raises_rpc_error(body: object) -> None:
+    c, calls = client_with([lambda: httpx.Response(200, json=body)])
+    with pytest.raises(RpcError, match="malformed") as exc:
+        c.block_number()
+    assert calls[0] == 1
+    assert exc.value.__context__ is None
 
 
 @pytest.mark.live
