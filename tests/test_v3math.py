@@ -65,14 +65,15 @@ _BASE_FACTOR = 0xFFFCB933BD6FAD37AA2D162D1A594001  # bit 0x1: 2**128 / 1.0001**(
 
 
 def test_tick_factors_exact() -> None:
-    # Each constant is 2**128 / 1.0001**(bit/2) rounded to an integer. Comparing at 80 digits,
-    # within 1 unit, detects a typo in any digit, including the low hex digits.
+    # Each constant is the correctly rounded 2**128 / 1.0001**(bit/2), so its error is below 0.5
+    # (largest observed: 0.4924). Any +-1 change in the last digit moves the error to at least
+    # 0.5076, so the 0.5 bound catches it. Computed at 80 digits.
     with localcontext() as ctx:
         ctx.prec = 80
         ln_base = Decimal("1.0001").ln()
         for bit, factor in ((0x1, _BASE_FACTOR), *_TICK_FACTORS):
             exact = Decimal(2) ** 128 * (-Decimal(bit) / 2 * ln_base).exp()
-            assert abs(factor - exact) <= 1, hex(bit)
+            assert abs(factor - exact) <= Decimal("0.5"), hex(bit)
 
 
 def test_tick_at_sqrt_ratio_inverts_exactly() -> None:
