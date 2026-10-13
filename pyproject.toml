@@ -13,7 +13,11 @@ dependencies = [
     "polars>=2.0.0",
     "pyarrow>=26.0.0",
     "python-dotenv>=1.2.4",
+    "tzdata>=2026.5",
 ]
+
+[project.scripts]
+ulpe = "uniswap_lp_economics.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.13.0,<0.14.0"]
