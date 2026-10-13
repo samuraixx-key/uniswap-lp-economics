@@ -1,6 +1,7 @@
 """Project-wide constants and settings loaded from .env."""
 
 import os
+from datetime import date
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -19,3 +20,10 @@ ETH_RPC_URL = os.getenv("ETH_RPC_URL")
 
 ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = Path(os.getenv("DATA_DIR", ROOT / "data"))
+
+WINDOW_START = date(2026, 7, 1)
+WINDOW_END = date(2026, 10, 1)  # exclusive
+
+RAW_DIR = DATA_DIR / "raw"
+INTERIM_DIR = DATA_DIR / "interim"
+VALIDATION_DIR = ROOT / "data_validation"
