@@ -62,6 +62,38 @@ def test_burn_is_atomic_when_upper_tick_would_go_negative() -> None:
     assert after == before
 
 
+def snapshot(b: TickBook) -> tuple[object, ...]:
+    return (
+        dict(b.liquidity_gross),
+        dict(b.liquidity_net),
+        b.initialized_ticks(),
+        b.active_liquidity(),
+    )
+
+
+@pytest.mark.parametrize(("lower", "upper"), [(0, 0), (100, -100)])
+def test_mint_and_burn_reject_non_ascending_range(lower: int, upper: int) -> None:
+    b = book_at(0)
+    b.apply_mint(-100, 100, 10)
+    before = snapshot(b)
+    with pytest.raises(ValueError):
+        b.apply_mint(lower, upper, 5)
+    with pytest.raises(ValueError):
+        b.apply_burn(lower, upper, 6)
+    assert snapshot(b) == before
+
+
+def test_mint_and_burn_reject_negative_amount() -> None:
+    b = book_at(0)
+    b.apply_mint(-100, 100, 10)
+    before = snapshot(b)
+    with pytest.raises(ValueError):
+        b.apply_mint(-100, 100, -5)
+    with pytest.raises(ValueError):
+        b.apply_burn(-100, 100, -5)
+    assert snapshot(b) == before
+
+
 def test_zero_amount_burn_is_a_noop() -> None:
     b = book_at(0)
     b.apply_mint(-100, 100, 10)

@@ -6,6 +6,13 @@ from dataclasses import dataclass, field
 import polars as pl
 
 
+def _check_range(tick_lower: int, tick_upper: int, amount: int) -> None:
+    if tick_lower >= tick_upper:
+        raise ValueError(f"tick_lower {tick_lower} must be below tick_upper {tick_upper}")
+    if amount < 0:
+        raise ValueError(f"amount must be non-negative, got {amount}")
+
+
 @dataclass
 class TickBook:
     tick: int
@@ -48,6 +55,7 @@ class TickBook:
         return tick_lower <= self.tick < tick_upper
 
     def apply_mint(self, tick_lower: int, tick_upper: int, amount: int) -> None:
+        _check_range(tick_lower, tick_upper, amount)
         if amount == 0:
             return
         self._update(tick_lower, amount, amount)
@@ -56,6 +64,7 @@ class TickBook:
             self.liquidity += amount
 
     def apply_burn(self, tick_lower: int, tick_upper: int, amount: int) -> None:
+        _check_range(tick_lower, tick_upper, amount)
         if amount == 0:
             return
         for t in (tick_lower, tick_upper):
