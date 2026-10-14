@@ -49,10 +49,10 @@ The window holds 534,377 swaps with a total notional of 7,049,939,044.91 USD
 ## 2. Reference price and time zero
 
 - **Reference.** `P_cex(t)` = price of the last Binance ETHUSDC trade with timestamp at or before
-  `t` (microseconds). When several trades share a microsecond, the reference is an arbitrary one of
-  them: `ulpe build` sorts the trades by timestamp with Polars' default (not order-preserving) sort,
-  and the lookup then takes the last of them in that order. Such trades usually differ by a
-  fraction of a basis point, but not always. Each lookup also stores the reference's age, `t` minus
+  `t` (microseconds). When several trades share a microsecond, the one with the highest Binance
+  aggregated trade ID wins: `ulpe build` sorts the trades by timestamp and then trade ID, and the
+  lookup takes the last of them. Such trades usually differ by a fraction of a basis point, but not
+  always. Each lookup also stores the reference's age, `t` minus
   the time of that trade, in seconds. No order-book data exists for the window, so there is no mid
   price; the last trade stands in for it.
 - **Time zero.** `t0 = block_timestamp`. Ethereum block timestamps are whole seconds; since the
@@ -413,3 +413,18 @@ single/multi-pool scope.
 *Proves:* the matching works (fee-recipient addresses compare correctly, and almost all of the bots'
 internal transfers in these transactions go to the fee recipient). *Does not prove:* that all
 builder payments are seen (see the limitation in section 5).
+
+## Changes in sub-project 3
+
+Sub-project 3 made the Binance reference deterministic. Before, when several trades shared a
+microsecond, the reference was an arbitrary one of them. Now the latest aggregated trade ID wins
+(section 2). It also added two checks to A2: the last block lies within one 12 s slot of the window
+end, and the block series covers the last event. Re-running sub-project 2 with these changes
+(`ulpe build`, `validate`, `analyze`; C1–C6 and A1–A6 all PASS) changed no reported number:
+
+| metric | before | after |
+|---|---|---|
+| any number in `results/` | — | unchanged (largest relative difference 6e-15, from floating-point summation order) |
+
+So the old sort already left same-microsecond trades in trade-ID order in this data. The new rule
+makes that guaranteed rather than incidental.
