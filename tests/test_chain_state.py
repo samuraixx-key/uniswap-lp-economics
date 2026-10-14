@@ -105,14 +105,63 @@ def test_read_position_state_rows(tmp_path: Path) -> None:
     assert df.filter(pl.col("token_id") == 99)["found"].to_list() == [False]
 
 
+DELEGATE = "0x" + "ab" * 20
+DESIGNATOR = "0xef0100" + "ab" * 20
+
+
+def test_parse_code_distinguishes_contracts_wallets_and_7702_delegates() -> None:
+    assert chain_state.parse_code("0x") == (False, None)
+    assert chain_state.parse_code("") == (False, None)
+    assert chain_state.parse_code(DESIGNATOR) == (False, DELEGATE)
+    assert chain_state.parse_code(DESIGNATOR.upper().replace("0X", "0x")) == (False, DELEGATE)
+    assert chain_state.parse_code("0x6080604052") == (True, None)
+    # 23 bytes, but not the 7702 prefix: ordinary bytecode
+    assert chain_state.parse_code("0x" + "60" * 23) == (True, None)
+    # right prefix, wrong length: not a designator
+    assert chain_state.parse_code("0xef0100" + "ab" * 19) == (True, None)
+    assert chain_state.parse_code(DESIGNATOR + "00") == (True, None)
+
+
+class FakeCodes:
+    def __init__(self, codes: dict[str, str]) -> None:
+        self.codes = codes
+        self.code_calls: list[str] = []
+
+    def get_code(self, address: str, block: int) -> str:
+        self.code_calls.append(address)
+        return self.codes[address]
+
+
 def test_owner_code_is_cached(tmp_path: Path) -> None:
     fake = FakePositions()
     a, b = "0x" + "a1" * 20, "0x" + "c0" * 20
     chain_state.fetch_owner_code(fake, tmp_path, [a, b], 9)  # type: ignore[arg-type]
     path = chain_state.fetch_owner_code(fake, tmp_path, [a, b], 9)  # type: ignore[arg-type]
     df = pl.read_parquet(path).sort("address")
-    assert df.rows() == [(a, False), (b, True)]
+    assert df.rows() == [(a, False, None), (b, True, None)]
     assert fake.code_calls == [a, b]  # the second call read nothing
+
+
+def test_owner_code_marks_a_7702_delegated_eoa_as_a_wallet(tmp_path: Path) -> None:
+    eoa, wallet, contract = "0x" + "e0" * 20, "0x" + "a1" * 20, "0x" + "c0" * 20
+    fake = FakeCodes({eoa: DESIGNATOR, wallet: "0x", contract: "0x6080"})
+    path = chain_state.fetch_owner_code(fake, tmp_path, [eoa, wallet, contract], 9)  # type: ignore[arg-type]
+    df = pl.read_parquet(path).sort("address")
+    assert df.rows() == [(wallet, False, None), (contract, True, None), (eoa, False, DELEGATE)]
+
+
+def test_owner_code_refetches_a_cache_without_the_delegate_column(tmp_path: Path) -> None:
+    eoa, contract = "0x" + "e0" * 20, "0x" + "c0" * 20
+    out = tmp_path / chain_state.CHAIN_DIR / chain_state.OWNER_CODE
+    out.parent.mkdir(parents=True)
+    # the old cache called the delegated EOA a contract
+    pl.DataFrame({"address": [eoa, contract], "has_code": [True, True]}).write_parquet(out)
+    fake = FakeCodes({eoa: DESIGNATOR, contract: "0x6080"})
+    path = chain_state.fetch_owner_code(fake, tmp_path, [eoa, contract], 9)  # type: ignore[arg-type]
+    df = pl.read_parquet(path).sort("address")
+    assert df.columns == ["address", "has_code", "eip7702_delegate"]
+    assert df.rows() == [(contract, True, None), (eoa, False, DELEGATE)]
+    assert sorted(fake.code_calls) == [contract, eoa]  # both were read again
 
 
 def test_state_targets_and_window_active() -> None:

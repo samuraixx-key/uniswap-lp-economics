@@ -228,17 +228,46 @@ def fetch_position_state(
     return out
 
 
+EIP7702_PREFIX = "ef0100"
+EIP7702_CODE_HEX_LEN = 46  # 23 bytes: the 3-byte prefix and a 20-byte delegate address
+
+
+def parse_code(code: str) -> tuple[bool, str | None]:
+    """`(has_code, eip7702_delegate)` for the result of `eth_getCode`.
+
+    Since EIP-7702 a delegated EOA has code `0xef0100` + the 20-byte delegate address (23 bytes).
+    It is a user wallet, so it has no contract code; the delegate address is returned instead.
+    """
+    hex_code = code.removeprefix("0x").removeprefix("0X").lower()
+    if not hex_code:
+        return False, None
+    if hex_code.startswith(EIP7702_PREFIX) and len(hex_code) == EIP7702_CODE_HEX_LEN:
+        return False, "0x" + hex_code[len(EIP7702_PREFIX) :]
+    return True, None
+
+
 def fetch_owner_code(client: RpcClient, raw_dir: Path, addresses: list[str], block: int) -> Path:
-    """Whether each address has contract code at `block`; cached, so reruns read only new ones."""
+    """Whether each address has contract code at `block`; cached, so reruns read only new ones.
+
+    `has_code` is False for EOAs, including EIP-7702 delegated ones, whose delegate is recorded in
+    `eip7702_delegate`. A cache written before that column existed is read again in full.
+    """
     out = raw_dir / CHAIN_DIR / OWNER_CODE
     out.parent.mkdir(parents=True, exist_ok=True)
-    schema = {"address": pl.String, "has_code": pl.Boolean}
-    known = pl.read_parquet(out) if out.exists() else pl.DataFrame(schema=schema)
+    schema = {"address": pl.String, "has_code": pl.Boolean, "eip7702_delegate": pl.String}
+    known = pl.DataFrame(schema=schema)
+    if out.exists():
+        cached = pl.read_parquet(out)
+        if "eip7702_delegate" in cached.columns:
+            known = cached.select(list(schema))
+        else:
+            print("owner_code cache has no eip7702_delegate column: reading every address again")
     done = set(known["address"].to_list())
     todo = [a for a in sorted(set(addresses)) if a not in done]
     rows = []
     for i, a in enumerate(todo):
-        rows.append({"address": a, "has_code": client.get_code(a, block) not in ("0x", "")})
+        has_code, delegate = parse_code(client.get_code(a, block))
+        rows.append({"address": a, "has_code": has_code, "eip7702_delegate": delegate})
         if (i + 1) % 500 == 0:
             print(f"  {i + 1}/{len(todo)} owner addresses")
     new = pl.DataFrame(rows, schema=schema)
