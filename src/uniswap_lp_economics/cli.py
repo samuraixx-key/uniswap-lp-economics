@@ -8,7 +8,15 @@ import polars as pl
 
 from uniswap_lp_economics import analyze as analysis
 from uniswap_lp_economics import build, config, flows, snapshot, validate
-from uniswap_lp_economics.data import bigquery, binance, chain_state, history, transfers
+from uniswap_lp_economics.data import (
+    bigquery,
+    binance,
+    builders,
+    chain_state,
+    history,
+    relays,
+    transfers,
+)
 from uniswap_lp_economics.data import blocks as bq_blocks
 from uniswap_lp_economics.io import read_exact, write_exact, write_text_atomic
 from uniswap_lp_economics.lp import analyze as lp_analysis_module
@@ -195,6 +203,11 @@ def main() -> None:
     )
     hist.add_argument("--dry-run", action="store_true", help="only report bytes scanned")
     hist.add_argument("--confirm-cost", action="store_true", help="allow the paid stage-1 query")
+    builders_cmd = sub.add_parser(
+        "fetch-builders", help="aggregated builder revenue and payment tables (BigQuery)"
+    )
+    builders_cmd.add_argument("--dry-run", action="store_true", help="only report bytes scanned")
+    sub.add_parser("fetch-relays", help="relay-reported proposer payments for a block sample")
     sub.add_parser("build", help="decode raw data into interim tables")
     sub.add_parser("validate", help="run checks C1-C6 and write data_validation/validation_report")
     sub.add_parser("analyze", help="run checks A1-A6 and write results/ (tables, charts, summary)")
@@ -232,6 +245,13 @@ def main() -> None:
         history.fetch_history(
             config.RAW_DIR, config.POOL_CREATED, config.WINDOW_END, args.confirm_cost, args.dry_run
         )
+    elif args.command == "fetch-builders":
+        builders.fetch_builders(
+            config.RAW_DIR, config.WINDOW_START, config.WINDOW_END, args.dry_run
+        )
+    elif args.command == "fetch-relays":
+        blocks = pl.read_parquet(config.RAW_DIR / bq_blocks.BLOCKS_FILE)["block_number"]
+        relays.fetch_relay_sample(config.RAW_DIR, int(blocks.min()), int(blocks.max()))  # type: ignore[arg-type]
     elif args.command == "build":
         try:
             build.build_all(config.RAW_DIR, config.INTERIM_DIR)

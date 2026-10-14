@@ -42,3 +42,14 @@ RESULTS_DIR = ROOT / "results"
 VALIDATION_DIR = ROOT / "data_validation"
 LABELS_CSV = ROOT / "labels" / "addresses.csv"
 LP_LABELS_CSV = ROOT / "labels" / "lp_addresses.csv"
+
+# MEV-Boost relays with a public data API (spec D6).
+RELAYS = (
+    "https://boost-relay.flashbots.net",
+    "https://relay.ultrasound.money",
+    "https://bloxroute.max-profit.blxrbdn.com",
+    "https://agnostic-relay.net",
+    "https://aestus.live",
+    "https://titanrelay.xyz",
+)
+N_RELAY_SAMPLES = 1000
