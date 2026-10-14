@@ -62,3 +62,10 @@ def test_add_reference_prices_horizons_and_shift() -> None:
 
 def test_window_end() -> None:
     assert window_end_us() == int(datetime(2026, 10, 1, tzinfo=UTC).timestamp()) * 1_000_000
+
+
+def test_kline_reference_for_one_minute_bars() -> None:
+    k = pl.DataFrame({"ts_us": [0, 60_000_000], "close": [10.0, 11.0]})
+    ref = kline_reference_table(k, bar_s=60)
+    got = reference_at(pl.Series([59_999_999, 60_000_000, 125_000_000]), ref, 10**12)["price"]
+    assert got.to_list() == [None, 10.0, 11.0]

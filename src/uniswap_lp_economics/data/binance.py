@@ -135,3 +135,24 @@ def fetch_cex(months: list[tuple[int, int]], raw_dir: Path) -> list[Path]:
                 out.append(download_verified(url, dest, client))
                 print(f"  ok {dest.name}")
     return out
+
+
+def fetch_price_history(months: list[tuple[int, int]], raw_dir: Path) -> list[Path]:
+    """ETHUSDT 1-minute klines (spec D7): USD prices for deposits made before the window."""
+    out = []
+    with httpx.Client(timeout=120, follow_redirects=True) as client:
+        for year, month in months:
+            url = klines_url("ETHUSDT", "1m", year, month)
+            dest = raw_dir / "binance" / url.rsplit("/", 1)[1]
+            out.append(download_verified(url, dest, client))
+    print(f"  {len(out)} monthly 1-minute files")
+    return out
+
+
+def load_minute_klines(raw_dir: Path) -> pl.DataFrame:
+    files = sorted((raw_dir / "binance").glob("ETHUSDT-1m-*.zip"))
+    if not files:
+        raise FileNotFoundError(
+            f"no ETHUSDT 1-minute klines in {raw_dir / 'binance'}; run `ulpe fetch-price-history`"
+        )
+    return pl.concat([parse_klines_close(p) for p in files]).sort("ts_us")

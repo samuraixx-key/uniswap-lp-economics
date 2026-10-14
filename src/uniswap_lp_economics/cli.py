@@ -178,6 +178,10 @@ def main() -> None:
     sub.add_parser("fetch-snapshot", help="read the full tick book just before the window (RPC)")
     sub.add_parser("fetch-samples", help="read on-chain state at 500 random blocks (RPC)")
     sub.add_parser("fetch-cex", help="download Binance ETHUSDC trades and ETHUSDT 1s klines")
+    sub.add_parser(
+        "fetch-price-history",
+        help="Binance ETHUSDT 1-minute klines since 2021 (for lifetime P&L)",
+    )
     blocks_cmd = sub.add_parser(
         "fetch-blocks", help="download block miners/base fees and top-bot tx logs (BigQuery)"
     )
@@ -208,6 +212,14 @@ def main() -> None:
         fetch_samples()
     elif args.command == "fetch-cex":
         fetch_cex()
+    elif args.command == "fetch-price-history":
+        months = [
+            (d.year, d.month)
+            for d, _ in bigquery.month_windows(
+                date(config.POOL_CREATED.year, config.POOL_CREATED.month, 1), config.WINDOW_START
+            )
+        ]
+        binance.fetch_price_history(months, config.RAW_DIR)
     elif args.command == "fetch-blocks":
         fetch_blocks(args.dry_run)
     elif args.command == "fetch-transfers":

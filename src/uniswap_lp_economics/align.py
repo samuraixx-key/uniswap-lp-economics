@@ -24,9 +24,9 @@ def reference_table(trades: pl.DataFrame) -> pl.DataFrame:
     )
 
 
-def kline_reference_table(klines: pl.DataFrame) -> pl.DataFrame:
-    """ETHUSDT 1s klines as a reference. A bar's close is only known when the bar ends."""
-    return klines.select(ts_us=pl.col("ts_us") + US, price=pl.col("close")).sort("ts_us")
+def kline_reference_table(klines: pl.DataFrame, bar_s: int = 1) -> pl.DataFrame:
+    """ETHUSDT klines as a reference. A bar's close is only known when the bar ends."""
+    return klines.select(ts_us=pl.col("ts_us") + bar_s * US, price=pl.col("close")).sort("ts_us")
 
 
 def reference_at(times_us: pl.Series, ref: pl.DataFrame, end_us: int) -> pl.DataFrame:

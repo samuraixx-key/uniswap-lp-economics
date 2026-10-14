@@ -11,6 +11,7 @@ from uniswap_lp_economics.data.binance import (
     ChecksumError,
     agg_trades_url,
     download_verified,
+    load_minute_klines,
     parse_agg_trades,
     parse_klines_close,
 )
@@ -139,3 +140,8 @@ def test_parse_agg_trades_keeps_the_aggregated_trade_id(tmp_path: Path) -> None:
     assert df.columns[0] == "agg_trade_id"
     assert df["agg_trade_id"].to_list() == [42]
     assert df["agg_trade_id"].dtype == pl.Int64
+
+
+def test_load_minute_klines_names_the_command(tmp_path: Path) -> None:
+    with pytest.raises(FileNotFoundError, match="ulpe fetch-price-history"):
+        load_minute_klines(tmp_path)
