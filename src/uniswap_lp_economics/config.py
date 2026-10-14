@@ -16,6 +16,10 @@ DECIMALS0 = 6  # USDC
 DECIMALS1 = 18  # WETH
 USDC_ADDRESS = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
 WETH_ADDRESS = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+NPM_ADDRESS = "0xc36442b4a4522e871399cd717abdd847ab11fe88"  # NonfungiblePositionManager
+POOL_CREATED = date(2021, 5, 4)
+BLOCK_TIME_S = 12
+LVR_HORIZONS_S = (0, 12)  # 0 s primary, 12 s sensitivity
 
 GCP_PROJECT = os.getenv("GCP_PROJECT", "uniswap-lp-economics")
 ETH_RPC_URL = os.getenv("ETH_RPC_URL")
@@ -37,3 +41,4 @@ PROCESSED_DIR = DATA_DIR / "processed"
 RESULTS_DIR = ROOT / "results"
 VALIDATION_DIR = ROOT / "data_validation"
 LABELS_CSV = ROOT / "labels" / "addresses.csv"
+LP_LABELS_CSV = ROOT / "labels" / "lp_addresses.csv"

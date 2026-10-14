@@ -6,6 +6,7 @@ import pytest
 
 from uniswap_lp_economics import cli, config, rpc
 from uniswap_lp_economics.snapshot import (
+    batched,
     bitmap_word_range,
     find_last_block_before,
     pick_sample_blocks,
@@ -123,3 +124,16 @@ def test_fetch_snapshot_failure_before_meta_leaves_no_skip_marker(
     with pytest.raises(RuntimeError, match="rpc down"):
         cli.fetch_snapshot()
     assert not (tmp_path / "snapshot_meta.json").exists()  # a rerun will redo the snapshot
+
+
+class FailingMulticall:
+    def multicall(self, calls: list[tuple[str, str]], block: int) -> list[str | None]:
+        return ["0x01", None][: len(calls)]
+
+
+def test_batched_raises_on_failed_subcall_unless_allowed() -> None:
+    client = FailingMulticall()
+    calls = [("0x" + "00" * 20, "0x01"), ("0x" + "00" * 20, "0x02")]
+    with pytest.raises(RuntimeError, match="sub-call failed"):
+        batched(client, calls, 1)  # type: ignore[arg-type]
+    assert batched(client, calls, 1, allow_failure=True) == ["0x01", None]  # type: ignore[arg-type]

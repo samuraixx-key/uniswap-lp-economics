@@ -5,7 +5,13 @@ import polars as pl
 import pyarrow.parquet as pq
 import pytest
 
-from uniswap_lp_economics.io import read_exact, write_exact, write_text_atomic
+from uniswap_lp_economics.io import (
+    hex_u256,
+    read_exact,
+    u256_hex,
+    write_exact,
+    write_text_atomic,
+)
 
 BIG = 2**120 + 12_345
 MAX38 = 10**38 - 1  # largest value Decimal(38, 0) holds
@@ -76,3 +82,10 @@ def test_write_text_atomic_writes_utf8_with_lf_newlines(tmp_path: Path) -> None:
     assert path.read_bytes() == text.encode("utf-8")
     assert b"\r" not in path.read_bytes()
     assert list(tmp_path.iterdir()) == [path]
+
+
+def test_u256_hex_round_trip_and_wrap() -> None:
+    assert u256_hex(255) == "0" * 62 + "ff"
+    assert len(u256_hex(2**256 - 1)) == 64
+    assert u256_hex(-1) == "f" * 64  # wraps like uint256
+    assert hex_u256(u256_hex(2**200 + 7)) == 2**200 + 7

@@ -31,18 +31,26 @@ def ticks_in_word(word_pos: int, bitmap: int, spacing: int = TICK_SPACING) -> li
     return [(word_pos * 256 + bit) * spacing for bit in range(256) if bitmap >> bit & 1]
 
 
-def _batched(client: RpcClient, calls: list[tuple[str, str]], block: int) -> list[str]:
-    out: list[str] = []
+def batched(
+    client: RpcClient, calls: list[tuple[str, str]], block: int, allow_failure: bool = False
+) -> list[str | None]:
+    """Multicall in batches of BATCH. A failed sub-call raises, unless allow_failure (then None)."""
+    out: list[str | None] = []
     for i in range(0, len(calls), BATCH):
         for result in client.multicall(calls[i : i + BATCH], block):
-            if result is None:
+            if result is None and not allow_failure:
                 raise RuntimeError(f"multicall sub-call failed at block {block}")
             out.append(result)
     return out
 
 
+def _strict(client: RpcClient, calls: list[tuple[str, str]], block: int) -> list[str]:
+    """batched() for callers that need every result: raises on failure, so no None remains."""
+    return [r for r in batched(client, calls, block) if r is not None]
+
+
 def read_state(client: RpcClient, block: int) -> dict[str, int]:
-    slot0, liquidity = _batched(
+    slot0, liquidity = _strict(
         client, [(POOL_ADDRESS, SLOT0_CALL), (POOL_ADDRESS, LIQUIDITY_CALL)], block
     )
     return {"block": block, **decode_slot0(slot0), "liquidity": decode_uint(liquidity)}
@@ -50,7 +58,7 @@ def read_state(client: RpcClient, block: int) -> dict[str, int]:
 
 def read_initialized_ticks(client: RpcClient, block: int, word_range: range) -> list[int]:
     words = list(word_range)
-    results = _batched(client, [(POOL_ADDRESS, tick_bitmap_call(w)) for w in words], block)
+    results = _strict(client, [(POOL_ADDRESS, tick_bitmap_call(w)) for w in words], block)
     ticks: list[int] = []
     for w, result in zip(words, results, strict=True):
         ticks.extend(ticks_in_word(w, decode_uint(result)))
@@ -58,7 +66,7 @@ def read_initialized_ticks(client: RpcClient, block: int, word_range: range) -> 
 
 
 def read_ticks(client: RpcClient, block: int, ticks: list[int]) -> pl.DataFrame:
-    results = _batched(client, [(POOL_ADDRESS, ticks_call(t)) for t in ticks], block)
+    results = _strict(client, [(POOL_ADDRESS, ticks_call(t)) for t in ticks], block)
     rows = []
     for t, result in zip(ticks, results, strict=True):
         gross, net, initialized = decode_ticks(result)

@@ -23,6 +23,10 @@ SLOT0_CALL = abi.selector("slot0()")
 LIQUIDITY_CALL = abi.selector("liquidity()")
 _TICK_BITMAP = abi.selector("tickBitmap(int16)")
 _TICKS = abi.selector("ticks(int24)")
+FEE_GROWTH_GLOBAL0_CALL = abi.selector("feeGrowthGlobal0X128()")
+FEE_GROWTH_GLOBAL1_CALL = abi.selector("feeGrowthGlobal1X128()")
+_POSITIONS = abi.selector("positions(bytes32)")
+_NPM_POSITIONS = abi.selector("positions(uint256)")
 
 
 class RpcError(RuntimeError):
@@ -92,6 +96,10 @@ class RpcClient:
 
     def eth_call(self, to: str, data: str, block: int) -> str:
         result: str = self.request("eth_call", [{"to": to, "data": data}, hex(block)])
+        return result
+
+    def get_code(self, address: str, block: int) -> str:
+        result: str = self.request("eth_getCode", [address, hex(block)])
         return result
 
     def multicall(self, calls: list[tuple[str, str]], block: int) -> list[str | None]:
@@ -166,3 +174,55 @@ def decode_slot0(result: str) -> dict[str, int]:
 def decode_ticks(result: str) -> tuple[int, int, bool]:
     w = abi.words(result)
     return abi.to_uint(w[0]), abi.to_int(w[1]), abi.to_uint(w[7]) == 1
+
+
+def decode_tick_fees(result: str) -> tuple[int, int]:
+    """feeGrowthOutside0X128 and feeGrowthOutside1X128 from a ticks(int24) result."""
+    w = abi.words(result)
+    return abi.to_uint(w[2]), abi.to_uint(w[3])
+
+
+def position_key(owner: str, tick_lower: int, tick_upper: int) -> str:
+    """PositionKey.compute: keccak256(abi.encodePacked(owner, int24 tickLower, int24 tickUpper))."""
+    packed = (
+        bytes.fromhex(owner[2:])
+        + (tick_lower % 2**24).to_bytes(3, "big")
+        + (tick_upper % 2**24).to_bytes(3, "big")
+    )
+    return "0x" + abi.keccak256(packed).hex()
+
+
+def pool_positions_call(key: str) -> str:
+    return _POSITIONS + key[2:]
+
+
+def decode_pool_position(result: str) -> dict[str, int]:
+    w = abi.words(result)
+    return {
+        "liquidity": abi.to_uint(w[0]),
+        "fee_growth_inside0_last": abi.to_uint(w[1]),
+        "fee_growth_inside1_last": abi.to_uint(w[2]),
+        "tokens_owed0": abi.to_uint(w[3]),
+        "tokens_owed1": abi.to_uint(w[4]),
+    }
+
+
+def npm_positions_call(token_id: int) -> str:
+    return _NPM_POSITIONS + abi.enc_uint(token_id)
+
+
+def decode_npm_position(result: str) -> dict[str, Any]:
+    """NonfungiblePositionManager.positions(tokenId), without nonce and operator."""
+    w = abi.words(result)
+    return {
+        "token0": abi.to_addr(w[2]),
+        "token1": abi.to_addr(w[3]),
+        "fee": abi.to_uint(w[4]),
+        "tick_lower": abi.to_int(w[5]),
+        "tick_upper": abi.to_int(w[6]),
+        "liquidity": abi.to_uint(w[7]),
+        "fee_growth_inside0_last": abi.to_uint(w[8]),
+        "fee_growth_inside1_last": abi.to_uint(w[9]),
+        "tokens_owed0": abi.to_uint(w[10]),
+        "tokens_owed1": abi.to_uint(w[11]),
+    }

@@ -6,13 +6,18 @@ import httpx
 import pytest
 
 from uniswap_lp_economics import abi
+from uniswap_lp_economics.abi import keccak256
 from uniswap_lp_economics.rpc import (
     RpcClient,
     RpcError,
     decode_aggregate3,
+    decode_npm_position,
+    decode_pool_position,
     decode_slot0,
+    decode_tick_fees,
     decode_ticks,
     encode_aggregate3,
+    position_key,
 )
 
 URL = "https://example.invalid/v2/SECRETKEY"
@@ -195,3 +200,47 @@ def test_live_multicall_slot0() -> None:
     slot0, liq = c.multicall([(POOL_ADDRESS, SLOT0_CALL), (POOL_ADDRESS, LIQUIDITY_CALL)], block)
     assert slot0 is not None and liq is not None
     assert decode_slot0(slot0)["sqrt_price_x96"] > 0 and decode_uint(liq) > 0
+
+
+def words_hex(values: list[int]) -> str:
+    return "0x" + "".join(abi.enc_int(v) for v in values)
+
+
+def test_decode_tick_fees_reads_words_2_and_3() -> None:
+    result = words_hex([5, -3, 2**200, 7, 0, 0, 0, 1])
+    assert decode_tick_fees(result) == (2**200, 7)
+
+
+def test_position_key_packs_int24_ticks_as_twos_complement() -> None:
+    owner = "0x" + "11" * 20
+    packed = bytes.fromhex("11" * 20) + bytes.fromhex("fffff6") + bytes.fromhex("00000a")
+    assert position_key(owner, -10, 10) == "0x" + keccak256(packed).hex()
+
+
+def test_decode_pool_and_npm_positions() -> None:
+    pool = decode_pool_position(words_hex([10**18, 2**250, 3, 4, 5]))
+    assert pool == {
+        "liquidity": 10**18,
+        "fee_growth_inside0_last": 2**250,
+        "fee_growth_inside1_last": 3,
+        "tokens_owed0": 4,
+        "tokens_owed1": 5,
+    }
+    usdc, weth = int("a0" * 20, 16), int("c0" * 20, 16)
+    npm = decode_npm_position(words_hex([0, 0, usdc, weth, 500, -200, 300, 9, 10, 11, 12, 13]))
+    assert npm["token0"] == "0x" + "a0" * 20 and npm["fee"] == 500
+    assert (npm["tick_lower"], npm["tick_upper"], npm["liquidity"]) == (-200, 300, 9)
+    assert (npm["tokens_owed0"], npm["tokens_owed1"]) == (12, 13)
+
+
+def test_get_code() -> None:
+    seen: list[dict[str, object]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(json.loads(request.content))
+        return httpx.Response(200, json={"jsonrpc": "2.0", "id": 1, "result": "0x6080"})
+
+    c = RpcClient(URL, transport=httpx.MockTransport(handler), backoff_s=0)
+    assert c.get_code("0x" + "ab" * 20, 5) == "0x6080"
+    assert seen[0]["method"] == "eth_getCode"
+    assert seen[0]["params"] == ["0x" + "ab" * 20, "0x5"]

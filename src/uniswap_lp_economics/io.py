@@ -34,3 +34,15 @@ def write_text_atomic(path: Path, text: str) -> None:
     part = path.with_name(path.name + ".part")
     part.write_text(text, encoding="utf-8", newline="\n")  # same bytes on every platform
     part.replace(path)
+
+
+U256 = 2**256
+
+
+def u256_hex(value: int) -> str:
+    """A uint256 (wrapped modulo 2^256) as 64 lowercase hex chars, for storing on disk."""
+    return f"{value % U256:064x}"
+
+
+def hex_u256(text: str) -> int:
+    return int(text, 16)
