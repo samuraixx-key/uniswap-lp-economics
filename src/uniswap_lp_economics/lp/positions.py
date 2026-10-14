@@ -71,6 +71,9 @@ class LedgerData:
     # (block_number, log_index) of zero collects on direct keys that were never minted: the pool
     # contract emits Collect(0, 0) for any key, so these are no-ops with no position and no flow.
     noop_collects: set[tuple[int, int]] = field(default_factory=set)
+    # (token_id, block_number, log_index, d0, d1) of NPM collects whose pool Collect paid less than
+    # the NPM event's requested amounts (d = NPM - pool); the flow keeps the NPM amounts.
+    collect_shortfalls: list[tuple[int, int, int, int, int]] = field(default_factory=list)
 
 
 def _rows(df: pl.DataFrame, source: str, columns: list[str]) -> list[dict[str, Any]]:
@@ -122,6 +125,7 @@ def build_positions(
     owners: dict[int, list[tuple[int, int, str]]] = {}
     pool_event_position: dict[tuple[int, int], str] = {}
     noop_collects: set[tuple[int, int]] = set()
+    collect_shortfalls: list[tuple[int, int, int, int, int]] = []
     pending: list[dict[str, Any]] = []
     current_tx: str | None = None
 
@@ -267,15 +271,21 @@ def build_positions(
             if poke is None:
                 raise ValueError(f"Collect of token {tid} at {where(r)} has no poke Burn")
             pool_event_position[(poke["block_number"], poke["log_index"])] = pos.position_id
+        # The NPM event carries the requested amounts min(amountMax, token owed); the pool pays
+        # min(requested, the key's owed), which may be a raw unit or so lower.
         c = take(
             lambda c: (
                 c["event"] == "collect"
                 and same_range(pos)(c)
-                and (c["amount0"], c["amount1"]) == (r["amount0"], r["amount1"])
+                and c["amount0"] <= r["amount0"]
+                and c["amount1"] <= r["amount1"]
             )
         )
         if c is None:
             raise ValueError(f"Collect of token {tid} at {where(r)} has no pool Collect")
+        d0, d1 = r["amount0"] - c["amount0"], r["amount1"] - c["amount1"]
+        if d0 or d1:
+            collect_shortfalls.append((tid, r["block_number"], r["log_index"], d0, d1))
         flow(pos, r, "collect", 0, c["log_index"])
         pool_event_position[(c["block_number"], c["log_index"])] = pos.position_id
 
@@ -322,6 +332,7 @@ def build_positions(
         pool_event_position=pool_event_position,
         token_position={tid: pos.position_id for tid, pos in tokens.items()},
         noop_collects=noop_collects,
+        collect_shortfalls=collect_shortfalls,
     )
 
 

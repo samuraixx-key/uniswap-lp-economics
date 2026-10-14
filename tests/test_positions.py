@@ -229,3 +229,76 @@ def test_l7_passes_with_noop_collects_and_counts_them() -> None:
     # a window event unknown to the ledger is still unassigned
     stray = pool.vstack(pl.DataFrame([p(3, 0, "mint", BOB, L, 1, 1)], schema=POOL_SCHEMA))
     assert not check_l7(stray, stray, data).passed
+
+
+def drained_nft(token: int, mint_block: int, burn_block: int, liq: int) -> tuple[list, list]:
+    pool = [
+        p(mint_block, 0, "mint", NPM_ADDRESS, liq, 1, 1),
+        p(burn_block, 0, "burn", NPM_ADDRESS, liq, 1, 1),
+    ]
+    npm = [
+        n(mint_block, 1, "increase", token, liq, 1, 1),
+        n(burn_block, 1, "decrease", token, liq, 1, 1),
+    ]
+    return pool, npm
+
+
+def test_npm_collect_matches_a_pool_collect_paying_slightly_less() -> None:
+    pool, npm = drained_nft(5, 1, 2, L)
+    pool.append(p(3, 0, "collect", NPM_ADDRESS, 0, 99, 199))
+    npm.append(n(3, 1, "npm_collect", 5, None, 100, 200))
+    data = build_positions(
+        pl.DataFrame(pool, schema=POOL_SCHEMA), pl.DataFrame(npm, schema=NPM_SCHEMA)
+    )
+    assert data.collect_shortfalls == [(5, 3, 1, 1, 1)]
+    collect = data.flows.filter(pl.col("event") == "collect").row(0, named=True)
+    assert (collect["amount0"], collect["amount1"]) == (100, 200)  # the NPM's own amounts
+    assert data.pool_event_position[(3, 0)] == "nft:5"
+
+
+def test_exact_npm_collect_records_no_shortfall() -> None:
+    pool, npm = drained_nft(5, 1, 2, L)
+    pool.append(p(3, 0, "collect", NPM_ADDRESS, 0, 100, 200))
+    npm.append(n(3, 1, "npm_collect", 5, None, 100, 200))
+    data = build_positions(
+        pl.DataFrame(pool, schema=POOL_SCHEMA), pl.DataFrame(npm, schema=NPM_SCHEMA)
+    )
+    assert data.collect_shortfalls == []
+
+
+def test_pool_collect_above_the_npm_amounts_still_raises() -> None:
+    for a0, a1 in ((101, 200), (100, 201)):
+        pool, npm = drained_nft(5, 1, 2, L)
+        pool.append(p(3, 0, "collect", NPM_ADDRESS, 0, a0, a1))
+        npm.append(n(3, 1, "npm_collect", 5, None, 100, 200))
+        with pytest.raises(ValueError, match="has no pool Collect"):
+            build_positions(
+                pl.DataFrame(pool, schema=POOL_SCHEMA), pl.DataFrame(npm, schema=NPM_SCHEMA)
+            )
+
+
+def test_two_tokens_on_one_range_collected_in_one_tx_match_in_log_order() -> None:
+    pool_a, npm_a = drained_nft(5, 1, 3, L)
+    pool_b, npm_b = drained_nft(6, 2, 4, 2 * L)
+    pool = (
+        pool_a
+        + pool_b
+        + [
+            p(5, 0, "collect", NPM_ADDRESS, 0, 10, 20),
+            p(5, 2, "collect", NPM_ADDRESS, 0, 29, 40),
+        ]
+    )
+    npm = (
+        npm_a
+        + npm_b
+        + [
+            n(5, 1, "npm_collect", 5, None, 10, 20),
+            n(5, 3, "npm_collect", 6, None, 30, 40),
+        ]
+    )
+    data = build_positions(
+        pl.DataFrame(pool, schema=POOL_SCHEMA), pl.DataFrame(npm, schema=NPM_SCHEMA)
+    )
+    assert data.pool_event_position[(5, 0)] == "nft:5"
+    assert data.pool_event_position[(5, 2)] == "nft:6"
+    assert data.collect_shortfalls == [(6, 5, 3, 1, 0)]
