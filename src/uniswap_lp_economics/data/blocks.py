@@ -10,6 +10,7 @@ from google.cloud import bigquery
 
 from uniswap_lp_economics.config import GCP_PROJECT, POOL_ADDRESS, USDC_ADDRESS, WETH_ADDRESS
 from uniswap_lp_economics.data.bigquery import DATASET, MAX_GB_BILLED
+from uniswap_lp_economics.io import write_exact, write_text_atomic
 
 _ADDRESS = re.compile(r"^0x[0-9a-f]{40}$")
 BLOCKS_FILE = "blocks.parquet"
@@ -71,13 +72,6 @@ def _run(query: str, dry_run: bool) -> pl.DataFrame | None:
     return df
 
 
-def _write(df: pl.DataFrame, path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    part = path.with_name(path.name + ".part")
-    df.write_parquet(part)
-    part.replace(path)
-
-
 def fetch_blocks(raw_dir: Path, start: date, end: date, dry_run: bool = False) -> Path | None:
     print(f"blocks {start} -> {end}:")
     df = _run(build_blocks_query(start, end), dry_run)
@@ -89,7 +83,8 @@ def fetch_blocks(raw_dir: Path, start: date, end: date, dry_run: bool = False) -
         pl.col("base_fee_per_gas").cast(pl.Int64),
     )
     out = raw_dir / BLOCKS_FILE
-    _write(df, out)
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    write_exact(df, out)
     print(f"  wrote {df.height:,} blocks to {out}")
     return out
 
@@ -103,12 +98,10 @@ def fetch_bot_tx_logs(
         return None
     df = df.with_columns(pl.col("other_logs").cast(pl.Int64), pl.col("logs").cast(pl.Int64))
     out = raw_dir / OTHER_LOGS_FILE
-    _write(df, out)
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    write_exact(df, out)
     # The bot list is the freshness marker, so it is written last.
-    meta = raw_dir / OTHER_LOGS_META
-    part = meta.with_name(meta.name + ".part")
-    part.write_text(json.dumps({"bots": sorted(bots)}, indent=2))
-    part.replace(meta)
+    write_text_atomic(raw_dir / OTHER_LOGS_META, json.dumps({"bots": sorted(bots)}, indent=2))
     print(f"  wrote {df.height:,} transactions to {out}")
     return out
 
