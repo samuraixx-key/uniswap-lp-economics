@@ -651,6 +651,8 @@ exact-input only. Plus a helper that re-simulates a historical swap for check A1
 
 Create `tests/test_v3swap.py`:
 
+> **Note:** the `swap_check_ok` tests below predate the two amendments of Ruling 2 made during implementation; the Rulings section is authoritative.
+
 ```python
 import random
 
@@ -822,6 +824,8 @@ Expected: FAIL (no module `v3swap`).
 - [ ] **Step 3: Implement**
 
 Create `src/uniswap_lp_economics/v3swap.py`:
+
+> **Note:** the `SwapCheck` / `swap_check_ok` code below predates the two amendments of Ruling 2 made during implementation; the Rulings section is authoritative.
 
 ```python
 """Exact-integer Uniswap V3 swap simulation over a TickBook (exact input only).

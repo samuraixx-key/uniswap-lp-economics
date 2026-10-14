@@ -21,8 +21,10 @@ and payments to block builders?
 1. **Searchers win against the pool; flow through Uniswap's routers loses the most.** Trader
    markout at the block time (0 s) against Binance, notional-weighted, after the 0.05% swap fee:
    searchers (contracts that call the pool directly from transactions sent to them, typically
-   bots; 75% of notional) **+2.86 bp** (95% day-bootstrap interval 2.38 to 3.50), +3.58 bp at 12 s; Uniswap-router flow
-   **-10.66 bp** (-11.28 to -10.01); aggregators -6.76 bp; other contracts -4.35 bp.
+   bots; 75% of notional) **+2.86 bp** (95% day-bootstrap interval 2.38 to 3.50), +3.58 bp at
+   12 s, while the median searcher swap is -0.57 bp (the notional-weighted mean is carried by larger
+   swaps); Uniswap-router flow **-10.66 bp** (-11.28 to -10.01); aggregators -6.76 bp; other
+   contracts -4.35 bp.
    *Caveat:* the reference is Binance's last trade at the block timestamp, and the searchers' 0 s
    edge moves with that choice (1.80 bp with t0 − 2 s, 3.34 bp against ETHUSDT). Every label keeps
    its sign in all four variants up to 5 minutes; at 1 h the intervals widen a lot. Markouts include
@@ -42,8 +44,10 @@ and payments to block builders?
    $1.22M gross at 0 s and paid $1.40M to block builders (priority fees $0.54M, direct coinbase
    payments $0.86M; base fee burned $7.8k): builder income is 115% of gross, and "kept" is
    -$0.19M.
-   *Caveat:* this does not mean the bots lose money. Gross is measured against Binance's last trade
-   at the block timestamp; the bots' own hedge price and timing are not observed, and the edge
+   *Caveat:* this does not mean the bots lose money. "Kept" is a small difference of large totals
+   and its sign depends on the horizon: with the same costs, kept is −$0.19M at the 0 s markout and
+   +$0.06M at 12 s (builder income 115% vs 95% of gross). Gross is measured against Binance's last
+   trade at the block timestamp; the bots' own hedge price and timing are not observed, and the edge
    depends on t0 (searchers: 1.80 bp at t0 − 2 s, 2.86 bp at t0, 3.58 bp at 12 s). Binance-side
    fees, inventory and hedging are not observed either. Builder payments routed elsewhere are
    missed, which would make "kept" lower still: that is what "upper bound" means in the
@@ -146,7 +150,8 @@ about 2e-11 USD).
 Chart 1 shows which flow wins against the pool and how that changes from the block time to 1 h
 later. Mean trader markout in bp of notional, with the 95% day-bootstrap interval, from
 [`results/markouts.md`](results/markouts.md) (swap counts at 0 s; notional share from
-[`results/labels_coverage.md`](results/labels_coverage.md)):
+[`results/labels_coverage.md`](results/labels_coverage.md), which rounds intent settlement's 0.005
+to 0.00; the unrounded share is in `summary.json`, `label_coverage`):
 
 | Flow label | Swaps | Notional share | 0 s | 12 s | 60 s | 300 s | 3,600 s |
 |---|---|---|---|---|---|---|---|
@@ -154,7 +159,7 @@ later. Mean trader markout in bp of notional, with the 95% day-bootstrap interva
 | uniswap_router | 167,988 | 0.12 | -10.66 [-11.28, -10.01] | -10.49 [-11.18, -9.77] | -10.53 [-11.21, -9.83] | -10.95 [-11.93, -9.96] | -15.53 [-24.62, -9.01] |
 | other_contract | 91,722 | 0.11 | -4.35 [-5.29, -3.46] | -4.50 [-5.57, -3.57] | -4.58 [-5.87, -3.50] | -4.74 [-5.91, -3.47] | -5.72 [-8.54, -2.77] |
 | aggregator | 17,822 | 0.02 | -6.76 [-7.89, -5.85] | -6.54 [-7.49, -5.71] | -6.72 [-7.76, -5.85] | -6.96 [-8.18, -5.77] | -6.98 [-10.07, -4.03] |
-| intent_settlement | 3,565 | 0.00 | -5.11 [-7.25, -3.25] | -4.21 [-5.98, -2.62] | -4.19 [-6.43, -2.23] | -3.33 [-6.45, -0.35] | 0.55 [-11.20, 14.49] |
+| intent_settlement | 3,565 | 0.005 | -5.11 [-7.25, -3.25] | -4.21 [-5.98, -2.62] | -4.19 [-6.43, -2.23] | -3.33 [-6.45, -0.35] | 0.55 [-11.20, 14.49] |
 | all swaps | 534,377 | | 0.25 [-0.14, 0.77] | 0.80 [0.30, 1.48] | 1.04 [0.26, 2.20] | 0.87 [0.03, 2.06] | 2.39 [-0.72, 7.69] |
 
 - **Size matters** (`flow_label_x_size` rows, 0 s). Searcher swaps of $100k or more: +6.20 bp
@@ -238,6 +243,8 @@ after gas and builder payments, in USD millions.* From
 | − priority fees | 0.54 |
 | − direct coinbase payments | 0.86 |
 | = kept (upper bound) | -0.19 |
+| Same costs against the 12 s markout: gross | 1.47 |
+| = kept at 12 s (upper bound) | 0.06 |
 
 Captured is 0.8281 of available, but it is not a subset of it: it also counts searchers trading
 after other swaps in the same block and searcher strategies other than CEX-DEX arbitrage, and on
@@ -261,7 +268,9 @@ some days it exceeds available. Top bots, TOTAL row of
 
 Read "kept" with the caveats in the TL;DR: gross is the edge measured against Binance's last trade
 at the block time, not the bots' realised hedge, and missed builder payments would lower "kept"
-further (see [Limitations](#limitations)).
+further (see [Limitations](#limitations)). Its sign depends on the horizon: kept is −$0.19M at the
+0 s markout and +$0.06M at 12 s (builder income 115% vs 95% of gross; `kept_usd` and
+`kept_12s_usd` in [`results/arbitrage.md`](results/arbitrage.md)).
 
 ![Gross and kept per top bot contract](results/figures/6_bot_gross_vs_kept.png)
 

@@ -72,7 +72,7 @@ results/                       NEW  (committed)
 docs/methodology.md            NEW  (committed) every definition in sections 5–7
 ```
 
-The window covers blocks 25,433,939–26,093,736 (659,798 blocks). `blocks.parquet` must contain every
+The window covers blocks 25,433,939–26,093,737 (659,799 blocks). `blocks.parquet` must contain every
 one of them.
 
 ## 4. Components

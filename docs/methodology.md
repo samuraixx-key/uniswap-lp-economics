@@ -49,9 +49,12 @@ The window holds 534,377 swaps with a total notional of 7,049,939,044.91 USD
 ## 2. Reference price and time zero
 
 - **Reference.** `P_cex(t)` = price of the last Binance ETHUSDC trade with timestamp at or before
-  `t` (microseconds). When several trades share a microsecond, the last one in file order is used.
-  Each lookup also stores the reference's age, `t` minus the time of that trade, in seconds. No
-  order-book data exists for the window, so there is no mid price; the last trade stands in for it.
+  `t` (microseconds). When several trades share a microsecond, the reference is an arbitrary one of
+  them: `ulpe build` sorts the trades by timestamp with Polars' default (not order-preserving) sort,
+  and the lookup then takes the last of them in that order. Such trades usually differ by a
+  fraction of a basis point, but not always. Each lookup also stores the reference's age, `t` minus
+  the time of that trade, in seconds. No order-book data exists for the window, so there is no mid
+  price; the last trade stands in for it.
 - **Time zero.** `t0 = block_timestamp`. Ethereum block timestamps are whole seconds; since the
   Merge, a block's timestamp is the start of its 12-second slot, and its contents are fixed close
   to that time. The bots' actual decision and hedge times are not observed, so `t0` is a
@@ -211,15 +214,26 @@ builder_share_of_gross = builder income / gross
 
 Multi-pool transactions are reported gross only (`multi_pool_swaps`, `multi_pool_gross_usd`): their
 costs also pay for trades in other pools and cannot be split per pool. `txs_with_coinbase` counts
-single-pool transactions that carry a coinbase payment.
+single-pool transactions that carry a coinbase payment; `share_txs_with_coinbase` =
+`txs_with_coinbase / txs` (null when `txs` is 0).
+
+The net ratio reported (`kept_over_top_bot_gross` in
+[`results/arbitrage.md`](../results/arbitrage.md), and `kept_over_top_bot_gross_12s` against the
+12 s markout) is `kept / top-bot single-pool gross`: numerator and denominator cover the same
+transactions. The spec's `kept / captured` would divide the top bots' single-pool result by all
+searchers' 0 s markouts, mixing two populations, so it is not reported.
 
 Required limitation text (also in the README, `results/arbitrage.md` and `results/bot_profit.md`):
 
 > Builder payments are detected only as direct ETH transfers from the bot contract to the block's fee recipient within the same transaction. Payments routed elsewhere (another contract, a separate transaction in the bundle, off-chain agreements) are missed, so the reported net profit is an **upper bound** on what the bots keep. Binance-side trading fees, inventory and hedging costs are not observed.
 
 How to read `kept`. Gross is the 0 s markout: the swap valued at Binance's last trade at the block
-timestamp. That is the edge measurable at block time, not the bots' realised hedge. A negative
-`kept` therefore does not show that the bots lose money:
+timestamp. That is the edge measurable at block time, not the bots' realised hedge. `kept` is a
+small difference of large totals, so its sign depends on the horizon: with the same costs, `kept`
+is −$0.19M at the 0 s markout and +$0.06M at 12 s (builder income 115% vs 95% of gross; gross
+$1.22M vs $1.47M; `kept_usd` and `kept_12s_usd` in
+[`results/arbitrage.md`](../results/arbitrage.md)). A negative `kept` therefore does not show that
+the bots lose money:
 
 1. The bots' own hedge price and timing are not observed, and the measured edge depends on `t0`:
    the searcher 0 s markout is 1.80 bp with `t0 − 2 s`, 2.86 bp at `t0` and 3.58 bp at 12 s.
