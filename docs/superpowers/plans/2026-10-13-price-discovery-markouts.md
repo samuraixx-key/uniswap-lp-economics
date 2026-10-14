@@ -74,6 +74,11 @@ starting. The spec was amended together with this plan (see "Rulings" below).
    reference prices, markouts and costs into `aligned.parquet`.
 6. **Reference coverage (A4) uses the data end, not the last trade:** a reference at time `t` is null
    when `t` is at or after the window end (2026-10-01 00:00 UTC) or before the first reference point.
+7. **Kept ratio (spec 6.5), added after the real-data run.** `arbitrage.md` reports
+   `kept / top-bot single-pool gross` instead of `kept / captured`. Kept covers only the top bots'
+   single-pool transactions, while captured covers every searcher swap, so the spec's ratio would
+   divide two different populations. Both are reported at 0 s and 12 s, since kept's sign depends on
+   the horizon. `captured / available` is reported as specified.
 
 ## Review Focus
 

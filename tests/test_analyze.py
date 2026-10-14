@@ -1,11 +1,12 @@
 import json
+import sys
 from pathlib import Path
 
 import polars as pl
 import pytest
 
 from uniswap_lp_economics import analyze as analysis
-from uniswap_lp_economics import config, flows
+from uniswap_lp_economics import cli, config, flows
 from uniswap_lp_economics.build import build_swaps
 from uniswap_lp_economics.data.transfers import TRANSFER_SCHEMA
 from uniswap_lp_economics.io import read_exact, write_exact
@@ -143,3 +144,13 @@ def test_load_inputs_names_the_missing_fetch(tmp_path: Path) -> None:
     write_exact(swaps, interim / "swaps.parquet")
     with pytest.raises(FileNotFoundError, match="ulpe fetch-blocks"):
         analysis.load_inputs(raw, interim, config.LABELS_CSV)
+
+
+def test_cli_analyze_turns_value_error_into_clean_exit(monkeypatch: pytest.MonkeyPatch) -> None:
+    def bad_labels() -> str:
+        raise ValueError("labels/addresses.csv: bad address in row 3")
+
+    monkeypatch.setattr(analysis, "run_analysis", bad_labels)
+    monkeypatch.setattr(sys, "argv", ["ulpe", "analyze"])
+    with pytest.raises(SystemExit, match="bad address in row 3"):
+        cli.main()

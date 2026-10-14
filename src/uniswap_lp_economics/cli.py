@@ -178,7 +178,7 @@ def main() -> None:
     elif args.command == "analyze":
         try:
             status = analysis.run_analysis()
-        except (FileNotFoundError, RuntimeError) as e:
+        except (FileNotFoundError, RuntimeError, ValueError) as e:
             raise SystemExit(str(e)) from e
         raise SystemExit(0 if status == "PASS" else 1)
     elif args.command == "all":

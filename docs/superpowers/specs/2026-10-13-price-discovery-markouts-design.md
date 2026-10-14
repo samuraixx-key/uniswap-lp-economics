@@ -206,7 +206,9 @@ half-life `= ln(0.5) / ln(φ)` blocks, and in seconds using the median block int
   Binance trading fee. Sensitivity: the same with a 1 bp Binance fee (target band widened by 1 bp).
 - **Captured:** sum of 0s trader markouts of `searcher` swaps in the same block.
 - Outputs (`arbitrage.md`): window totals, daily series, and the ratios captured/available and
-  kept/captured (kept from section 5.5, single-pool top-bot transactions).
+  kept / top-bot single-pool gross, at 0 s and 12 s (kept from section 5.5, single-pool top-bot
+  transactions). Amended by plan Ruling 7: the original `kept/captured` divided the top bots'
+  single-pool result by all searcher swaps, two different populations.
 
 ## 7. Analysis checks
 

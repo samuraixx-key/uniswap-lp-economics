@@ -13,7 +13,7 @@ import polars as pl
 
 from uniswap_lp_economics import config
 from uniswap_lp_economics.build import load_snapshot_meta
-from uniswap_lp_economics.io import read_exact
+from uniswap_lp_economics.io import read_exact, write_text_atomic
 from uniswap_lp_economics.replay import apply_event, iter_event_rows, required
 from uniswap_lp_economics.tickbook import TickBook
 from uniswap_lp_economics.v3math import get_sqrt_ratio_at_tick, get_tick_at_sqrt_ratio
@@ -288,7 +288,7 @@ def write_report(
             for r in results
         ],
     }
-    (out_dir / f"{stem}.json").write_text(json.dumps(body, indent=2, default=str))
+    write_text_atomic(out_dir / f"{stem}.json", json.dumps(body, indent=2, default=str))
     lines = [f"# {title}: **{status}**", ""]
     lines += [f"- {k}: `{v}`" for k, v in extra.items()]
     lines += ["", "| Check | Result | Summary |", "|---|---|---|"]
@@ -308,7 +308,7 @@ def write_report(
                 *map(str, r.mismatches),
                 "```",
             ]
-    (out_dir / f"{stem}.md").write_text("\n".join(lines) + "\n")
+    write_text_atomic(out_dir / f"{stem}.md", "\n".join(lines) + "\n")
     return status
 
 

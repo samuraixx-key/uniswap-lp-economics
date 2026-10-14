@@ -181,7 +181,9 @@ to 0.00; the unrounded share is in `summary.json`, `label_coverage`):
   | intent_settlement | -5.11 | -5.66 | -5.07 | -5.32 |
 
   In every variant, every label's interval excludes zero at every horizon, except intent settlement
-  at 1 h, whose sign also flips in one variant. Moving t0 back 2 s lowers the searchers' 0 s edge
+  at 1 h, whose sign also flips in one variant. The ETHUSDT column also carries the USDT/USDC rate,
+  so part of its difference from the primary column is the quote currency, not the reference
+  timing. Moving t0 back 2 s lowers the searchers' 0 s edge
   from 2.86 to 1.80 bp but leaves 12 s almost unchanged (3.57 against 3.58).
 
 ### Basis and gap episodes (charts 2 and 3)
