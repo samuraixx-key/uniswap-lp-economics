@@ -1183,5 +1183,396 @@
       "notional_share": 0.004981250975320495
     }
   ],
-  "limitation": "Builder payments are detected only as direct ETH transfers from the bot contract to the block's fee recipient within the same transaction. Payments routed elsewhere (another contract, a separate transaction in the bundle, off-chain agreements) are missed, so the reported net profit is an **upper bound** on what the bots keep. Binance-side trading fees, inventory and hedging costs are not observed."
+  "limitation": "Builder payments are detected only as direct ETH transfers from the bot contract to the block's fee recipient within the same transaction. Payments routed elsewhere (another contract, a separate transaction in the bundle, off-chain agreements) are missed, so the reported net profit is an **upper bound** on what the bots keep. Binance-side trading fees, inventory and hedging costs are not observed.",
+  "lp": {
+    "generated_utc": "2026-10-14T21:21:13+00:00",
+    "git_commit": "7793710-dirty",
+    "lp_fees_usd": 2644187.170867051,
+    "protocol_fees_usd": 881290.1311692027,
+    "lvr_0_usd": 3703796.759283188,
+    "lvr_12_usd": 4089325.48656422,
+    "lvr_0_searcher_usd": 4144118.0033720457,
+    "lp_fees_searcher_usd": 1976144.8451833571,
+    "theory_1s_usd": 3158845.5113047687,
+    "theory_1m_usd": 4333659.236499247,
+    "theory_arb_usd": 933257.671702508,
+    "theory_arb_fees_usd": 2225587.8396022604,
+    "positions_window_active": 7874,
+    "pnl_rebal_total_usd": -1087478.4579404388,
+    "pnl_hold_total_usd": -18208565.523284324,
+    "share_positions_beat_hold_window": 0.24091948183896367,
+    "zero_liquidity_steps": 0,
+    "steps_without_12s_reference": 0,
+    "collect_shortfalls": {
+      "count": 2622,
+      "max_d0": 48,
+      "max_d1": 44
+    },
+    "noop_collects": 179,
+    "n_excluded_carry": 0,
+    "fees_minus_lvr_usd": -1059609.5884161368,
+    "regimes": [
+      {
+        "regime": "low",
+        "days": 30,
+        "sigma_annual_mean": 0.24276423235392122,
+        "fees_usd": 550621.7134713861,
+        "lvr_0": 702456.4128484656,
+        "theory_1s": 544918.2977841398,
+        "theory_arb": 104748.97627515496,
+        "fees_minus_lvr_usd": -151834.6993770795
+      },
+      {
+        "regime": "mid",
+        "days": 31,
+        "sigma_annual_mean": 0.3877290986012223,
+        "fees_usd": 842277.6328774388,
+        "lvr_0": 1068876.8279067643,
+        "theory_1s": 911278.1057603568,
+        "theory_arb": 231005.65441907648,
+        "fees_minus_lvr_usd": -226599.19502932555
+      },
+      {
+        "regime": "high",
+        "days": 31,
+        "sigma_annual_mean": 0.5659923616548425,
+        "fees_usd": 1251287.8245182256,
+        "lvr_0": 1932463.5185279588,
+        "theory_1s": 1702649.107760271,
+        "theory_arb": 597503.0410082763,
+        "fees_minus_lvr_usd": -681175.6940097332
+      }
+    ],
+    "groups": [
+      {
+        "grouping": "lp_type",
+        "group": "jit",
+        "positions": 844,
+        "fees_usd": 4752.915576564617,
+        "lvr_0_usd": -28934.838334950684,
+        "gas_usd": 19771.411054506567,
+        "pnl_rebal_usd": 13916.342857008724,
+        "pnl_hold_usd": 13916.341749296103,
+        "share_beat_hold": 0.5746445497630331,
+        "bp_per_day": 5629.536651773942,
+        "ci_lo_bp": 1240.3803625596067,
+        "ci_hi_bp": 10381.086972687259,
+        "bp_per_day_hold": 5629.536203674262
+      },
+      {
+        "grouping": "lp_type",
+        "group": "lp_vault",
+        "positions": 111,
+        "fees_usd": 12151.368260761035,
+        "lvr_0_usd": 15643.434719341873,
+        "gas_usd": 176.30085958556379,
+        "pnl_rebal_usd": -3668.3673181664044,
+        "pnl_hold_usd": -20529.53379829292,
+        "share_beat_hold": 0.32432432432432434,
+        "bp_per_day": -1.578678842457556,
+        "ci_lo_bp": -3.0523952649376085,
+        "ci_hi_bp": -1.2054398844649015,
+        "bp_per_day_hold": -8.834867896784642
+      },
+      {
+        "grouping": "lp_type",
+        "group": "nft_wallet",
+        "positions": 5788,
+        "fees_usd": 2572025.8377652243,
+        "lvr_0_usd": 3644992.6416971143,
+        "gas_usd": 5495.253179217516,
+        "pnl_rebal_usd": -1078462.0571111082,
+        "pnl_hold_usd": -18127230.351147577,
+        "share_beat_hold": 0.18814789219073946,
+        "bp_per_day": -1.3534694276543298,
+        "ci_lo_bp": -1.7695765232214395,
+        "ci_hi_bp": -1.11556967216516,
+        "bp_per_day_hold": -22.749666459334904
+      },
+      {
+        "grouping": "lp_type",
+        "group": "nft_contract",
+        "positions": 734,
+        "fees_usd": 38156.218421986516,
+        "lvr_0_usd": 50739.870990419186,
+        "gas_usd": 1717.3630839973844,
+        "pnl_rebal_usd": -14301.015652430046,
+        "pnl_hold_usd": -74523.43035960043,
+        "share_beat_hold": 0.18528610354223432,
+        "bp_per_day": -2.283087537593574,
+        "ci_lo_bp": -2.7747332059644596,
+        "ci_hi_bp": -1.906397066523156,
+        "bp_per_day_hold": -11.897302908259903
+      },
+      {
+        "grouping": "lp_type",
+        "group": "direct_other",
+        "positions": 397,
+        "fees_usd": 17100.83084260079,
+        "lvr_0_usd": 21355.65021125805,
+        "gas_usd": 708.5413470854172,
+        "pnl_rebal_usd": -4963.36071574268,
+        "pnl_hold_usd": -198.54972815008307,
+        "share_beat_hold": 0.380352644836272,
+        "bp_per_day": -1.5523659514385149,
+        "ci_lo_bp": -2.120655402906205,
+        "ci_hi_bp": -1.076136171620984,
+        "bp_per_day_hold": -0.062099423213378545
+      },
+      {
+        "grouping": "width_bucket",
+        "group": "<50",
+        "positions": 1731,
+        "fees_usd": 31534.023554002204,
+        "lvr_0_usd": 8612.528424575808,
+        "gas_usd": 20158.66068565103,
+        "pnl_rebal_usd": 2762.834443775366,
+        "pnl_hold_usd": -7993.982873084872,
+        "share_beat_hold": 0.3564413633737724,
+        "bp_per_day": 2.196372916933351,
+        "ci_lo_bp": -10.794848785805685,
+        "ci_hi_bp": 20.750416069783753,
+        "bp_per_day_hold": -6.35498356422699
+      },
+      {
+        "grouping": "width_bucket",
+        "group": "50-200",
+        "positions": 358,
+        "fees_usd": 14327.439661109087,
+        "lvr_0_usd": 18361.942760850045,
+        "gas_usd": 387.0628931052224,
+        "pnl_rebal_usd": -4421.565992846183,
+        "pnl_hold_usd": -5679.831815965281,
+        "share_beat_hold": 0.19273743016759776,
+        "bp_per_day": -2.648020733764672,
+        "ci_lo_bp": -9.070626965081848,
+        "ci_hi_bp": -0.8999876835026946,
+        "bp_per_day_hold": -3.4015804439663677
+      },
+      {
+        "grouping": "width_bucket",
+        "group": "200-1000",
+        "positions": 1158,
+        "fees_usd": 114084.66825284885,
+        "lvr_0_usd": 148283.46478859917,
+        "gas_usd": 1893.204327647389,
+        "pnl_rebal_usd": -36092.0008633977,
+        "pnl_hold_usd": -29441.91076397423,
+        "share_beat_hold": 0.2599309153713299,
+        "bp_per_day": -2.440150855863387,
+        "ci_lo_bp": -5.04295884959887,
+        "ci_hi_bp": -1.0260321146334537,
+        "bp_per_day_hold": -1.9905436670268855
+      },
+      {
+        "grouping": "width_bucket",
+        "group": "1000-5000",
+        "positions": 2496,
+        "fees_usd": 1909750.0453612849,
+        "lvr_0_usd": 2755449.2505649733,
+        "gas_usd": 3682.806858891297,
+        "pnl_rebal_usd": -849382.01206258,
+        "pnl_hold_usd": -14671923.99129775,
+        "share_beat_hold": 0.2640224358974359,
+        "bp_per_day": -1.7263398532827714,
+        "ci_lo_bp": -3.0432386259863256,
+        "ci_hi_bp": -1.3521933205548184,
+        "bp_per_day_hold": -29.82018308700277
+      },
+      {
+        "grouping": "width_bucket",
+        "group": ">=5000",
+        "positions": 2131,
+        "fees_usd": 574490.9940378921,
+        "lvr_0_usd": 773089.5727441848,
+        "gas_usd": 1747.1347590975079,
+        "pnl_rebal_usd": -200345.7134653901,
+        "pnl_hold_usd": -3493525.8065335467,
+        "share_beat_hold": 0.11778507742843736,
+        "bp_per_day": -0.6703471601106138,
+        "ci_lo_bp": -0.7514955544129683,
+        "ci_hi_bp": -0.6141712950459745,
+        "bp_per_day_hold": -11.689169998575814
+      },
+      {
+        "grouping": "holding",
+        "group": "same_block",
+        "positions": 844,
+        "fees_usd": 4752.915576564617,
+        "lvr_0_usd": -28934.838334950684,
+        "gas_usd": 19771.411054506567,
+        "pnl_rebal_usd": 13916.342857008724,
+        "pnl_hold_usd": 13916.341749296103,
+        "share_beat_hold": 0.5746445497630331,
+        "bp_per_day": 5629.536651773942,
+        "ci_lo_bp": 1240.3803625596067,
+        "ci_hi_bp": 10381.086972687259,
+        "bp_per_day_hold": 5629.536203674262
+      },
+      {
+        "grouping": "holding",
+        "group": "<1h",
+        "positions": 364,
+        "fees_usd": 5014.808018061301,
+        "lvr_0_usd": 6995.745617426338,
+        "gas_usd": 717.0627578693992,
+        "pnl_rebal_usd": -2698.0003572344367,
+        "pnl_hold_usd": -7658.744384589839,
+        "share_beat_hold": 0.10714285714285714,
+        "bp_per_day": -86.77100884379765,
+        "ci_lo_bp": -153.740251532156,
+        "ci_hi_bp": -42.8341810635088,
+        "bp_per_day_hold": -246.31463629931804
+      },
+      {
+        "grouping": "holding",
+        "group": "1h-1d",
+        "positions": 982,
+        "fees_usd": 47377.63964411457,
+        "lvr_0_usd": 91490.69462404317,
+        "gas_usd": 1708.169566808768,
+        "pnl_rebal_usd": -45821.224546737365,
+        "pnl_hold_usd": -118890.1193981787,
+        "share_beat_hold": 0.3105906313645621,
+        "bp_per_day": -34.439976163083266,
+        "ci_lo_bp": -67.84250713494555,
+        "ci_hi_bp": -10.449771772144043,
+        "bp_per_day_hold": -89.35974362542315
+      },
+      {
+        "grouping": "holding",
+        "group": "1d-7d",
+        "positions": 827,
+        "fees_usd": 181924.45411901074,
+        "lvr_0_usd": 240008.65701562286,
+        "gas_usd": 1614.3191116148773,
+        "pnl_rebal_usd": -59698.52200822693,
+        "pnl_hold_usd": -33331.50814189556,
+        "share_beat_hold": 0.3180169286577993,
+        "bp_per_day": -7.571843881047216,
+        "ci_lo_bp": -9.599546460077095,
+        "ci_hi_bp": -3.8665400354408916,
+        "bp_per_day_hold": -4.227591697086023
+      },
+      {
+        "grouping": "holding",
+        "group": ">=7d",
+        "positions": 1784,
+        "fees_usd": 1074902.8597697061,
+        "lvr_0_usd": 1453936.5397251544,
+        "gas_usd": 3738.4777865052693,
+        "pnl_rebal_usd": -382772.1577419535,
+        "pnl_hold_usd": -1760006.1766318588,
+        "share_beat_hold": 0.27242152466367714,
+        "bp_per_day": -2.271582880018526,
+        "ci_lo_bp": -2.8683332177042513,
+        "ci_hi_bp": -1.6706928868761968,
+        "bp_per_day_hold": -10.444855558849323
+      },
+      {
+        "grouping": "holding",
+        "group": "whole_window",
+        "positions": 3073,
+        "fees_usd": 1330214.493739679,
+        "lvr_0_usd": 1940299.9606358863,
+        "gas_usd": 319.4292470875663,
+        "pnl_rebal_usd": -610404.8961432951,
+        "pnl_hold_usd": -16302595.316477094,
+        "share_beat_hold": 0.10380735437683046,
+        "bp_per_day": -0.9675950810136051,
+        "ci_lo_bp": -1.1615402301492217,
+        "ci_hi_bp": -0.6364924566249459,
+        "bp_per_day_hold": -25.84237304721027
+      },
+      {
+        "grouping": "cohort",
+        "group": "pre_window",
+        "positions": 3837,
+        "fees_usd": 1559269.7587254918,
+        "lvr_0_usd": 2256207.322762384,
+        "gas_usd": 1257.964550568535,
+        "pnl_rebal_usd": -698195.5285874605,
+        "pnl_hold_usd": -17415498.79618833,
+        "share_beat_hold": 0.09043523586135001,
+        "bp_per_day": -1.0115515745770634,
+        "ci_lo_bp": -1.2178732699518964,
+        "ci_hi_bp": -0.7300733084128317,
+        "bp_per_day_hold": -25.23172164246033
+      },
+      {
+        "grouping": "cohort",
+        "group": "in_window",
+        "positions": 4037,
+        "fees_usd": 1084917.4121416446,
+        "lvr_0_usd": 1447589.436520799,
+        "gas_usd": 26610.904973823915,
+        "pnl_rebal_usd": -389282.9293529782,
+        "pnl_hold_usd": -793066.7270959978,
+        "share_beat_hold": 0.38394847659152836,
+        "bp_per_day": -3.288473889046886,
+        "ci_lo_bp": -4.417903297329197,
+        "ci_hi_bp": -2.3414858204870788,
+        "bp_per_day_hold": -6.699444100109264
+      }
+    ],
+    "lifetime": {
+      "positions": 7874,
+      "n_excluded_carry": 0,
+      "share_beat_hold": 0.6567183134366269,
+      "median_return": 0.0003296469772181695
+    },
+    "checks": {
+      "L1 every swap reproduced bit-exactly": {
+        "swaps": 534377,
+        "unreproduced": 0,
+        "by_mode": {
+          "to_price": 11595,
+          "exact_output": 25846,
+          "exact_input": 496936
+        }
+      },
+      "L2 fee accumulators match the chain": {
+        "blocks": 500,
+        "values_compared": 18125,
+        "mismatches": 0
+      },
+      "L3 position state matches the chain at both ends": {
+        "compared": 12263,
+        "mismatches": 0,
+        "start_mismatches": 0
+      },
+      "L4 fees equal Collect minus principal": {
+        "positions_checked": 3428,
+        "mismatches": 0
+      },
+      "L5 positions rebuild the snapshot tick book": {
+        "positions_open_at_snapshot": 3837,
+        "ticks_compared": 1557,
+        "tick_mismatches": 0,
+        "active_liquidity_matches": true
+      },
+      "L6 accounting identities": {
+        "pool_lp_fees_raw": [
+          1337421456289,
+          618857678632566990117
+        ],
+        "position_fees_raw": [
+          1337421451419,
+          618857678632566985106
+        ],
+        "fee_shortfall_tolerance": 620992,
+        "pool_lvr_0_usd": 3703796.759283188,
+        "position_lvr_0_usd": 3703796.7592831827,
+        "markout_identity_lvr_usd": 3703796.7592831957,
+        "all_steps_lvr_0_usd": 3703796.7592831883
+      },
+      "L7 history complete and every event assigned": {
+        "window_liquidity_events": 21850,
+        "missing_in_history": 0,
+        "extra_in_history": 0,
+        "without_position": 0,
+        "noop_collects": 8
+      }
+    }
+  }
 }

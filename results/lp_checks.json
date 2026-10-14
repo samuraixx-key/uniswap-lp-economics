@@ -1,0 +1,93 @@
+{
+  "status": "PASS",
+  "generated_utc": "2026-10-14T21:21:13+00:00",
+  "git_commit": "7793710-dirty",
+  "checks": [
+    {
+      "name": "L1 every swap reproduced bit-exactly",
+      "passed": true,
+      "summary": {
+        "swaps": 534377,
+        "unreproduced": 0,
+        "by_mode": {
+          "to_price": 11595,
+          "exact_output": 25846,
+          "exact_input": 496936
+        }
+      },
+      "mismatches": []
+    },
+    {
+      "name": "L2 fee accumulators match the chain",
+      "passed": true,
+      "summary": {
+        "blocks": 500,
+        "values_compared": 18125,
+        "mismatches": 0
+      },
+      "mismatches": []
+    },
+    {
+      "name": "L3 position state matches the chain at both ends",
+      "passed": true,
+      "summary": {
+        "compared": 12263,
+        "mismatches": 0,
+        "start_mismatches": 0
+      },
+      "mismatches": []
+    },
+    {
+      "name": "L4 fees equal Collect minus principal",
+      "passed": true,
+      "summary": {
+        "positions_checked": 3428,
+        "mismatches": 0
+      },
+      "mismatches": []
+    },
+    {
+      "name": "L5 positions rebuild the snapshot tick book",
+      "passed": true,
+      "summary": {
+        "positions_open_at_snapshot": 3837,
+        "ticks_compared": 1557,
+        "tick_mismatches": 0,
+        "active_liquidity_matches": true
+      },
+      "mismatches": []
+    },
+    {
+      "name": "L6 accounting identities",
+      "passed": true,
+      "summary": {
+        "pool_lp_fees_raw": [
+          1337421456289,
+          618857678632566990117
+        ],
+        "position_fees_raw": [
+          1337421451419,
+          618857678632566985106
+        ],
+        "fee_shortfall_tolerance": 620992,
+        "pool_lvr_0_usd": 3703796.759283188,
+        "position_lvr_0_usd": 3703796.7592831827,
+        "markout_identity_lvr_usd": 3703796.7592831957,
+        "all_steps_lvr_0_usd": 3703796.7592831883
+      },
+      "mismatches": []
+    },
+    {
+      "name": "L7 history complete and every event assigned",
+      "passed": true,
+      "summary": {
+        "window_liquidity_events": 21850,
+        "missing_in_history": 0,
+        "extra_in_history": 0,
+        "without_position": 0,
+        "noop_collects": 8
+      },
+      "mismatches": []
+    }
+  ]
+}
