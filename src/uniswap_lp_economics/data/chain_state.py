@@ -180,19 +180,23 @@ def state_targets(
     data: LedgerData, block: int, snapshot_block: int, include_new: bool
 ) -> tuple[list[tuple[str, int, int]], list[int]]:
     """Pool keys and NPM tokens whose on-chain state the ledger needs at `block`: liquidity > 0
-    there, or any flow after the snapshot. Without include_new, only positions that existed by
-    the snapshot."""
+    there, or any flow after the snapshot.
+
+    Keys always cover every such position, new ones included: a key can hold an earlier episode's
+    (or another token's) owed tokens from before the snapshot, and the contract carries them into
+    the new position. Token ids are never reused, so without include_new only tokens that existed
+    by the snapshot are read."""
     open_ids = set(liquidity_at(data, block)["position_id"].to_list())
     touched = set(
         data.flows.filter(pl.col("block_number") > snapshot_block)["position_id"].to_list()
     )
     pos = data.positions.filter(pl.col("position_id").is_in(list(open_ids | touched)))
-    if not include_new:
-        pos = pos.filter(pl.col("first_block") <= snapshot_block)
     keys = sorted(
         {(o, lo, hi) for o, lo, hi in pos.select("owner", "tick_lower", "tick_upper").iter_rows()},
         key=lambda k: (k[0], k[1], k[2]),
     )
+    if not include_new:
+        pos = pos.filter(pl.col("first_block") <= snapshot_block)
     tokens = sorted(int(t) for t in pos["token_id"].drop_nulls().to_list())
     return keys, tokens
 

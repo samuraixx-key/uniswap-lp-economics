@@ -194,7 +194,8 @@ def test_state_targets_and_window_active() -> None:
     data = LedgerData(pos, flows, {}, {1: "nft:1", 2: "nft:2", 3: "nft:3"})
     keys, tokens = chain_state.state_targets(data, 10, 10, include_new=False)
     assert tokens == [1, 2]  # 1 is open, 2 is closed but collects in the window; 3 is new
-    assert keys == [(NPM_ADDRESS, -20, 20), (NPM_ADDRESS, -10, 10)]
+    # keys include the new token's key: it may hold old owed tokens at the snapshot
+    assert keys == [(NPM_ADDRESS, -30, 30), (NPM_ADDRESS, -20, 20), (NPM_ADDRESS, -10, 10)]
     _, end_tokens = chain_state.state_targets(data, 20, 10, include_new=True)
     assert end_tokens == [1, 2, 3]
     assert chain_state.window_active_ids(data, 10) == ["nft:1", "nft:3"]

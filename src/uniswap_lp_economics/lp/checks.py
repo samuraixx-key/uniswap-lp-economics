@@ -222,7 +222,12 @@ def check_l4(ledger: "Ledger", end_state: pl.DataFrame, snapshot_block: int) -> 
     checked = n_bad = 0
     for pid, acc in ledger.accounts.items():
         p = pos[pid]
-        if p["first_block"] <= snapshot_block or acc.liquidity != 0 or acc.carried_owed:
+        if (
+            p["first_block"] <= snapshot_block
+            or acc.liquidity != 0
+            or acc.carried_owed
+            or acc.owed_handed_on
+        ):
             continue
         ref = (
             p["token_id"] if p["kind"] == "nft" else (p["owner"], p["tick_lower"], p["tick_upper"])

@@ -18,6 +18,7 @@ from uniswap_lp_economics.v3swap import SwapRun, swap
 L = 10**18
 T0 = datetime(2026, 7, 1, tzinfo=UTC)
 DIRECT = "0x" + "d1" * 20
+OTHER = "0x" + "d2" * 20
 POOL: dict[str, Any] = {
     "block_number": pl.Int64,
     "log_index": pl.Int64,
@@ -251,7 +252,8 @@ def test_npm_collect_without_liquidity_does_not_accrue() -> None:
         [{"block": 9, "kind": "npm_token", "token_id": 1, "found": False}],
         schema=POSITION_STATE_SCHEMA,
     )
-    assert check_l4(ledger, burned, 0).summary["positions_checked"] == 1
+    r4 = check_l4(ledger, burned, 0)
+    assert r4.passed and r4.summary["positions_checked"] == 1
 
 
 def test_day_boundary_splits_float_attribution() -> None:
@@ -288,6 +290,7 @@ def test_day_boundary_splits_float_attribution() -> None:
     assert days.height == 2
     acc = ledger.accounts[f"direct:{DIRECT}:-10:10:0"]
     assert days["fee_usd"].sum() == acc.fees_f[0] and acc.fees_f[0] > 0
+    assert all(v > 0 for v in days["fee_usd"].to_list())  # both days earned their swap's fees
 
 
 def test_pre_window_position_starts_from_chain_rows() -> None:
@@ -324,3 +327,185 @@ def test_pre_window_position_starts_from_chain_rows() -> None:
     st2.mint(-10, 10, L)
     replay_window(window, st2, {(6, 0): ctx(6)}, ledger=bad)
     assert bad.start_mismatches
+
+
+def test_remint_before_collect_hands_owed_on() -> None:
+    probe = fresh()
+    probe.mint(-10, 10, L)
+    run1 = swap(probe.book, True, 10**14)
+    probe.book.apply_swap(run1.sqrt_price_x96, run1.tick)
+    run2 = swap(probe.book, True, 10**14)
+    events = pl.DataFrame(
+        [
+            pool_row(
+                1,
+                0,
+                "mint",
+                owner=DIRECT,
+                tick_lower=-10,
+                tick_upper=10,
+                amount=L,
+                amount0=7,
+                amount1=8,
+            ),
+            swap_row(2, run1),
+            pool_row(
+                3,
+                0,
+                "burn",
+                owner=DIRECT,
+                tick_lower=-10,
+                tick_upper=10,
+                amount=L,
+                amount0=5,
+                amount1=6,
+            ),
+            pool_row(
+                4,
+                0,
+                "mint",
+                owner=DIRECT,
+                tick_lower=-10,
+                tick_upper=10,
+                amount=L,
+                amount0=7,
+                amount1=8,
+            ),
+            swap_row(5, run2),
+            pool_row(
+                6,
+                0,
+                "burn",
+                owner=DIRECT,
+                tick_lower=-10,
+                tick_upper=10,
+                amount=L,
+                amount0=5,
+                amount1=6,
+            ),
+            pool_row(
+                1,
+                1,
+                "mint",
+                owner=OTHER,
+                tick_lower=-100,
+                tick_upper=-50,
+                amount=L,
+                amount0=0,
+                amount1=9,
+            ),
+            pool_row(
+                3,
+                1,
+                "burn",
+                owner=OTHER,
+                tick_lower=-100,
+                tick_upper=-50,
+                amount=L,
+                amount0=0,
+                amount1=9,
+            ),
+            pool_row(
+                3,
+                2,
+                "collect",
+                owner=OTHER,
+                tick_lower=-100,
+                tick_upper=-50,
+                amount=0,
+                amount0=0,
+                amount1=9,
+            ),
+            # one collect takes both episodes' principal and fees
+            pool_row(
+                6,
+                1,
+                "collect",
+                owner=DIRECT,
+                tick_lower=-10,
+                tick_upper=10,
+                amount=0,
+                amount0=10 + owed_for(run1) + owed_for(run2),
+                amount1=12,
+            ),
+        ],
+        schema=POOL,
+    )
+    ledger = Ledger(
+        build_positions(events, pl.DataFrame(schema=NPM)),
+        pl.DataFrame(schema=POSITION_STATE_SCHEMA),
+        0,
+    )
+    replay_window(events, fresh(), {(2, 0): ctx(2), (5, 0): ctx(5)}, ledger=ledger)
+    old = ledger.accounts[f"direct:{DIRECT}:-10:10:0"]
+    new = ledger.accounts[f"direct:{DIRECT}:-10:10:1"]
+    assert old.owed_handed_on and not old.carried_owed
+    assert new.carried_owed and not new.owed_handed_on
+    km = ledger.keys[(DIRECT, -10, 10)]
+    assert (km.liquidity, km.owed0, km.owed1) == (0, 0, 0)
+    other = ledger.keys[(OTHER, -100, -50)]
+    end = pl.DataFrame(
+        [
+            key_row(DIRECT, 0, km.last0, 0),
+            key_row(OTHER, 0, other.last0, 0) | {"tick_lower": -100, "tick_upper": -50},
+        ],
+        schema=POSITION_STATE_SCHEMA,
+    )
+    assert check_l3(ledger, end).passed
+    r4 = check_l4(ledger, end, 0)
+    # the old episode (handed on) and the new one (carried) are skipped; the other key is checked
+    assert r4.passed and r4.summary["positions_checked"] == 1
+    frame = ledger.accounts_frame()
+    assert frame.filter(pl.col("owed_handed_on"))["position_id"].to_list() == [old.position_id]
+
+
+def test_key_start_row_with_owed_is_carried_by_a_window_mint() -> None:
+    run = a_swap()
+    events = pl.DataFrame(
+        [
+            pool_row(
+                6,
+                0,
+                "mint",
+                owner=DIRECT,
+                tick_lower=-10,
+                tick_upper=10,
+                amount=L,
+                amount0=7,
+                amount1=8,
+            ),
+            swap_row(7, run),
+            pool_row(
+                8,
+                0,
+                "burn",
+                owner=DIRECT,
+                tick_lower=-10,
+                tick_upper=10,
+                amount=L,
+                amount0=5,
+                amount1=6,
+            ),
+            pool_row(
+                8,
+                1,
+                "collect",
+                owner=DIRECT,
+                tick_lower=-10,
+                tick_upper=10,
+                amount=0,
+                amount0=5 + 3 + owed_for(run),
+                amount1=6,
+            ),
+        ],
+        schema=POOL,
+    )
+    start = pl.DataFrame([key_row(DIRECT, 0, 0, 3)], schema=POSITION_STATE_SCHEMA)
+    ledger = Ledger(build_positions(events, pl.DataFrame(schema=NPM)), start, 5)
+    replay_window(events, fresh(), {(7, 0): ctx(7)}, ledger=ledger)
+    acc = ledger.accounts[f"direct:{DIRECT}:-10:10:0"]
+    assert acc.carried_owed and acc.fees0 == owed_for(run)
+    km = ledger.keys[(DIRECT, -10, 10)]
+    assert (km.liquidity, km.owed0, km.owed1) == (0, 0, 0)
+    end = pl.DataFrame([key_row(DIRECT, 0, km.last0, 0)], schema=POSITION_STATE_SCHEMA)
+    assert check_l3(ledger, end).passed

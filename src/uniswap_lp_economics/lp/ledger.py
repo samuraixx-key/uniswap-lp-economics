@@ -26,6 +26,7 @@ ACCOUNT_SCHEMA: dict[str, Any] = {
     "liquidity_end": pl.Int128,
     "active": pl.Boolean,
     "carried_owed": pl.Boolean,
+    "owed_handed_on": pl.Boolean,
     "fees_raw0": pl.Int128,
     "fees_raw1": pl.Int128,
     "fee_usd": pl.Float64,
@@ -76,6 +77,7 @@ class Account:
     liquidity: int = 0
     liquidity_start: int = 0
     carried_owed: bool = False
+    owed_handed_on: bool = False  # a later episode of the key carries this one's owed
     active: bool = False
     fees0: int = 0
     fees1: int = 0
@@ -205,7 +207,11 @@ class Ledger:
             if acc is None:
                 if inside is None or row.event != "mint":
                     raise ValueError(f"{where} before its position has any state")
-                acc = self._new_account(pid, inside, km, carried=(km.owed0, km.owed1) != (0, 0))
+                carried = (km.owed0, km.owed1) != (0, 0)
+                acc = self._new_account(pid, inside, km, carried=carried)
+                earlier = self.accounts.get(self.current_direct.get(key, ""))
+                if carried and earlier is not None:
+                    earlier.owed_handed_on = True
                 self.current_direct[key] = pid
             if inside is not None:
                 self._attribute(acc, inside, raw=True)
@@ -333,6 +339,7 @@ class Ledger:
                     "liquidity_end": acc.liquidity,
                     "active": acc.active,
                     "carried_owed": acc.carried_owed,
+                    "owed_handed_on": acc.owed_handed_on,
                     "fees_raw0": acc.fees0,
                     "fees_raw1": acc.fees1,
                     "fee_usd": acc.fees_f[0],
