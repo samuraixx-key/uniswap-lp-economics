@@ -5,6 +5,7 @@ from typing import Any
 import polars as pl
 
 from uniswap_lp_economics.io import hex_u256
+from uniswap_lp_economics.lp.positions import LedgerData
 from uniswap_lp_economics.validate import MAX_LISTED, CheckResult
 
 
@@ -51,4 +52,91 @@ def check_l2(captures: dict[int, dict[str, Any]], sample_fees: pl.DataFrame) -> 
         n_bad == 0 and compared > 0 and all(b in captures for b in blocks),
         {"blocks": len(blocks), "values_compared": compared, "mismatches": n_bad},
         bad,
+    )
+
+
+def check_l5(
+    start: pl.DataFrame, snapshot_ticks: pl.DataFrame, meta: dict[str, int]
+) -> CheckResult:
+    """Positions open at the snapshot rebuild the snapshot tick book exactly."""
+    gross: dict[int, int] = {}
+    net: dict[int, int] = {}
+    active = 0
+    for lo, hi, liq in start.select("tick_lower", "tick_upper", "liquidity").iter_rows():
+        for t, sign in ((lo, 1), (hi, -1)):
+            gross[t] = gross.get(t, 0) + liq
+            net[t] = net.get(t, 0) + sign * liq
+        if lo <= meta["tick"] < hi:
+            active += liq
+    chain = {
+        t: (g, nn)
+        for t, g, nn in snapshot_ticks.select(
+            "tick", "liquidity_gross", "liquidity_net"
+        ).iter_rows()
+    }
+    bad: list[dict[str, Any]] = []
+    n_bad = 0
+    for t in sorted(set(chain) | set(gross)):
+        rebuilt = (gross.get(t, 0), net.get(t, 0))
+        if chain.get(t, (0, 0)) != rebuilt:
+            n_bad += 1
+            if len(bad) < MAX_LISTED:
+                bad.append({"tick": t, "onchain": chain.get(t), "rebuilt": rebuilt})
+    active_ok = active == meta["liquidity"]
+    return CheckResult(
+        "L5 positions rebuild the snapshot tick book",
+        n_bad == 0 and active_ok and start.height > 0,
+        {
+            "positions_open_at_snapshot": start.height,
+            "ticks_compared": len(set(chain) | set(gross)),
+            "tick_mismatches": n_bad,
+            "active_liquidity_matches": active_ok,
+        },
+        bad,
+    )
+
+
+_L7_KEY = [
+    "block_number",
+    "log_index",
+    "event",
+    "owner",
+    "tick_lower",
+    "tick_upper",
+    "amount",
+    "amount0",
+    "amount1",
+]
+
+
+def check_l7(
+    window_events: pl.DataFrame, history_window: pl.DataFrame, data: LedgerData
+) -> CheckResult:
+    """The history's window events equal events.parquet, and each belongs to one position."""
+    kinds = ["mint", "burn", "collect"]
+
+    def keyed(df: pl.DataFrame) -> set[tuple[Any, ...]]:
+        return set(df.filter(pl.col("event").is_in(kinds)).select(_L7_KEY).iter_rows())
+
+    ours, theirs = keyed(window_events), keyed(history_window)
+    missing, extra = ours - theirs, theirs - ours
+    unassigned = [k for k in ours if (k[0], k[1]) not in data.pool_event_position]
+    listed = [
+        {"block": k[0], "log_index": k[1], "issue": "missing_in_history"}
+        for k in sorted(missing)[:MAX_LISTED]
+    ]
+    listed += [
+        {"block": k[0], "log_index": k[1], "issue": "no_position"}
+        for k in sorted(unassigned)[:MAX_LISTED]
+    ]
+    return CheckResult(
+        "L7 history complete and every event assigned",
+        not missing and not extra and not unassigned and len(ours) > 0,
+        {
+            "window_liquidity_events": len(ours),
+            "missing_in_history": len(missing),
+            "extra_in_history": len(extra),
+            "without_position": len(unassigned),
+        },
+        listed,
     )
