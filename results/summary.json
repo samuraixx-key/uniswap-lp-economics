@@ -1,0 +1,679 @@
+{
+  "generated_utc": "2026-10-14T02:15:34+00:00",
+  "git_commit": "5d4f780",
+  "input_sha256_16": {
+    "interim/cex_ethusdc.parquet": "cd806aa6a7f87d7e",
+    "interim/cex_ethusdt_1s.parquet": "02a5ea793a51eea0",
+    "interim/events.parquet": "fcb1cfcb7c07a6e7",
+    "interim/swaps.parquet": "eb31e774d75fb9d3",
+    "raw/tickbook_snapshot.parquet": "ccaa9baa98726baf",
+    "raw/snapshot_meta.json": "3b93b79ce12ca7b0",
+    "raw/blocks.parquet": "0026aebc769e72fd",
+    "raw/bot_tx_other_logs.parquet": "f24f64f92d41ff77",
+    "raw/bot_transfers/0x149d330c8b9352573d17bc184b7a426ea020b38e.parquet": "6ec48b3108d16d0d",
+    "raw/bot_transfers/0x51c72848c68a965f66fa7a88855f9f7784502a7f.parquet": "4709759d4749f96e",
+    "raw/bot_transfers/0xbdb3ba9ffe392549e1f8658dd2630c141fdf47b6.parquet": "f64808538b447479",
+    "raw/bot_transfers/0xeff6cb8b614999d130e537751ee99724d01aa167.parquet": "44e8dce9e7b7a224",
+    "labels/addresses.csv": "3bec3d79810c2c77"
+  },
+  "window": "[2026-07-01, 2026-10-01)",
+  "swaps": 534377,
+  "notional_usd": 7049939044.909202,
+  "top_bots": [
+    "0x51c72848c68a965f66fa7a88855f9f7784502a7f",
+    "0xbdb3ba9ffe392549e1f8658dd2630c141fdf47b6",
+    "0x149d330c8b9352573d17bc184b7a426ea020b38e",
+    "0xeff6cb8b614999d130e537751ee99724d01aa167"
+  ],
+  "markouts_all": [
+    {
+      "grouping": "all",
+      "horizon_s": 0,
+      "swaps": 534377,
+      "notional_usd": 7049939044.909204,
+      "markout_usd": 178635.79928038438,
+      "mean_bp": 0.2533863032608462,
+      "median_bp": -2.190964682981687,
+      "ci_lo_bp": -0.13707210662318492,
+      "ci_hi_bp": 0.7654885312344645,
+      "flow_label": null,
+      "size_bucket": null
+    },
+    {
+      "grouping": "all",
+      "horizon_s": 12,
+      "swaps": 534377,
+      "notional_usd": 7049939044.909204,
+      "markout_usd": 564229.587743267,
+      "mean_bp": 0.8003325761386547,
+      "median_bp": -2.4475963231812514,
+      "ci_lo_bp": 0.30422292525156625,
+      "ci_hi_bp": 1.4765565673567527,
+      "flow_label": null,
+      "size_bucket": null
+    },
+    {
+      "grouping": "all",
+      "horizon_s": 60,
+      "swaps": 534367,
+      "notional_usd": 7049910082.573584,
+      "markout_usd": 734805.8629110735,
+      "mean_bp": 1.0422911133681172,
+      "median_bp": -2.9388134655086806,
+      "ci_lo_bp": 0.2567097339794158,
+      "ci_hi_bp": 2.198417747562569,
+      "flow_label": null,
+      "size_bucket": null
+    },
+    {
+      "grouping": "all",
+      "horizon_s": 300,
+      "swaps": 534342,
+      "notional_usd": 7049775762.850568,
+      "markout_usd": 612580.8163396935,
+      "mean_bp": 0.8689365973422072,
+      "median_bp": -3.177538340441922,
+      "ci_lo_bp": 0.027551694043656073,
+      "ci_hi_bp": 2.0574559480907917,
+      "flow_label": null,
+      "size_bucket": null
+    },
+    {
+      "grouping": "all",
+      "horizon_s": 3600,
+      "swaps": 533923,
+      "notional_usd": 7048649619.831041,
+      "markout_usd": 1686249.7996513147,
+      "mean_bp": 2.3923019168198274,
+      "median_bp": -3.24674007863463,
+      "ci_lo_bp": -0.7247769265912234,
+      "ci_hi_bp": 7.686210412905924,
+      "flow_label": null,
+      "size_bucket": null
+    }
+  ],
+  "markouts_by_label": [
+    {
+      "grouping": "flow_label",
+      "horizon_s": 0,
+      "swaps": 17822,
+      "notional_usd": 158257115.23412302,
+      "markout_usd": -106999.6802526677,
+      "mean_bp": -6.761129197532389,
+      "median_bp": -2.26756282264755,
+      "ci_lo_bp": -7.891613895610133,
+      "ci_hi_bp": -5.845657267753048,
+      "flow_label": "aggregator",
+      "size_bucket": null
+    },
+    {
+      "grouping": "flow_label",
+      "horizon_s": 0,
+      "swaps": 3565,
+      "notional_usd": 35117515.743404,
+      "markout_usd": -17945.366846458783,
+      "mean_bp": -5.110090069463242,
+      "median_bp": -1.3884076351616532,
+      "ci_lo_bp": -7.249035643756094,
+      "ci_hi_bp": -3.251966164552265,
+      "flow_label": "intent_settlement",
+      "size_bucket": null
+    },
+    {
+      "grouping": "flow_label",
+      "horizon_s": 0,
+      "swaps": 91722,
+      "notional_usd": 768248014.476848,
+      "markout_usd": -333951.03955504246,
+      "mean_bp": -4.346917053634721,
+      "median_bp": -2.5100917219053747,
+      "ci_lo_bp": -5.294067765851208,
+      "ci_hi_bp": -3.4579161250211654,
+      "flow_label": "other_contract",
+      "size_bucket": null
+    },
+    {
+      "grouping": "flow_label",
+      "horizon_s": 0,
+      "swaps": 253280,
+      "notional_usd": 5270211098.659831,
+      "markout_usd": 1509258.2918972974,
+      "mean_bp": 2.863753014146034,
+      "median_bp": -0.5656982276705103,
+      "ci_lo_bp": 2.3763495836126522,
+      "ci_hi_bp": 3.501407148726504,
+      "flow_label": "searcher",
+      "size_bucket": null
+    },
+    {
+      "grouping": "flow_label",
+      "horizon_s": 0,
+      "swaps": 167988,
+      "notional_usd": 818105300.794996,
+      "markout_usd": -871726.4059627443,
+      "mean_bp": -10.655430359828273,
+      "median_bp": -4.676340699263138,
+      "ci_lo_bp": -11.276910944741305,
+      "ci_hi_bp": -10.01038173059664,
+      "flow_label": "uniswap_router",
+      "size_bucket": null
+    },
+    {
+      "grouping": "flow_label",
+      "horizon_s": 12,
+      "swaps": 17822,
+      "notional_usd": 158257115.23412302,
+      "markout_usd": -103458.82450867214,
+      "mean_bp": -6.5373884994438844,
+      "median_bp": -2.45177618183718,
+      "ci_lo_bp": -7.487639316850353,
+      "ci_hi_bp": -5.713383574441045,
+      "flow_label": "aggregator",
+      "size_bucket": null
+    },
+    {
+      "grouping": "flow_label",
+      "horizon_s": 12,
+      "swaps": 3565,
+      "notional_usd": 35117515.743404,
+      "markout_usd": -14767.499784373624,
+      "mean_bp": -4.205166416746706,
+      "median_bp": -1.449435849536365,
+      "ci_lo_bp": -5.977255938444108,
+      "ci_hi_bp": -2.615975657047916,
+      "flow_label": "intent_settlement",
+      "size_bucket": null
+    },
+    {
+      "grouping": "flow_label",
+      "horizon_s": 12,
+      "swaps": 91722,
+      "notional_usd": 768248014.476848,
+      "markout_usd": -345522.1069032639,
+      "mean_bp": -4.497533353711994,
+      "median_bp": -2.7797070103358767,
+      "ci_lo_bp": -5.568823877538868,
+      "ci_hi_bp": -3.569019270079818,
+      "flow_label": "other_contract",
+      "size_bucket": null
+    },
+    {
+      "grouping": "flow_label",
+      "horizon_s": 12,
+      "swaps": 253280,
+      "notional_usd": 5270211098.659831,
+      "markout_usd": 1885793.0596769406,
+      "mean_bp": 3.5782116207005092,
+      "median_bp": -0.7538863789797581,
+      "ci_lo_bp": 2.969590744577057,
+      "ci_hi_bp": 4.407180792337421,
+      "flow_label": "searcher",
+      "size_bucket": null
+    },
+    {
+      "grouping": "flow_label",
+      "horizon_s": 12,
+      "swaps": 167988,
+      "notional_usd": 818105300.794996,
+      "markout_usd": -857815.0407373641,
+      "mean_bp": -10.485386659929718,
+      "median_bp": -4.695237217661521,
+      "ci_lo_bp": -11.182200268106858,
+      "ci_hi_bp": -9.765685245428337,
+      "flow_label": "uniswap_router",
+      "size_bucket": null
+    },
+    {
+      "grouping": "flow_label",
+      "horizon_s": 60,
+      "swaps": 17822,
+      "notional_usd": 158257115.23412302,
+      "markout_usd": -106306.86572260462,
+      "mean_bp": -6.717351416733204,
+      "median_bp": -2.8787966123546194,
+      "ci_lo_bp": -7.760763649671901,
+      "ci_hi_bp": -5.845927975046953,
+      "flow_label": "aggregator",
+      "size_bucket": null
+    },
+    {
+      "grouping": "flow_label",
+      "horizon_s": 60,
+      "swaps": 3565,
+      "notional_usd": 35117515.743404,
+      "markout_usd": -14725.652092365497,
+      "mean_bp": -4.19324994397742,
+      "median_bp": -1.7539808169205116,
+      "ci_lo_bp": -6.431228954174645,
+      "ci_hi_bp": -2.2295437436570142,
+      "flow_label": "intent_settlement",
+      "size_bucket": null
+    },
+    {
+      "grouping": "flow_label",
+      "horizon_s": 60,
+      "swaps": 91721,
+      "notional_usd": 768247522.715598,
+      "markout_usd": -352047.26631909644,
+      "mean_bp": -4.582471871496328,
+      "median_bp": -3.147712379132865,
+      "ci_lo_bp": -5.865677950948155,
+      "ci_hi_bp": -3.4999439647337045,
+      "flow_label": "other_contract",
+      "size_bucket": null
+    },
+    {
+      "grouping": "flow_label",
+      "horizon_s": 60,
+      "swaps": 253272,
+      "notional_usd": 5270182655.505462,
+      "markout_usd": 2069639.750701421,
+      "mean_bp": 3.927074042755208,
+      "median_bp": -1.5158851004643394,
+      "ci_lo_bp": 2.8843905590950425,
+      "ci_hi_bp": 5.448299762709718,
+      "flow_label": "searcher",
+      "size_bucket": null
+    },
+    {
+      "grouping": "flow_label",
+      "horizon_s": 60,
+      "swaps": 167987,
+      "notional_usd": 818105273.3749961,
+      "markout_usd": -861754.1036562808,
+      "mean_bp": -10.533535618236717,
+      "median_bp": -4.754761403732704,
+      "ci_lo_bp": -11.20739173551974,
+      "ci_hi_bp": -9.828556132487472,
+      "flow_label": "uniswap_router",
+      "size_bucket": null
+    },
+    {
+      "grouping": "flow_label",
+      "horizon_s": 300,
+      "swaps": 17821,
+      "notional_usd": 158256265.23412302,
+      "markout_usd": -110090.96659544719,
+      "mean_bp": -6.9564997273617895,
+      "median_bp": -3.139783325813073,
+      "ci_lo_bp": -8.18344963059404,
+      "ci_hi_bp": -5.765574186453263,
+      "flow_label": "aggregator",
+      "size_bucket": null
+    },
+    {
+      "grouping": "flow_label",
+      "horizon_s": 300,
+      "swaps": 3565,
+      "notional_usd": 35117515.743404,
+      "markout_usd": -11680.970550880947,
+      "mean_bp": -3.326251958205484,
+      "median_bp": -2.0616988159991916,
+      "ci_lo_bp": -6.452730172221624,
+      "ci_hi_bp": -0.3514002392252559,
+      "flow_label": "intent_settlement",
+      "size_bucket": null
+    },
+    {
+      "grouping": "flow_label",
+      "horizon_s": 300,
+      "swaps": 91714,
+      "notional_usd": 768217080.9471209,
+      "markout_usd": -364067.8421273852,
+      "mean_bp": -4.73912714461559,
+      "median_bp": -3.515358246292058,
+      "ci_lo_bp": -5.90810048596322,
+      "ci_hi_bp": -3.469640241174709,
+      "flow_label": "other_contract",
+      "size_bucket": null
+    },
+    {
+      "grouping": "flow_label",
+      "horizon_s": 300,
+      "swaps": 253260,
+      "notional_usd": 5270140856.984268,
+      "markout_usd": 1994553.2155608614,
+      "mean_bp": 3.7846298034284502,
+      "median_bp": -1.8681396681947473,
+      "ci_lo_bp": 2.5564321882348797,
+      "ci_hi_bp": 5.461323582886349,
+      "flow_label": "searcher",
+      "size_bucket": null
+    },
+    {
+      "grouping": "flow_label",
+      "horizon_s": 300,
+      "swaps": 167982,
+      "notional_usd": 818044043.9416529,
+      "markout_usd": -896132.6199474544,
+      "mean_bp": -10.954576670829857,
+      "median_bp": -4.746394694515482,
+      "ci_lo_bp": -11.930194095077901,
+      "ci_hi_bp": -9.96041544233096,
+      "flow_label": "uniswap_router",
+      "size_bucket": null
+    },
+    {
+      "grouping": "flow_label",
+      "horizon_s": 3600,
+      "swaps": 17814,
+      "notional_usd": 158162347.289977,
+      "markout_usd": -110375.56776583215,
+      "mean_bp": -6.97862479010052,
+      "median_bp": -3.556195685032252,
+      "ci_lo_bp": -10.066564828841743,
+      "ci_hi_bp": -4.025337453379658,
+      "flow_label": "aggregator",
+      "size_bucket": null
+    },
+    {
+      "grouping": "flow_label",
+      "horizon_s": 3600,
+      "swaps": 3564,
+      "notional_usd": 35117189.146409996,
+      "markout_usd": 1944.7778192657472,
+      "mean_bp": 0.5537965499338834,
+      "median_bp": -1.975028464235236,
+      "ci_lo_bp": -11.204630257982483,
+      "ci_hi_bp": 14.490210532667003,
+      "flow_label": "intent_settlement",
+      "size_bucket": null
+    },
+    {
+      "grouping": "flow_label",
+      "horizon_s": 3600,
+      "swaps": 91659,
+      "notional_usd": 768154909.895223,
+      "markout_usd": -439267.28963038453,
+      "mean_bp": -5.718472719132928,
+      "median_bp": -3.8436081057916534,
+      "ci_lo_bp": -8.537786245233331,
+      "ci_hi_bp": -2.7692464978546387,
+      "flow_label": "other_contract",
+      "size_bucket": null
+    },
+    {
+      "grouping": "flow_label",
+      "horizon_s": 3600,
+      "swaps": 252950,
+      "notional_usd": 5269286609.364101,
+      "markout_usd": 3504174.5001509003,
+      "mean_bp": 6.650187700785904,
+      "median_bp": -1.8044474633660161,
+      "ci_lo_bp": 1.9322579620575129,
+      "ci_hi_bp": 13.8837323617258,
+      "flow_label": "searcher",
+      "size_bucket": null
+    },
+    {
+      "grouping": "flow_label",
+      "horizon_s": 3600,
+      "swaps": 167936,
+      "notional_usd": 817928564.13533,
+      "markout_usd": -1270226.6209226348,
+      "mean_bp": -15.529799014483007,
+      "median_bp": -4.882726004500455,
+      "ci_lo_bp": -24.61710932995569,
+      "ci_hi_bp": -9.007394907040226,
+      "flow_label": "uniswap_router",
+      "size_bucket": null
+    }
+  ],
+  "basis": {
+    "blocks": 659799,
+    "band_bp": 5.0,
+    "mean_bp": -0.21601865077888463,
+    "quantiles_bp": {
+      "0.01": -10.743633595018666,
+      "0.05": -6.662922747720342,
+      "0.25": -3.311014079316749,
+      "0.5": -0.22526251644946038,
+      "0.75": 2.8524478299598828,
+      "0.95": 6.282097044231276,
+      "0.99": 10.211015874892157
+    },
+    "abs_quantiles_bp": {
+      "0.01": 0.05918666448704891,
+      "0.05": 0.2991871232800321,
+      "0.25": 1.51313269716162,
+      "0.5": 3.084769847402625,
+      "0.75": 4.760388642174242,
+      "0.95": 8.053284905465844,
+      "0.99": 12.762256062441638
+    },
+    "share_outside_band": 0.21710702804945142
+  },
+  "episodes": {
+    "5bp": [
+      {
+        "closer": "searcher",
+        "episodes": 51960,
+        "share_episodes": 0.7392232180964575,
+        "gap_weight": 9616491.298864815,
+        "share_gap_weight": 0.7636695704598198,
+        "median_duration_s": 12.0
+      },
+      {
+        "closer": "cex",
+        "episodes": 10345,
+        "share_episodes": 0.14717598520415423,
+        "gap_weight": 1579427.942141486,
+        "share_gap_weight": 0.12542631409543392,
+        "median_duration_s": 12.0
+      },
+      {
+        "closer": "other_contract",
+        "episodes": 4191,
+        "share_episodes": 0.05962441314553991,
+        "gap_weight": 766948.3865535709,
+        "share_gap_weight": 0.06090528517333094,
+        "median_duration_s": 24.0
+      },
+      {
+        "closer": "uniswap_router",
+        "episodes": 2902,
+        "share_episodes": 0.04128610044103002,
+        "gap_weight": 467661.3581990114,
+        "share_gap_weight": 0.037138155428753275,
+        "median_duration_s": 24.0
+      },
+      {
+        "closer": "aggregator",
+        "episodes": 672,
+        "share_episodes": 0.009560392658984208,
+        "gap_weight": 121052.06815117477,
+        "share_gap_weight": 0.009613046797972254,
+        "median_duration_s": 24.0
+      },
+      {
+        "closer": "intent_settlement",
+        "episodes": 220,
+        "share_episodes": 0.003129890453834116,
+        "gap_weight": 40895.68059508203,
+        "share_gap_weight": 0.0032476280446897443,
+        "median_duration_s": 24.0
+      }
+    ],
+    "10bp": [
+      {
+        "closer": "searcher",
+        "episodes": 11586,
+        "share_episodes": 0.9207661130096162,
+        "gap_weight": 2465310.2880187766,
+        "share_gap_weight": 0.9250862320071889,
+        "median_duration_s": 12.0
+      },
+      {
+        "closer": "other_contract",
+        "episodes": 567,
+        "share_episodes": 0.0450607963124851,
+        "gap_weight": 114723.41787816203,
+        "share_gap_weight": 0.04304896421504195,
+        "median_duration_s": 12.0
+      },
+      {
+        "closer": "cex",
+        "episodes": 313,
+        "share_episodes": 0.024874831121354208,
+        "gap_weight": 59002.01682622222,
+        "share_gap_weight": 0.02213999336791757,
+        "median_duration_s": 12.0
+      },
+      {
+        "closer": "uniswap_router",
+        "episodes": 100,
+        "share_episodes": 0.007947230390209012,
+        "gap_weight": 20180.379415106716,
+        "share_gap_weight": 0.007572511762241234,
+        "median_duration_s": 12.0
+      },
+      {
+        "closer": "aggregator",
+        "episodes": 10,
+        "share_episodes": 0.0007947230390209013,
+        "gap_weight": 2272.893299999041,
+        "share_gap_weight": 0.00085288343169989,
+        "median_duration_s": 18.0
+      },
+      {
+        "closer": "intent_settlement",
+        "episodes": 7,
+        "share_episodes": 0.0005563061273146309,
+        "gap_weight": 3462.879015334285,
+        "share_gap_weight": 0.0012994152159105255,
+        "median_duration_s": 24.0
+      }
+    ]
+  },
+  "episode_counts": {
+    "5bp": 70290,
+    "10bp": 12583
+  },
+  "lead_lag": {
+    "cross_correlation": [
+      {
+        "lag_blocks": -5,
+        "corr": -0.010296523366008422,
+        "n": 659793
+      },
+      {
+        "lag_blocks": -4,
+        "corr": 0.015266898832770291,
+        "n": 659794
+      },
+      {
+        "lag_blocks": -3,
+        "corr": -0.0037346959688533523,
+        "n": 659795
+      },
+      {
+        "lag_blocks": -2,
+        "corr": 0.0050681912098075295,
+        "n": 659796
+      },
+      {
+        "lag_blocks": -1,
+        "corr": 0.002258711840945991,
+        "n": 659797
+      },
+      {
+        "lag_blocks": 0,
+        "corr": 0.0601566032183664,
+        "n": 659798
+      },
+      {
+        "lag_blocks": 1,
+        "corr": 0.5859758905881332,
+        "n": 659797
+      },
+      {
+        "lag_blocks": 2,
+        "corr": 0.22603200588492645,
+        "n": 659796
+      },
+      {
+        "lag_blocks": 3,
+        "corr": 0.1300684049404533,
+        "n": 659795
+      },
+      {
+        "lag_blocks": 4,
+        "corr": 0.08917064163357792,
+        "n": 659794
+      },
+      {
+        "lag_blocks": 5,
+        "corr": 0.06149168908827047,
+        "n": 659793
+      }
+    ],
+    "ar1": {
+      "phi": 0.6877487895168855,
+      "intercept": -0.06744597671704573,
+      "half_life_blocks": 1.8516927448721672,
+      "median_block_s": 12.0,
+      "half_life_s": 22.220312938466005
+    }
+  },
+  "arbitrage": {
+    "available_usd": 1822548.539780111,
+    "available_cex1bp_usd": 1451825.4332687852,
+    "captured_searchers_usd": 1509258.2918972974,
+    "top_bot_single_pool_gross_usd": 1215557.3761182167,
+    "gas_burned_usd": 7828.3268194629445,
+    "priority_fee_usd": 537509.7421742802,
+    "coinbase_usd": 862314.0084496128,
+    "kept_usd": -192094.70132513926,
+    "captured_over_available": 0.8281032076541501,
+    "kept_over_top_bot_gross": -0.15803013917662861
+  },
+  "bot_profit_total": {
+    "sender": "TOTAL",
+    "swaps": 88002,
+    "txs": 88002,
+    "txs_with_coinbase": 56724,
+    "notional_usd": 3812483328.895381,
+    "gross_usd": 1215557.3761182162,
+    "gas_burned_usd": 7828.326819462945,
+    "priority_fee_usd": 537509.7421742802,
+    "coinbase_usd": 862314.0084496129,
+    "multi_pool_swaps": 22987,
+    "multi_pool_gross_usd": 324841.0800400417,
+    "kept_usd": -192094.70132513973,
+    "builder_usd": 1399823.750623893,
+    "builder_share_of_gross": 1.1515900262101297
+  },
+  "label_coverage": [
+    {
+      "flow_label": "searcher",
+      "swaps": 253280,
+      "notional_usd": 5270211098.659824,
+      "notional_share": 0.7475541370056911
+    },
+    {
+      "flow_label": "uniswap_router",
+      "swaps": 167988,
+      "notional_usd": 818105300.7949957,
+      "notional_share": 0.11604430840941155
+    },
+    {
+      "flow_label": "other_contract",
+      "swaps": 91722,
+      "notional_usd": 768248014.4768491,
+      "notional_share": 0.10897229175784222
+    },
+    {
+      "flow_label": "aggregator",
+      "swaps": 17822,
+      "notional_usd": 158257115.23412296,
+      "notional_share": 0.022448011851733847
+    },
+    {
+      "flow_label": "intent_settlement",
+      "swaps": 3565,
+      "notional_usd": 35117515.74340399,
+      "notional_share": 0.004981250975320494
+    }
+  ],
+  "limitation": "Builder payments are detected only as direct ETH transfers from the bot contract to the block's fee recipient within the same transaction. Payments routed elsewhere (another contract, a separate transaction in the bundle, off-chain agreements) are missed, so the reported net profit is an **upper bound** on what the bots keep. Binance-side trading fees, inventory and hedging costs are not observed."
+}
