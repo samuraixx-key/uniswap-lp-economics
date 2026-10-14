@@ -6,7 +6,7 @@ token1 per token0 in base units, so USD per ETH = 10**(18 - 6) / raw_price.
 
 import math
 
-from uniswap_lp_economics.config import DECIMALS0, DECIMALS1, FEE_PIPS
+from uniswap_lp_economics.config import DECIMALS0, DECIMALS1
 
 Q96 = 2**96
 _DECIMAL_SCALE: float = 10.0 ** (DECIMALS1 - DECIMALS0)
@@ -87,11 +87,6 @@ def get_tick_at_sqrt_ratio(sqrt_price_x96: int) -> int:
     while get_sqrt_ratio_at_tick(t) > sqrt_price_x96:
         t -= 1
     return t
-
-
-def swap_fee_raw(amount_in: int, fee_pips: int = FEE_PIPS) -> int:
-    """Fee in base units of the input token; amount_in already includes the fee."""
-    return -(-amount_in * fee_pips // 1_000_000)
 
 
 def fee_protocol_share(fee_protocol: int, zero_for_one: bool) -> float:

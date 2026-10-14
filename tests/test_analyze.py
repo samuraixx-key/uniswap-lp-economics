@@ -125,6 +125,7 @@ def test_analyze_fixture_end_to_end(tmp_path: Path) -> None:
         assert "upper bound" in (results / name).read_text(encoding="utf-8")
     assert (processed / "aligned.parquet").exists()
     assert (processed / "blocks_state.parquet").exists()
+    assert (processed / "swap_fees.parquet").exists()
     assert summary["markouts_robustness_0s"]
     assert {r["horizon_s"] for r in summary["markouts_robustness_0s"]} == {0}
     assert all(r["grouping"] == "flow_label_x_size" for r in summary["markouts_by_label_x_size_0s"])

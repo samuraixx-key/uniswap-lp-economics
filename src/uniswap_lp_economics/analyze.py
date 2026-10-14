@@ -23,6 +23,7 @@ from uniswap_lp_economics.build import load_snapshot_meta
 from uniswap_lp_economics.data import blocks as bq_blocks
 from uniswap_lp_economics.data import transfers
 from uniswap_lp_economics.io import read_exact, write_exact, write_text_atomic
+from uniswap_lp_economics.lp import swapfees
 from uniswap_lp_economics.tickbook import TickBook
 
 MARKOUT_NOTE = (
@@ -104,10 +105,17 @@ def analysis_input_hashes(raw: Path, interim: Path, labels_csv: Path) -> dict[st
 
 
 def build_aligned(
-    labelled: pl.DataFrame, ref: pl.DataFrame, end_us: int, inp: Inputs, shift_s: float = 0.0
+    labelled: pl.DataFrame,
+    ref: pl.DataFrame,
+    end_us: int,
+    inp: Inputs,
+    swap_fees: pl.DataFrame,
+    shift_s: float = 0.0,
 ) -> pl.DataFrame:
     """One row per swap: reference prices, markouts and costs (plan Ruling 5)."""
-    a = align.add_reference_prices(labelled, ref, end_us, shift_s=shift_s)
+    fees = swap_fees.select("block_number", "log_index", "protocol_fee_raw")
+    a = labelled.join(fees, on=["block_number", "log_index"], how="left", maintain_order="left")
+    a = align.add_reference_prices(a, ref, end_us, shift_s=shift_s)
     a = markouts.add_markouts(a)
     scope = arbprofit.tx_scope(inp.other_logs)
     return arbprofit.add_costs(a, inp.blocks, inp.transfers, scope, inp.bots)
@@ -125,8 +133,11 @@ def analyze(
     window_end = align.window_end_us() if blocks_end_us is None else blocks_end_us
     labelled = flows.label_swaps(inp.swaps, inp.labels)
     ref = align.reference_table(inp.trades)
-    aligned = build_aligned(labelled, ref, end_us, inp)
     fee_protocol = int(inp.meta["fee_protocol"])
+    swap_fees = swapfees.build_swap_fees(
+        inp.events, TickBook.from_snapshot(inp.ticks, inp.meta), fee_protocol
+    )
+    aligned = build_aligned(labelled, ref, end_us, inp, swap_fees)
     series = discovery.build_block_series(
         inp.events,
         TickBook.from_snapshot(inp.ticks, inp.meta),
@@ -151,7 +162,8 @@ def analyze(
     processed_dir.mkdir(parents=True, exist_ok=True)
     write_exact(aligned, processed_dir / "aligned.parquet")
     write_exact(series, processed_dir / "blocks_state.parquet")
-    _write_results(inp, labelled, aligned, series, ref, end_us, results_dir, provenance)
+    write_exact(swap_fees, processed_dir / "swap_fees.parquet")
+    _write_results(inp, labelled, aligned, series, ref, swap_fees, end_us, results_dir, provenance)
     return status
 
 
@@ -161,6 +173,7 @@ def _write_results(
     aligned: pl.DataFrame,
     series: pl.DataFrame,
     ref: pl.DataFrame,
+    swap_fees: pl.DataFrame,
     end_us: int,
     out: Path,
     provenance: dict[str, Any],
@@ -174,9 +187,9 @@ def _write_results(
     variants = {
         "primary": aligned,
         "ethusdt_reference": build_aligned(
-            labelled, align.kline_reference_table(inp.klines), end_us, inp
+            labelled, align.kline_reference_table(inp.klines), end_us, inp, swap_fees
         ),
-        "t0_minus_2s": build_aligned(labelled, ref, end_us, inp, shift_s=-2.0),
+        "t0_minus_2s": build_aligned(labelled, ref, end_us, inp, swap_fees, shift_s=-2.0),
         "exclude_stale_over_5s": markouts.exclude_stale(aligned),
     }
     robustness = pl.concat(

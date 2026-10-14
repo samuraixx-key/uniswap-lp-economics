@@ -10,7 +10,7 @@ from uniswap_lp_economics.config import DECIMALS0, DECIMALS1
 from uniswap_lp_economics.data.binance import parse_agg_trades, parse_klines_close
 from uniswap_lp_economics.events import decode_event
 from uniswap_lp_economics.io import write_exact
-from uniswap_lp_economics.v3math import Q96, fee_protocol_share, swap_fee_raw
+from uniswap_lp_economics.v3math import Q96, fee_protocol_share
 
 EVENT_SCHEMA: dict[str, Any] = {
     "event": pl.String,
@@ -79,7 +79,6 @@ def build_swaps(
     swaps = events.filter(pl.col("event") == "swap")
     a0, a1 = swaps["amount0"].to_list(), swaps["amount1"].to_list()
     zero_for_one = [x > 0 for x in a0]
-    amount_in = [x if x > 0 else (y if y > 0 else 0) for x, y in zip(a0, a1, strict=True)]
     fee_token = [
         "USDC" if z else ("WETH" if y > 0 else None) for z, y in zip(zero_for_one, a1, strict=True)
     ]
@@ -97,19 +96,12 @@ def build_swaps(
         zero_for_one=pl.Series(zero_for_one),
         notional_usd=pl.col("amount_usdc").abs(),
         fee_token=pl.Series(fee_token, dtype=pl.String),
-        fee_amount_raw=pl.Series([swap_fee_raw(x) for x in amount_in], dtype=pl.Int128),
         pre_sqrt_price_x96=pl.Series(pre_sqrt, dtype=pl.Int128),
         pre_price_usd=10 ** (DECIMALS1 - DECIMALS0) / (pre * pre),
         fee_protocol=pl.Series(fee_protocols, dtype=pl.Int64),
         fee_protocol_share=pl.Series(
             [fee_protocol_share(f, z) for f, z in zip(fee_protocols, zero_for_one, strict=True)]
         ),
-    ).with_columns(
-        fee_usd=pl.when(pl.col("fee_token") == "USDC")
-        .then(pl.col("fee_amount_raw").cast(pl.Float64) / 10**DECIMALS0)
-        .when(pl.col("fee_token") == "WETH")
-        .then(pl.col("fee_amount_raw").cast(pl.Float64) / 10**DECIMALS1 * pl.col("pre_price_usd"))
-        .otherwise(0.0),
     )
 
 

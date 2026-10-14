@@ -2,6 +2,7 @@
 
 Trader side, USD: markout(h) = -(amount_usdc + amount_eth * P_cex(t0 + h)), with pool amounts
 (positive = into the pool) that already include the swap fee. Positive = the swap won.
+Protocol fee: exact per-step cut from swap_fees (spec P2), valued at P_cex(t0).
 """
 
 import math
@@ -11,7 +12,7 @@ import numpy as np
 import polars as pl
 from numpy.typing import NDArray
 
-from uniswap_lp_economics.config import HORIZONS_S
+from uniswap_lp_economics.config import DECIMALS0, DECIMALS1, HORIZONS_S
 from uniswap_lp_economics.flows import SIZE_BUCKETS
 
 N_BOOT = 1000
@@ -26,7 +27,16 @@ GROUPINGS: dict[str, list[str]] = {
 
 
 def add_markouts(df: pl.DataFrame, horizons: tuple[int, ...] = HORIZONS_S) -> pl.DataFrame:
-    out = df.with_columns(protocol_fee_usd=pl.col("fee_usd") * pl.col("fee_protocol_share"))
+    proto = pl.col("protocol_fee_raw").cast(pl.Float64)
+    out = df.with_columns(
+        protocol_fee_usd=pl.when(proto.is_null())
+        .then(pl.lit(None, dtype=pl.Float64))
+        .when(pl.col("fee_token") == "USDC")
+        .then(proto / 10**DECIMALS0)
+        .when(pl.col("fee_token") == "WETH")
+        .then(proto / 10**DECIMALS1 * pl.col("p_cex_0"))
+        .otherwise(0.0)
+    )
     out = out.with_columns(
         (-(pl.col("amount_usdc") + pl.col("amount_eth") * pl.col(f"p_cex_{h}"))).alias(
             f"markout_usd_{h}"

@@ -20,8 +20,8 @@ SCHEMA: dict[str, Any] = {
     "amount_usdc": pl.Float64,
     "amount_eth": pl.Float64,
     "notional_usd": pl.Float64,
-    "fee_usd": pl.Float64,
-    "fee_protocol_share": pl.Float64,
+    "protocol_fee_raw": pl.Int128,
+    "fee_token": pl.String,
     "p_cex_0": pl.Float64,
     "p_cex_12": pl.Float64,
     "cex_age_s_0": pl.Float64,
@@ -36,8 +36,8 @@ def frame(rows: list[dict[str, Any]]) -> pl.DataFrame:
         "amount_usdc": 0.0,
         "amount_eth": 0.0,
         "notional_usd": 0.0,
-        "fee_usd": 0.0,
-        "fee_protocol_share": 0.25,
+        "protocol_fee_raw": 0,
+        "fee_token": "USDC",
         "p_cex_0": 2010.0,
         "p_cex_12": 2010.0,
         "cex_age_s_0": 0.1,
@@ -66,14 +66,34 @@ def test_markout_signs_hand_worked() -> None:
 def test_lp_markout_is_trader_loss_minus_protocol_fee() -> None:
     out = add_markouts(
         frame(
-            [{"amount_usdc": 2001.0, "amount_eth": -1.0, "notional_usd": 2001.0, "fee_usd": 1.0}]
+            [
+                {
+                    "amount_usdc": 2001.0,
+                    "amount_eth": -1.0,
+                    "notional_usd": 2001.0,
+                    "protocol_fee_raw": 250_000,
+                    "fee_token": "USDC",
+                },
+                {
+                    "amount_usdc": -1990.0,
+                    "amount_eth": 1.0,
+                    "notional_usd": 1990.0,
+                    "protocol_fee_raw": 10**14,
+                    "fee_token": "WETH",
+                },
+            ]
         ),
         H,
     )
-    assert out["protocol_fee_usd"].item() == pytest.approx(0.25)
-    assert out["lp_markout_usd_0"].item() == pytest.approx(-9.25)
+    assert out["protocol_fee_usd"].to_list() == pytest.approx([0.25, 1e-4 * 2010.0])
+    assert out["lp_markout_usd_0"].to_list()[0] == pytest.approx(-9.25)
     total = out["markout_usd_0"] + out["lp_markout_usd_0"] + out["protocol_fee_usd"]
-    assert abs(total.item()) < 1e-12
+    assert total.abs().max() < 1e-12  # type: ignore[operator]
+
+
+def test_unreproduced_swap_has_a_null_protocol_fee() -> None:
+    out = add_markouts(frame([{"protocol_fee_raw": None, "fee_token": "USDC"}]), H)
+    assert out["protocol_fee_usd"].to_list() == [None]
 
 
 def test_zero_notional_gives_null_bp() -> None:

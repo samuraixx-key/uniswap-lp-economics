@@ -87,11 +87,9 @@ def test_build_swaps_direction_fee_pre_price_and_protocol_share() -> None:
     assert s["direction"].to_list() == ["buy_eth", "sell_eth", "none", "buy_eth", "sell_eth"]
     assert s["zero_for_one"].to_list() == [True, False, False, True, False]
     assert s["fee_token"].to_list() == ["USDC", "WETH", None, "USDC", "WETH"]
-    assert s["fee_amount_raw"].to_list() == [10**6, 5 * 10**14, 0, 1, 1]
     assert s["pre_sqrt_price_x96"].to_list()[0] == start
     assert s["pre_price_usd"].to_list()[1] == pytest.approx(2001.0, rel=1e-9)
-    assert s["fee_usd"].to_list()[0] == pytest.approx(1.0)
-    assert s["fee_usd"].to_list()[1] == pytest.approx(0.0005 * 2001.0, rel=1e-6)
+    assert "fee_amount_raw" not in s.columns and "fee_usd" not in s.columns
     # Before the switch: 0. After SetFeeProtocol(4, 5): ETH-in swaps use token1's 1/5.
     # The zero-amount swap has no token0 input, so it also reads token1's share
     # (its fee is 0 anyway).
@@ -121,11 +119,11 @@ def test_build_all_writes_exact_ints_readable_outside_polars(tmp_path: Path) -> 
         with zipfile.ZipFile(raw / "binance" / name, "w") as z:
             z.writestr("a.csv", text)
     build_all(raw, interim)
-    for name, col in (("events", "sqrt_price_x96"), ("swaps", "fee_amount_raw")):
+    for name, col in (("events", "sqrt_price_x96"), ("swaps", "pre_sqrt_price_x96")):
         schema = pq.read_schema(interim / f"{name}.parquet")  # fails on Polars' private Int128
         assert str(schema.field(col).type) == "decimal128(38, 0)"
     swaps = pq.read_table(interim / "swaps.parquet").to_pydict()
-    assert [int(x) for x in swaps["fee_amount_raw"]] == [10**6, 1]
+    assert [int(x) for x in swaps["amount0"]] == [2_000 * 10**6, 1]
 
 
 def test_build_cex_sorts_ties_by_trade_id(tmp_path: Path) -> None:

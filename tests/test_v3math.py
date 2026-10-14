@@ -15,7 +15,6 @@ from uniswap_lp_economics.v3math import (
     get_sqrt_ratio_at_tick,
     get_tick_at_sqrt_ratio,
     sqrt_price_x96_to_eth_price,
-    swap_fee_raw,
     tick_to_eth_price,
 )
 
@@ -88,12 +87,6 @@ def test_tick_at_sqrt_ratio_rejects_out_of_range() -> None:
         get_tick_at_sqrt_ratio(MIN_SQRT_RATIO - 1)
     with pytest.raises(ValueError):
         get_tick_at_sqrt_ratio(MAX_SQRT_RATIO)
-
-
-def test_swap_fee_rounds_up() -> None:
-    assert swap_fee_raw(2_000 * 10**6) == 10**6  # 0.05% of 2000 USDC = 1 USDC
-    assert swap_fee_raw(1) == 1
-    assert swap_fee_raw(0) == 0
 
 
 def test_fee_protocol_share_uses_low_nibble_for_token0() -> None:
