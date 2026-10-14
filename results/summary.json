@@ -1,8 +1,8 @@
 {
-  "generated_utc": "2026-10-14T03:25:25+00:00",
-  "git_commit": "87825d8",
+  "generated_utc": "2026-10-14T16:13:44+00:00",
+  "git_commit": "7bf0d96-dirty",
   "input_sha256_16": {
-    "interim/cex_ethusdc.parquet": "cd806aa6a7f87d7e",
+    "interim/cex_ethusdc.parquet": "2bb21f2bb6ca55b8",
     "interim/cex_ethusdt_1s.parquet": "02a5ea793a51eea0",
     "interim/events.parquet": "fcb1cfcb7c07a6e7",
     "interim/swaps.parquet": "eb31e774d75fb9d3",
@@ -14,7 +14,7 @@
     "raw/bot_transfers/0x51c72848c68a965f66fa7a88855f9f7784502a7f.parquet": "4709759d4749f96e",
     "raw/bot_transfers/0xbdb3ba9ffe392549e1f8658dd2630c141fdf47b6.parquet": "f64808538b447479",
     "raw/bot_transfers/0xeff6cb8b614999d130e537751ee99724d01aa167.parquet": "44e8dce9e7b7a224",
-    "labels/addresses.csv": "3bec3d79810c2c77"
+    "labels/addresses.csv": "90715e75b8d28b72"
   },
   "window": "[2026-07-01, 2026-10-01)",
   "swaps": 534377,
@@ -49,7 +49,7 @@
       "markout_usd": 564229.587743267,
       "mean_bp": 0.8003325761386547,
       "median_bp": -2.4475963231812514,
-      "ci_lo_bp": 0.30422292525156636,
+      "ci_lo_bp": 0.30422292525156625,
       "ci_hi_bp": 1.4765565673567527
     },
     {
@@ -62,8 +62,8 @@
       "markout_usd": 734805.8629110735,
       "mean_bp": 1.0422911133681172,
       "median_bp": -2.9388134655086806,
-      "ci_lo_bp": 0.25670973397941593,
-      "ci_hi_bp": 2.198417747562568
+      "ci_lo_bp": 0.2567097339794158,
+      "ci_hi_bp": 2.198417747562569
     },
     {
       "grouping": "all",
@@ -75,7 +75,7 @@
       "markout_usd": 612580.8163396935,
       "mean_bp": 0.8689365973422072,
       "median_bp": -3.177538340441922,
-      "ci_lo_bp": 0.027551694043656084,
+      "ci_lo_bp": 0.02755169404365625,
       "ci_hi_bp": 2.0574559480907917
     },
     {
@@ -88,8 +88,8 @@
       "markout_usd": 1686249.7996513147,
       "mean_bp": 2.3923019168198274,
       "median_bp": -3.24674007863463,
-      "ci_lo_bp": -0.7247769265912233,
-      "ci_hi_bp": 7.686210412905919
+      "ci_lo_bp": -0.7247769265912234,
+      "ci_hi_bp": 7.686210412905924
     }
   ],
   "markouts_by_label": [
@@ -311,7 +311,7 @@
       "markout_usd": -11680.970550880947,
       "mean_bp": -3.326251958205484,
       "median_bp": -2.0616988159991916,
-      "ci_lo_bp": -6.452730172221625,
+      "ci_lo_bp": -6.452730172221624,
       "ci_hi_bp": -0.3514002392252559
     },
     {
@@ -417,6 +417,510 @@
       "median_bp": -4.882726004500455,
       "ci_lo_bp": -24.61710932995569,
       "ci_hi_bp": -9.007394907040226
+    }
+  ],
+  "markouts_robustness_0s": [
+    {
+      "variant": "primary",
+      "flow_label": "aggregator",
+      "horizon_s": 0,
+      "swaps": 17822,
+      "notional_usd": 158257115.23412302,
+      "markout_usd": -106999.6802526677,
+      "mean_bp": -6.761129197532389,
+      "median_bp": -2.26756282264755,
+      "ci_lo_bp": -7.891613895610133,
+      "ci_hi_bp": -5.845657267753048
+    },
+    {
+      "variant": "primary",
+      "flow_label": "intent_settlement",
+      "horizon_s": 0,
+      "swaps": 3565,
+      "notional_usd": 35117515.743404,
+      "markout_usd": -17945.366846458783,
+      "mean_bp": -5.110090069463242,
+      "median_bp": -1.3884076351616532,
+      "ci_lo_bp": -7.249035643756094,
+      "ci_hi_bp": -3.251966164552265
+    },
+    {
+      "variant": "primary",
+      "flow_label": "other_contract",
+      "horizon_s": 0,
+      "swaps": 91722,
+      "notional_usd": 768248014.476848,
+      "markout_usd": -333951.03955504246,
+      "mean_bp": -4.346917053634721,
+      "median_bp": -2.5100917219053747,
+      "ci_lo_bp": -5.294067765851208,
+      "ci_hi_bp": -3.4579161250211654
+    },
+    {
+      "variant": "primary",
+      "flow_label": "searcher",
+      "horizon_s": 0,
+      "swaps": 253280,
+      "notional_usd": 5270211098.659831,
+      "markout_usd": 1509258.2918972974,
+      "mean_bp": 2.863753014146034,
+      "median_bp": -0.5656982276705103,
+      "ci_lo_bp": 2.3763495836126522,
+      "ci_hi_bp": 3.501407148726504
+    },
+    {
+      "variant": "primary",
+      "flow_label": "uniswap_router",
+      "horizon_s": 0,
+      "swaps": 167988,
+      "notional_usd": 818105300.794996,
+      "markout_usd": -871726.4059627443,
+      "mean_bp": -10.655430359828273,
+      "median_bp": -4.676340699263138,
+      "ci_lo_bp": -11.276910944741305,
+      "ci_hi_bp": -10.01038173059664
+    },
+    {
+      "variant": "ethusdt_reference",
+      "flow_label": "aggregator",
+      "horizon_s": 0,
+      "swaps": 17822,
+      "notional_usd": 158257115.23412302,
+      "markout_usd": -123205.14249489411,
+      "mean_bp": -7.785125004498307,
+      "median_bp": -3.987733882402159,
+      "ci_lo_bp": -8.795209071600048,
+      "ci_hi_bp": -6.8343548420324085
+    },
+    {
+      "variant": "ethusdt_reference",
+      "flow_label": "intent_settlement",
+      "horizon_s": 0,
+      "swaps": 3565,
+      "notional_usd": 35117515.743404,
+      "markout_usd": -19873.407367146265,
+      "mean_bp": -5.659115386280995,
+      "median_bp": -2.7960669357996766,
+      "ci_lo_bp": -7.768156225766595,
+      "ci_hi_bp": -3.7495116786839278
+    },
+    {
+      "variant": "ethusdt_reference",
+      "flow_label": "other_contract",
+      "horizon_s": 0,
+      "swaps": 91722,
+      "notional_usd": 768248014.476848,
+      "markout_usd": -350563.08152374474,
+      "mean_bp": -4.563149854184353,
+      "median_bp": -2.968364086316032,
+      "ci_lo_bp": -5.5803431527956375,
+      "ci_hi_bp": -3.6239872650356046
+    },
+    {
+      "variant": "ethusdt_reference",
+      "flow_label": "searcher",
+      "horizon_s": 0,
+      "swaps": 253280,
+      "notional_usd": 5270211098.659831,
+      "markout_usd": 1762297.4531508507,
+      "mean_bp": 3.3438839928043635,
+      "median_bp": -1.0870277049081547,
+      "ci_lo_bp": 2.8159021055789992,
+      "ci_hi_bp": 4.015115309478691
+    },
+    {
+      "variant": "ethusdt_reference",
+      "flow_label": "uniswap_router",
+      "horizon_s": 0,
+      "swaps": 167988,
+      "notional_usd": 818105300.794996,
+      "markout_usd": -1049620.1948156268,
+      "mean_bp": -12.829891137432499,
+      "median_bp": -5.7034829118008314,
+      "ci_lo_bp": -13.448546257785491,
+      "ci_hi_bp": -12.152110032003712
+    },
+    {
+      "variant": "t0_minus_2s",
+      "flow_label": "aggregator",
+      "horizon_s": 0,
+      "swaps": 17822,
+      "notional_usd": 158257115.23412302,
+      "markout_usd": -106407.61980360835,
+      "mean_bp": -6.723717897055727,
+      "median_bp": -2.338870795642331,
+      "ci_lo_bp": -7.861760038717391,
+      "ci_hi_bp": -5.834990765113583
+    },
+    {
+      "variant": "t0_minus_2s",
+      "flow_label": "intent_settlement",
+      "horizon_s": 0,
+      "swaps": 3565,
+      "notional_usd": 35117515.743404,
+      "markout_usd": -17804.90417592513,
+      "mean_bp": -5.070092174521019,
+      "median_bp": -1.4835029352934583,
+      "ci_lo_bp": -7.32657657275221,
+      "ci_hi_bp": -3.181593857353086
+    },
+    {
+      "variant": "t0_minus_2s",
+      "flow_label": "other_contract",
+      "horizon_s": 0,
+      "swaps": 91722,
+      "notional_usd": 768248014.476848,
+      "markout_usd": -344908.9113785999,
+      "mean_bp": -4.489551614571652,
+      "median_bp": -2.6509903666226373,
+      "ci_lo_bp": -5.3462264428144515,
+      "ci_hi_bp": -3.626877879979719
+    },
+    {
+      "variant": "t0_minus_2s",
+      "flow_label": "searcher",
+      "horizon_s": 0,
+      "swaps": 253280,
+      "notional_usd": 5270211098.659831,
+      "markout_usd": 946400.8308957895,
+      "mean_bp": 1.7957550716259756,
+      "median_bp": -1.0065992986717285,
+      "ci_lo_bp": 1.445636608883103,
+      "ci_hi_bp": 2.25096991686216
+    },
+    {
+      "variant": "t0_minus_2s",
+      "flow_label": "uniswap_router",
+      "horizon_s": 0,
+      "swaps": 167988,
+      "notional_usd": 818105300.794996,
+      "markout_usd": -876456.9248859858,
+      "mean_bp": -10.713253221000846,
+      "median_bp": -4.678988179475301,
+      "ci_lo_bp": -11.329043741507604,
+      "ci_hi_bp": -10.069899231610206
+    },
+    {
+      "variant": "exclude_stale_over_5s",
+      "flow_label": "aggregator",
+      "horizon_s": 0,
+      "swaps": 15081,
+      "notional_usd": 138500291.170482,
+      "markout_usd": -94786.79520308952,
+      "mean_bp": -6.843797540209867,
+      "median_bp": -2.3696498515769275,
+      "ci_lo_bp": -7.961465309960107,
+      "ci_hi_bp": -5.8692866145796305
+    },
+    {
+      "variant": "exclude_stale_over_5s",
+      "flow_label": "intent_settlement",
+      "horizon_s": 0,
+      "swaps": 3110,
+      "notional_usd": 31624289.371014,
+      "markout_usd": -16817.928777730624,
+      "mean_bp": -5.318041642113704,
+      "median_bp": -1.4266813747502496,
+      "ci_lo_bp": -7.6313885758180575,
+      "ci_hi_bp": -3.289840688979321
+    },
+    {
+      "variant": "exclude_stale_over_5s",
+      "flow_label": "other_contract",
+      "horizon_s": 0,
+      "swaps": 77902,
+      "notional_usd": 693300168.3974911,
+      "markout_usd": -290169.6882204732,
+      "mean_bp": -4.185339935675736,
+      "median_bp": -2.526792769088247,
+      "ci_lo_bp": -5.234047344080142,
+      "ci_hi_bp": -3.212108163766997
+    },
+    {
+      "variant": "exclude_stale_over_5s",
+      "flow_label": "searcher",
+      "horizon_s": 0,
+      "swaps": 225252,
+      "notional_usd": 5045055596.934913,
+      "markout_usd": 1483600.4306203062,
+      "mean_bp": 2.940701845826351,
+      "median_bp": -0.45454817438918615,
+      "ci_lo_bp": 2.4370777629980203,
+      "ci_hi_bp": 3.604880643653077
+    },
+    {
+      "variant": "exclude_stale_over_5s",
+      "flow_label": "uniswap_router",
+      "horizon_s": 0,
+      "swaps": 139893,
+      "notional_usd": 719782044.836808,
+      "markout_usd": -775920.2466716394,
+      "mean_bp": -10.779933345622137,
+      "median_bp": -4.693733954942214,
+      "ci_lo_bp": -11.433129708547849,
+      "ci_hi_bp": -10.105832476822973
+    }
+  ],
+  "markouts_by_label_x_size_0s": [
+    {
+      "grouping": "flow_label_x_size",
+      "flow_label": "aggregator",
+      "size_bucket": "<1k",
+      "horizon_s": 0,
+      "swaps": 6440,
+      "notional_usd": 1920111.654227,
+      "markout_usd": -458.22416108560463,
+      "mean_bp": -2.3864453927814777,
+      "median_bp": -1.7614689212264212,
+      "ci_lo_bp": -2.5485086469641174,
+      "ci_hi_bp": -2.214952649839631
+    },
+    {
+      "grouping": "flow_label_x_size",
+      "flow_label": "aggregator",
+      "size_bucket": "1k-10k",
+      "horizon_s": 0,
+      "swaps": 7656,
+      "notional_usd": 31056110.768823,
+      "markout_usd": -9278.786628421669,
+      "mean_bp": -2.9877490769824835,
+      "median_bp": -2.0034399080144225,
+      "ci_lo_bp": -3.1370777783820705,
+      "ci_hi_bp": -2.823234509710544
+    },
+    {
+      "grouping": "flow_label_x_size",
+      "flow_label": "aggregator",
+      "size_bucket": "10k-100k",
+      "horizon_s": 0,
+      "swaps": 3557,
+      "notional_usd": 96397991.48675099,
+      "markout_usd": -54392.753793335345,
+      "mean_bp": -5.642519408800247,
+      "median_bp": -3.987427331877765,
+      "ci_lo_bp": -6.063597730910193,
+      "ci_hi_bp": -5.217987542585642
+    },
+    {
+      "grouping": "flow_label_x_size",
+      "flow_label": "aggregator",
+      "size_bucket": ">=100k",
+      "horizon_s": 0,
+      "swaps": 169,
+      "notional_usd": 28882901.324321993,
+      "markout_usd": -42869.91566982509,
+      "mean_bp": -14.842662511097794,
+      "median_bp": -11.42254827190614,
+      "ci_lo_bp": -18.520499479522474,
+      "ci_hi_bp": -11.924410579807402
+    },
+    {
+      "grouping": "flow_label_x_size",
+      "flow_label": "intent_settlement",
+      "size_bucket": "<1k",
+      "horizon_s": 0,
+      "swaps": 805,
+      "notional_usd": 331444.802862,
+      "markout_usd": -68.4558279702585,
+      "mean_bp": -2.065376418008301,
+      "median_bp": -1.3566369474157594,
+      "ci_lo_bp": -2.303828378928731,
+      "ci_hi_bp": -1.8176235725937382
+    },
+    {
+      "grouping": "flow_label_x_size",
+      "flow_label": "intent_settlement",
+      "size_bucket": "1k-10k",
+      "horizon_s": 0,
+      "swaps": 1871,
+      "notional_usd": 7578245.440311,
+      "markout_usd": -1496.2812248620085,
+      "mean_bp": -1.9744428135077705,
+      "median_bp": -1.1281640104340167,
+      "ci_lo_bp": -2.1510255471788353,
+      "ci_hi_bp": -1.8098901487341235
+    },
+    {
+      "grouping": "flow_label_x_size",
+      "flow_label": "intent_settlement",
+      "size_bucket": "10k-100k",
+      "horizon_s": 0,
+      "swaps": 864,
+      "notional_usd": 21621712.680207998,
+      "markout_usd": -7518.479100995839,
+      "mean_bp": -3.4772819397780994,
+      "median_bp": -1.8824737512797285,
+      "ci_lo_bp": -3.852310942472879,
+      "ci_hi_bp": -3.090961397513558
+    },
+    {
+      "grouping": "flow_label_x_size",
+      "flow_label": "intent_settlement",
+      "size_bucket": ">=100k",
+      "horizon_s": 0,
+      "swaps": 25,
+      "notional_usd": 5586112.820022999,
+      "markout_usd": -8862.150692630676,
+      "mean_bp": -15.864611006181196,
+      "median_bp": -7.360048637247761,
+      "ci_lo_bp": -22.585705817061232,
+      "ci_hi_bp": -6.164244811106354
+    },
+    {
+      "grouping": "flow_label_x_size",
+      "flow_label": "other_contract",
+      "size_bucket": "<1k",
+      "horizon_s": 0,
+      "swaps": 46057,
+      "notional_usd": 10515976.409166,
+      "markout_usd": -3325.146128417811,
+      "mean_bp": -3.161994663205526,
+      "median_bp": -2.999353807450497,
+      "ci_lo_bp": -3.311402139100329,
+      "ci_hi_bp": -2.999494804162943
+    },
+    {
+      "grouping": "flow_label_x_size",
+      "flow_label": "other_contract",
+      "size_bucket": "1k-10k",
+      "horizon_s": 0,
+      "swaps": 30296,
+      "notional_usd": 118846707.155949,
+      "markout_usd": -32513.33014381771,
+      "mean_bp": -2.7357367252215217,
+      "median_bp": -1.8939008925163656,
+      "ci_lo_bp": -2.9257449586030235,
+      "ci_hi_bp": -2.555029354012448
+    },
+    {
+      "grouping": "flow_label_x_size",
+      "flow_label": "other_contract",
+      "size_bucket": "10k-100k",
+      "horizon_s": 0,
+      "swaps": 14287,
+      "notional_usd": 403365876.954179,
+      "markout_usd": -139812.308569239,
+      "mean_bp": -3.4661412022495197,
+      "median_bp": -2.595632464447744,
+      "ci_lo_bp": -3.8764410453275033,
+      "ci_hi_bp": -3.0462311110589178
+    },
+    {
+      "grouping": "flow_label_x_size",
+      "flow_label": "other_contract",
+      "size_bucket": ">=100k",
+      "horizon_s": 0,
+      "swaps": 1082,
+      "notional_usd": 235519453.957554,
+      "markout_usd": -158300.25471356802,
+      "mean_bp": -6.7213239523770865,
+      "median_bp": -6.225543621074179,
+      "ci_lo_bp": -9.767128134348612,
+      "ci_hi_bp": -3.7822114844091343
+    },
+    {
+      "grouping": "flow_label_x_size",
+      "flow_label": "searcher",
+      "size_bucket": "<1k",
+      "horizon_s": 0,
+      "swaps": 108753,
+      "notional_usd": 16679816.638387999,
+      "markout_usd": -7308.459485095524,
+      "mean_bp": -4.381618601415178,
+      "median_bp": -4.57388867850412,
+      "ci_lo_bp": -4.561365827145097,
+      "ci_hi_bp": -4.144230585306928
+    },
+    {
+      "grouping": "flow_label_x_size",
+      "flow_label": "searcher",
+      "size_bucket": "1k-10k",
+      "horizon_s": 0,
+      "swaps": 43672,
+      "notional_usd": 225597273.929242,
+      "markout_usd": -6883.592416679383,
+      "mean_bp": -0.30512746438764166,
+      "median_bp": -0.2862619679019552,
+      "ci_lo_bp": -0.48915500130021355,
+      "ci_hi_bp": -0.06581321115667872
+    },
+    {
+      "grouping": "flow_label_x_size",
+      "flow_label": "searcher",
+      "size_bucket": "10k-100k",
+      "horizon_s": 0,
+      "swaps": 90433,
+      "notional_usd": 3098986780.730823,
+      "markout_usd": 328368.50699792407,
+      "mean_bp": 1.0595995731239811,
+      "median_bp": 0.6112234326868043,
+      "ci_lo_bp": 0.9384370173399224,
+      "ci_hi_bp": 1.1822290865830902
+    },
+    {
+      "grouping": "flow_label_x_size",
+      "flow_label": "searcher",
+      "size_bucket": ">=100k",
+      "horizon_s": 0,
+      "swaps": 10422,
+      "notional_usd": 1928947227.361379,
+      "markout_usd": 1195081.8368011485,
+      "mean_bp": 6.195513386003358,
+      "median_bp": 3.157743966131971,
+      "ci_lo_bp": 4.983302440213314,
+      "ci_hi_bp": 7.522886886851759
+    },
+    {
+      "grouping": "flow_label_x_size",
+      "flow_label": "uniswap_router",
+      "size_bucket": "<1k",
+      "horizon_s": 0,
+      "swaps": 131010,
+      "notional_usd": 13234936.840428999,
+      "markout_usd": -6063.538813355038,
+      "mean_bp": -4.581464110076172,
+      "median_bp": -4.861250928895444,
+      "ci_lo_bp": -4.661861624872353,
+      "ci_hi_bp": -4.4963673926219005
+    },
+    {
+      "grouping": "flow_label_x_size",
+      "flow_label": "uniswap_router",
+      "size_bucket": "1k-10k",
+      "horizon_s": 0,
+      "swaps": 23528,
+      "notional_usd": 87985219.9196,
+      "markout_usd": -33778.88327740145,
+      "mean_bp": -3.8391542702590566,
+      "median_bp": -3.2041289235408987,
+      "ci_lo_bp": -3.9384289469598066,
+      "ci_hi_bp": -3.7279655465619896
+    },
+    {
+      "grouping": "flow_label_x_size",
+      "flow_label": "uniswap_router",
+      "size_bucket": "10k-100k",
+      "horizon_s": 0,
+      "swaps": 11719,
+      "notional_usd": 354353130.53140795,
+      "markout_usd": -209794.20705857014,
+      "mean_bp": -5.92048408727054,
+      "median_bp": -4.516697328737067,
+      "ci_lo_bp": -6.266035026255385,
+      "ci_hi_bp": -5.578315231656224
+    },
+    {
+      "grouping": "flow_label_x_size",
+      "flow_label": "uniswap_router",
+      "size_bucket": ">=100k",
+      "horizon_s": 0,
+      "swaps": 1731,
+      "notional_usd": 362532013.503559,
+      "markout_usd": -622089.7768134174,
+      "mean_bp": -17.159581875306863,
+      "median_bp": -13.084807497321057,
+      "ci_lo_bp": -18.239507888772856,
+      "ci_hi_bp": -16.068210280480802
     }
   ],
   "basis": {
@@ -651,20 +1155,20 @@
     {
       "flow_label": "searcher",
       "swaps": 253280,
-      "notional_usd": 5270211098.659832,
-      "notional_share": 0.7475541370056922
+      "notional_usd": 5270211098.659834,
+      "notional_share": 0.7475541370056924
     },
     {
       "flow_label": "uniswap_router",
       "swaps": 167988,
-      "notional_usd": 818105300.7949961,
-      "notional_share": 0.11604430840941161
+      "notional_usd": 818105300.7949964,
+      "notional_share": 0.11604430840941164
     },
     {
       "flow_label": "other_contract",
       "swaps": 91722,
-      "notional_usd": 768248014.4768478,
-      "notional_share": 0.10897229175784204
+      "notional_usd": 768248014.4768481,
+      "notional_share": 0.1089722917578421
     },
     {
       "flow_label": "aggregator",
@@ -675,8 +1179,8 @@
     {
       "flow_label": "intent_settlement",
       "swaps": 3565,
-      "notional_usd": 35117515.743404,
-      "notional_share": 0.004981250975320495
+      "notional_usd": 35117515.74340399,
+      "notional_share": 0.004981250975320494
     }
   ],
   "limitation": "Builder payments are detected only as direct ETH transfers from the bot contract to the block's fee recipient within the same transaction. Payments routed elsewhere (another contract, a separate transaction in the bundle, off-chain agreements) are missed, so the reported net profit is an **upper bound** on what the bots keep. Binance-side trading fees, inventory and hedging costs are not observed."
