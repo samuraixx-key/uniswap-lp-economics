@@ -80,7 +80,7 @@ def write_table(
     digits: int = 2,
 ) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
-    df.write_csv(out_dir / f"{stem}.csv")
+    write_text_atomic(out_dir / f"{stem}.csv", df.write_csv())
     write_markdown(out_dir, stem, title, [("", df)], notes, digits)
 
 

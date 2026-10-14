@@ -199,6 +199,9 @@ coinbase_usd     = Σ internal transfers from the bot contract to the block's mi
   them by notional share (equally if their total notional is 0).
 - Gas costs are computed for every swap. Coinbase payments are observed only for the top bots; for
   other swaps they are null.
+- Costs are found through the pool's Swap logs, so a bot transaction that reverts or exits without
+  trading in the pool is not seen and its gas is not counted. This makes `kept` below an upper bound
+  on this count too.
 
 **Single-pool vs multi-pool.** A top-bot transaction is `single_pool` (classic CEX-DEX arbitrage)
 when every log it emits comes from our pool, USDC, WETH or the bot contract itself, i.e. its count

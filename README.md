@@ -1,7 +1,9 @@
 # uniswap-lp-economics
 
 **Who makes money on Uniswap V3?** A swap-by-swap study of the USDC/WETH 0.05% pool on Ethereum
-mainnet: LP fees vs loss-versus-rebalancing (LVR), and markouts of each swap against Binance.
+mainnet against Binance: how fast the pool follows the CEX price, who closes the gaps, what each
+flow type earns or loses (markouts), and what arbitrage bots keep after gas and builder payments.
+LP fees vs loss-versus-rebalancing (LVR) is next.
 
 [![CI](https://github.com/samuraixx-key/uniswap-lp-economics/actions/workflows/ci.yml/badge.svg)](https://github.com/samuraixx-key/uniswap-lp-economics/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.13-blue)
@@ -73,7 +75,7 @@ Study window: `[2026-07-01, 2026-10-01)` UTC. Pool: USDC/WETH 0.05%
 |---|---|---|
 | Uniswap V3 pool `0x88e6…5640` | All pool logs in the window (Swap, Mint, Burn, Collect, Flash, CollectProtocol), block timestamps, tx sender/recipient | BigQuery `bigquery-public-data.crypto_ethereum`, one file per month |
 | Archive RPC | Full tick book at the snapshot block just before the window; pool state at 500 random blocks inside it | Starts the replay and validates it |
-| Binance | ETHUSDC trades (ms timestamps, primary reference price) and ETHUSDT 1-second candles | [data.binance.vision](https://data.binance.vision), checksum-verified |
+| Binance | ETHUSDC aggregated trades (one row per taker order at one price, µs timestamps; primary reference price) and ETHUSDT 1-second candles | [data.binance.vision](https://data.binance.vision), checksum-verified |
 
 **What was collected.** 556,664 pool logs: 534,377 swaps, 5,616 mints, 8,115 burns, 8,119 collects,
 57 flash and 380 collect_protocol. From Binance: 15,296,344 ETHUSDC trades and 7,948,800 ETHUSDT
@@ -297,6 +299,9 @@ bot pays builders 1.26 times its gross; the two smallest pay 0.89 and 0.52 times
   caller is the transaction's target), not a verified identity, and 0.11 of notional stays
   `other_contract`; the two largest unlabelled addresses are unverified contracts with no public
   name tag.
+- **Failed bot transactions are not counted.** A reverted transaction, or one that exits without
+  trading, emits no Swap log in the pool, so its gas never enters the cost side. This is a further
+  reason the bots' net profit is an upper bound.
 - **Multi-pool bot transactions get no cost breakdown:** their costs also pay for trades in other
   pools, so they are reported gross only.
 - **Builder income** is income of the block's fee recipient, usually the builder; what the builder

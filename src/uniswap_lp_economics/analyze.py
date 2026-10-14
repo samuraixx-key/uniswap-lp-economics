@@ -22,7 +22,7 @@ from uniswap_lp_economics import (
 from uniswap_lp_economics.build import load_snapshot_meta
 from uniswap_lp_economics.data import blocks as bq_blocks
 from uniswap_lp_economics.data import transfers
-from uniswap_lp_economics.io import read_exact, write_exact
+from uniswap_lp_economics.io import read_exact, write_exact, write_text_atomic
 from uniswap_lp_economics.tickbook import TickBook
 
 MARKOUT_NOTE = (
@@ -218,7 +218,7 @@ def _write_results(
         [e.with_columns(threshold_bp=pl.lit(k)) for k, e in episodes.items()],
         how="vertical_relaxed",
     )
-    all_episodes.write_csv(out / "episodes.csv")
+    write_text_atomic(out / "episodes.csv", all_episodes.write_csv())
     report.write_markdown(
         out,
         "episodes",

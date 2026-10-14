@@ -133,8 +133,8 @@ def build_all(raw_dir: Path, interim_dir: Path) -> None:
     swaps = build_swaps(events, int(meta["sqrt_price_x96"]), int(meta["fee_protocol"]))
     write_exact(swaps, interim_dir / "swaps.parquet")
     trades, klines = build_cex(raw_dir)
-    trades.write_parquet(interim_dir / "cex_ethusdc.parquet")
-    klines.write_parquet(interim_dir / "cex_ethusdt_1s.parquet")
+    write_exact(trades, interim_dir / "cex_ethusdc.parquet")
+    write_exact(klines, interim_dir / "cex_ethusdt_1s.parquet")
     print(
         f"events {events.height:,}  swaps {swaps.height:,}  "
         f"cex trades {trades.height:,}  klines {klines.height:,}"

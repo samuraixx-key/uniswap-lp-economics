@@ -7,6 +7,7 @@ import polars as pl
 from google.cloud import bigquery
 
 from uniswap_lp_economics.config import DATA_DIR, GCP_PROJECT, POOL_ADDRESS
+from uniswap_lp_economics.io import write_exact
 
 DATASET = "bigquery-public-data.crypto_ethereum"
 MAX_GB_BILLED = 150  # hard cap per query; the sandbox gives 1 TB/month
@@ -70,6 +71,6 @@ def fetch_pool_logs(start: date, end: date, dry_run: bool = False) -> Path | Non
     assert isinstance(df, pl.DataFrame)
     out = raw_logs_path(start, end)
     out.parent.mkdir(parents=True, exist_ok=True)
-    df.write_parquet(out)
+    write_exact(df, out)
     print(f"  wrote {df.height:,} logs to {out}")
     return out
