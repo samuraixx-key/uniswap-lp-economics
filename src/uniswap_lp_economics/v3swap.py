@@ -7,7 +7,7 @@ explicitly where they change the result. Nothing here mutates the TickBook.
 
 from dataclasses import dataclass
 
-from uniswap_lp_economics.config import FEE_PIPS, TICK_SPACING
+from uniswap_lp_economics.config import DECIMALS0, DECIMALS1, FEE_PIPS, TICK_SPACING
 from uniswap_lp_economics.tickbook import TickBook
 from uniswap_lp_economics.v3math import (
     MAX_SQRT_RATIO,
@@ -15,8 +15,10 @@ from uniswap_lp_economics.v3math import (
     MIN_SQRT_RATIO,
     MIN_TICK,
     Q96,
+    eth_price_to_sqrt_price_x96,
     get_sqrt_ratio_at_tick,
     get_tick_at_sqrt_ratio,
+    sqrt_price_x96_to_eth_price,
 )
 
 _U256 = 2**256
@@ -235,3 +237,52 @@ def swap_check_ok(c: SwapCheck) -> bool:
     input_slack = A1_OUT_INPUT_UNITS * abs(c.out_expected) / c.amount_in if c.amount_in > 0 else 0
     out_tol = max(A1_OUT_ABS_TOL, A1_OUT_REL_TOL * abs(c.out_expected), input_slack)
     return c.sqrt_rel_err < A1_SQRT_REL_TOL and c.out_abs_err <= out_tol
+
+
+_HUGE = 2**128  # more than the pool could ever pay out; the price limit stops the swap
+
+
+@dataclass(frozen=True)
+class ArbResult:
+    direction: str  # "buy_eth" (USDC in), "sell_eth" (WETH in) or "none"
+    amount_in: int
+    amount_out: int
+    profit_usd: float
+
+
+_NO_ARB = ArbResult("none", 0, 0, 0.0)
+
+
+def arb_to_price(
+    book: TickBook,
+    p_cex_usd: float,
+    fee_pips: int = FEE_PIPS,
+    cex_fee_bp: float = 0.0,
+    tick_spacing: int = TICK_SPACING,
+) -> ArbResult:
+    """Arbitrage the pool against a CEX price, before gas (spec 6.5, plan Ruling 1).
+
+    The arbitrageur trades until the pool's marginal price after the swap fee equals the CEX price
+    after the CEX fee: buying ETH from a cheap pool stops at P_cex*(1-f)*(1-c); selling ETH into an
+    expensive pool stops at P_cex*(1+c)/(1-f). Profit is valued at the CEX price after its fee.
+    """
+    f = fee_pips / _PIPS
+    c = cex_fee_bp / 10_000
+    pool = sqrt_price_x96_to_eth_price(book.sqrt_price_x96)
+    low = p_cex_usd * (1 - f) * (1 - c)
+    high = p_cex_usd * (1 + c) / (1 - f)
+    if pool < low:  # ETH cheap in the pool: pay USDC, receive ETH, sell it on the CEX
+        limit = eth_price_to_sqrt_price_x96(low)
+        if limit >= book.sqrt_price_x96:  # float rounding at the band edge
+            return _NO_ARB
+        r = swap_exact_input(book, True, _HUGE, limit, fee_pips, tick_spacing)
+        profit = r.amount_out / 10**DECIMALS1 * p_cex_usd * (1 - c) - r.amount_in / 10**DECIMALS0
+        return ArbResult("buy_eth", r.amount_in, r.amount_out, profit)
+    if pool > high:  # ETH expensive in the pool: pay WETH, receive USDC, buy ETH back on the CEX
+        limit = eth_price_to_sqrt_price_x96(high)
+        if limit <= book.sqrt_price_x96:
+            return _NO_ARB
+        r = swap_exact_input(book, False, _HUGE, limit, fee_pips, tick_spacing)
+        profit = r.amount_out / 10**DECIMALS0 - r.amount_in / 10**DECIMALS1 * p_cex_usd * (1 + c)
+        return ArbResult("sell_eth", r.amount_in, r.amount_out, profit)
+    return _NO_ARB

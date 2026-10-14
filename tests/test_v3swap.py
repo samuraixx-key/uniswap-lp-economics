@@ -3,10 +3,17 @@ import random
 import pytest
 
 from uniswap_lp_economics.tickbook import TickBook
-from uniswap_lp_economics.v3math import Q96
+from uniswap_lp_economics.v3math import (
+    Q96,
+    eth_price_to_sqrt_price_x96,
+    get_tick_at_sqrt_ratio,
+    sqrt_price_x96_to_eth_price,
+)
 from uniswap_lp_economics.v3math import get_sqrt_ratio_at_tick as sqrt_at
 from uniswap_lp_economics.v3swap import (
+    ArbResult,
     SwapCheck,
+    arb_to_price,
     compute_swap_step,
     get_amount0_delta,
     get_amount1_delta,
@@ -135,3 +142,58 @@ def test_swap_check_tolerance() -> None:
     # Two raw input units' worth of output: 2 * 1e15 / 1e6 = 2e9.
     assert swap_check_ok(SwapCheck(0.0, 6 * 10**8, 10**15, False, amount_in=10**6))
     assert not swap_check_ok(SwapCheck(0.0, 3 * 10**9, 10**15, False, amount_in=10**6))
+
+
+def arb_book(price: float = 2000.0) -> TickBook:
+    sqrt = eth_price_to_sqrt_price_x96(price)
+    tick = get_tick_at_sqrt_ratio(sqrt)
+    b = TickBook(tick=tick, sqrt_price_x96=sqrt, liquidity=0)
+    b.apply_mint((tick // 10 - 500) * 10, (tick // 10 + 500) * 10, L)
+    return b
+
+
+def _profit(book: TickBook, buy_eth: bool, amount_in: int, p: float, c_bp: float = 0.0) -> float:
+    r = swap_exact_input(book, buy_eth, amount_in)
+    c = c_bp / 1e4
+    if buy_eth:
+        return r.amount_out / 1e18 * p * (1 - c) - r.amount_in / 1e6
+    return r.amount_out / 1e6 - r.amount_in / 1e18 * p * (1 + c)
+
+
+def test_arb_on_cheap_pool_buys_eth_up_to_fee_adjusted_price() -> None:
+    b = arb_book(2000.0)
+    r = arb_to_price(b, 2010.0)
+    assert r.direction == "buy_eth" and r.profit_usd > 0
+    end = swap_exact_input(b, True, r.amount_in)
+    assert sqrt_price_x96_to_eth_price(end.sqrt_price_x96) == pytest.approx(
+        2010.0 * (1 - 0.0005), rel=1e-9
+    )
+
+
+def test_arb_on_expensive_pool_sells_eth_down_to_fee_adjusted_price() -> None:
+    b = arb_book(2000.0)
+    r = arb_to_price(b, 1990.0)
+    assert r.direction == "sell_eth" and r.profit_usd > 0
+    end = swap_exact_input(b, False, r.amount_in)
+    assert sqrt_price_x96_to_eth_price(end.sqrt_price_x96) == pytest.approx(
+        1990.0 / (1 - 0.0005), rel=1e-9
+    )
+
+
+def test_arb_amount_maximises_profit() -> None:
+    b = arb_book(2000.0)
+    for p, buy in ((2010.0, True), (1990.0, False)):
+        r = arb_to_price(b, p)
+        assert _profit(b, buy, r.amount_in, p) == pytest.approx(r.profit_usd, rel=1e-9)
+        assert _profit(b, buy, int(r.amount_in * 0.9), p) < r.profit_usd
+        assert _profit(b, buy, int(r.amount_in * 1.1), p) < r.profit_usd
+
+
+def test_no_arb_inside_fee_band() -> None:
+    assert arb_to_price(arb_book(2000.0), 2000.5) == ArbResult("none", 0, 0, 0.0)
+
+
+def test_cex_fee_reduces_profit() -> None:
+    b = arb_book(2000.0)
+    with_fee = arb_to_price(b, 2010.0, cex_fee_bp=1.0).profit_usd
+    assert 0 < with_fee < arb_to_price(b, 2010.0).profit_usd
