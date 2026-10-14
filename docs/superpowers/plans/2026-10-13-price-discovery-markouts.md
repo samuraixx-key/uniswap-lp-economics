@@ -59,10 +59,11 @@ starting. The spec was amended together with this plan (see "Rulings" below).
    `P_pool = P_cex·(1+c)/(1−f)`. Task 4 tests that this amount maximises profit.
 2. **`v3swap` is an exact-integer port of the V3 swap**, not float math. **A1's tolerance:** final
    `sqrtPriceX96` relative error < 1e-9, and output amount within `max(2 raw units, 1e-9 × |out|,
-   2 raw input units' worth of output = 2·|out|/amount_in)`. The event does not record whether the
+   2 raw input units valued at the pre-swap pool price)`. The event does not record whether the
    original call was exact-input or exact-output, or its price limit, so an exact-input
    re-simulation can differ by rounding on the last step. Exact-output swaps round their input up by
-   about one raw input unit. A1 also reports the bit-exact match count.
+   about one raw input unit; valuing that unit at the pre-swap pool price covers dust exact-output
+   swaps whose whole input is rounding. A1 also reports the bit-exact match count.
 3. **A2.** In a single-pass replay, "start state equals the previous block's end state" holds by
    construction. A2 still checks it, and adds two independent checks: every block's end price equals
    the last swap's `sqrtPriceX96` in that block, and blocks without pool events end in the state they

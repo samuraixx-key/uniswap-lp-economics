@@ -199,7 +199,8 @@ class SwapCheck:
     out_abs_err: int
     out_expected: int
     exact: bool
-    amount_in: int = 0  # the event's input amount, used to scale the output tolerance
+    amount_in: int = 0  # the event's input amount (reported by A1)
+    out_per_input_unit: float = 0.0  # raw output per raw input unit at the pre-swap pool price
 
 
 def check_swap_event(
@@ -207,7 +208,8 @@ def check_swap_event(
 ) -> SwapCheck | None:
     """Re-simulate a historical swap from `book` (its pre-swap state) with the event's input.
 
-    Returns None when the swap has no input (neither amount is positive).
+    Returns None when the swap has no input (neither amount is positive). The result carries the
+    pre-swap pool price as `out_per_input_unit`, which values the input rounding in the tolerance.
     """
     if amount0 > 0:
         zero_for_one, amount_in, out_expected = True, amount0, -amount1
@@ -215,6 +217,12 @@ def check_swap_event(
         zero_for_one, amount_in, out_expected = False, amount1, -amount0
     else:
         return None
+    # Raw output per raw input unit at the pre-swap price: token1/token0 = (sqrtP / 2^96)^2 when
+    # USDC goes in (zero_for_one), the inverse when WETH goes in.
+    if zero_for_one:
+        out_per_input_unit = (book.sqrt_price_x96 / Q96) ** 2
+    else:
+        out_per_input_unit = (Q96 / book.sqrt_price_x96) ** 2
     r = swap_exact_input(book, zero_for_one, amount_in, fee_pips=fee_pips)
     return SwapCheck(
         sqrt_rel_err=abs(r.sqrt_price_x96 - sqrt_price_x96) / sqrt_price_x96,
@@ -222,19 +230,22 @@ def check_swap_event(
         out_expected=out_expected,
         exact=r.sqrt_price_x96 == sqrt_price_x96 and r.amount_out == out_expected,
         amount_in=amount_in,
+        out_per_input_unit=out_per_input_unit,
     )
 
 
 def swap_check_ok(c: SwapCheck) -> bool:
     """A1's tolerance (plan Ruling 2).
 
-    Besides the absolute and relative output slack, the output may differ by two raw input units'
-    worth of output. The event does not say whether the call was exact-input or exact-output, and
-    an exact-output swap rounds its input up by about one raw unit (plus the fee rounding). The
-    exact-input re-simulation then over-pays output by that much, which is large relative to the
-    output when the input token is coarse (6-decimal USDC) and the output is fine (18-decimal WETH).
+    Besides the absolute and relative output slack, the output may differ by two raw input units
+    valued at the pre-swap pool price. The event does not say whether the call was exact-input or
+    exact-output, and an exact-output swap rounds its input up by about one raw unit (plus the fee
+    rounding). The exact-input re-simulation then over-pays output by that much, which is large
+    relative to the output when the input token is coarse (6-decimal USDC) and the output is fine
+    (18-decimal WETH). This covers dust exact-output swaps whose whole input is rounding, where
+    |out| / amount_in would badly under-value an input unit.
     """
-    input_slack = A1_OUT_INPUT_UNITS * abs(c.out_expected) / c.amount_in if c.amount_in > 0 else 0
+    input_slack = A1_OUT_INPUT_UNITS * c.out_per_input_unit
     out_tol = max(A1_OUT_ABS_TOL, A1_OUT_REL_TOL * abs(c.out_expected), input_slack)
     return c.sqrt_rel_err < A1_SQRT_REL_TOL and c.out_abs_err <= out_tol
 

@@ -14,6 +14,7 @@ from uniswap_lp_economics.v3swap import (
     ArbResult,
     SwapCheck,
     arb_to_price,
+    check_swap_event,
     compute_swap_step,
     get_amount0_delta,
     get_amount1_delta,
@@ -139,9 +140,30 @@ def test_swap_check_tolerance() -> None:
     assert not swap_check_ok(SwapCheck(0.0, 3, 10, False))
     assert swap_check_ok(SwapCheck(0.0, 3, 10**10, False))
     assert not swap_check_ok(SwapCheck(1e-8, 0, 10, False))
-    # Two raw input units' worth of output: 2 * 1e15 / 1e6 = 2e9.
-    assert swap_check_ok(SwapCheck(0.0, 6 * 10**8, 10**15, False, amount_in=10**6))
-    assert not swap_check_ok(SwapCheck(0.0, 3 * 10**9, 10**15, False, amount_in=10**6))
+    # Two raw input units valued at the pre-swap price: 2 * 5e8 = 1e9.
+    assert swap_check_ok(
+        SwapCheck(0.0, 6 * 10**8, 10**15, False, amount_in=10**6, out_per_input_unit=5e8)
+    )
+    assert not swap_check_ok(
+        SwapCheck(0.0, 3 * 10**9, 10**15, False, amount_in=10**6, out_per_input_unit=5e8)
+    )
+
+
+def test_dust_exact_output_swap_passes() -> None:
+    # Block 25531385, log 648: an exact-output swap for 1,003,000 wei needs 0.0019 raw USDC, which
+    # V3 rounds up to 1 raw unit plus a 1-unit fee. Re-simulated as exact-input with 2 raw units,
+    # the output is ~5.4e8 wei: the whole input is rounding, so the output differs by about one raw
+    # input unit's worth, valued at the pool price.
+    pre_sqrt = 1835525309953189688387994542493931
+    event_sqrt = 1835525309953189674177658883441286
+    tick = get_tick_at_sqrt_ratio(pre_sqrt)
+    book = TickBook(tick=tick, sqrt_price_x96=pre_sqrt, liquidity=0)
+    book.apply_mint((tick // 10 - 100) * 10, (tick // 10 + 100) * 10, 5592116112414536371)
+    assert book.liquidity == 5592116112414536371
+    c = check_swap_event(book, 2, -1003000, event_sqrt)
+    assert c is not None
+    assert c.out_abs_err > 10**8  # pins the dust case: far beyond the 2-unit absolute slack
+    assert swap_check_ok(c), c
 
 
 def arb_book(price: float = 2000.0) -> TickBook:
