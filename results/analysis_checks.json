@@ -1,7 +1,7 @@
 {
   "status": "PASS",
-  "generated_utc": "2026-10-14T16:25:31+00:00",
-  "git_commit": "e69f749-dirty",
+  "generated_utc": "2026-10-14T16:27:13+00:00",
+  "git_commit": "1314510",
   "input_sha256_16": {
     "interim/cex_ethusdc.parquet": "2bb21f2bb6ca55b8",
     "interim/cex_ethusdt_1s.parquet": "02a5ea793a51eea0",
@@ -83,10 +83,10 @@
       "summary": {
         "other_contract_notional_share": 0.10897229175784204,
         "by_label": {
-          "searcher": 0.747554137005692,
-          "uniswap_router": 0.11604430840941152,
+          "searcher": 0.7475541370056926,
+          "uniswap_router": 0.11604430840941168,
           "other_contract": 0.10897229175784204,
-          "aggregator": 0.022448011851733847,
+          "aggregator": 0.02244801185173385,
           "intent_settlement": 0.004981250975320495
         }
       },

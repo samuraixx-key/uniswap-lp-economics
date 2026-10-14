@@ -1,6 +1,6 @@
 {
-  "generated_utc": "2026-10-14T16:25:31+00:00",
-  "git_commit": "e69f749-dirty",
+  "generated_utc": "2026-10-14T16:27:13+00:00",
+  "git_commit": "1314510",
   "input_sha256_16": {
     "interim/cex_ethusdc.parquet": "2bb21f2bb6ca55b8",
     "interim/cex_ethusdt_1s.parquet": "02a5ea793a51eea0",
@@ -36,8 +36,8 @@
       "markout_usd": 178635.79928038438,
       "mean_bp": 0.2533863032608462,
       "median_bp": -2.190964682981687,
-      "ci_lo_bp": -0.13707210662318492,
-      "ci_hi_bp": 0.7654885312344646
+      "ci_lo_bp": -0.13707210662318475,
+      "ci_hi_bp": 0.7654885312344668
     },
     {
       "grouping": "all",
@@ -49,7 +49,7 @@
       "markout_usd": 564229.587743267,
       "mean_bp": 0.8003325761386547,
       "median_bp": -2.4475963231812514,
-      "ci_lo_bp": 0.30422292525156636,
+      "ci_lo_bp": 0.30422292525156625,
       "ci_hi_bp": 1.4765565673567527
     },
     {
@@ -62,7 +62,7 @@
       "markout_usd": 734805.8629110735,
       "mean_bp": 1.0422911133681172,
       "median_bp": -2.9388134655086806,
-      "ci_lo_bp": 0.25670973397941593,
+      "ci_lo_bp": 0.256709733979416,
       "ci_hi_bp": 2.1984177475625684
     },
     {
@@ -75,7 +75,7 @@
       "markout_usd": 612580.8163396935,
       "mean_bp": 0.8689365973422072,
       "median_bp": -3.177538340441922,
-      "ci_lo_bp": 0.027551694043656046,
+      "ci_lo_bp": 0.02755169404365626,
       "ci_hi_bp": 2.0574559480907917
     },
     {
@@ -88,8 +88,8 @@
       "markout_usd": 1686249.7996513147,
       "mean_bp": 2.3923019168198274,
       "median_bp": -3.24674007863463,
-      "ci_lo_bp": -0.7247769265912232,
-      "ci_hi_bp": 7.686210412905919
+      "ci_lo_bp": -0.7247769265912235,
+      "ci_hi_bp": 7.6862104129059166
     }
   ],
   "markouts_by_label": [
@@ -376,8 +376,8 @@
       "markout_usd": 1944.7778192657472,
       "mean_bp": 0.5537965499338834,
       "median_bp": -1.975028464235236,
-      "ci_lo_bp": -11.204630257982483,
-      "ci_hi_bp": 14.490210532667003
+      "ci_lo_bp": -11.204630257982481,
+      "ci_hi_bp": 14.490210532667001
     },
     {
       "grouping": "flow_label",
@@ -621,8 +621,8 @@
       "markout_usd": -16817.928777730624,
       "mean_bp": -5.318041642113704,
       "median_bp": -1.4266813747502496,
-      "ci_lo_bp": -7.6313885758180575,
-      "ci_hi_bp": -3.28984068897932
+      "ci_lo_bp": -7.63138857581806,
+      "ci_hi_bp": -3.2898406889793206
     },
     {
       "variant": "exclude_stale_over_5s",
@@ -816,7 +816,7 @@
       "mean_bp": -6.7213239523770865,
       "median_bp": -6.225543621074179,
       "ci_lo_bp": -9.767128134348612,
-      "ci_hi_bp": -3.7822114844091326
+      "ci_hi_bp": -3.7822114844091343
     },
     {
       "grouping": "flow_label_x_size",
@@ -1155,26 +1155,26 @@
     {
       "flow_label": "searcher",
       "swaps": 253280,
-      "notional_usd": 5270211098.659831,
-      "notional_share": 0.7475541370056921
+      "notional_usd": 5270211098.65983,
+      "notional_share": 0.747554137005692
     },
     {
       "flow_label": "uniswap_router",
       "swaps": 167988,
-      "notional_usd": 818105300.7949966,
-      "notional_share": 0.11604430840941168
+      "notional_usd": 818105300.7949967,
+      "notional_share": 0.1160443084094117
     },
     {
       "flow_label": "other_contract",
       "swaps": 91722,
-      "notional_usd": 768248014.4768482,
-      "notional_share": 0.10897229175784211
+      "notional_usd": 768248014.4768475,
+      "notional_share": 0.10897229175784201
     },
     {
       "flow_label": "aggregator",
       "swaps": 17822,
-      "notional_usd": 158257115.23412293,
-      "notional_share": 0.022448011851733844
+      "notional_usd": 158257115.234123,
+      "notional_share": 0.02244801185173385
     },
     {
       "flow_label": "intent_settlement",
