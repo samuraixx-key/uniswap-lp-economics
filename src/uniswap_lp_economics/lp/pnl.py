@@ -364,3 +364,68 @@ def group_table(pnl: pl.DataFrame, by: str, order: tuple[str, ...]) -> pl.DataFr
             }
         )
     return pl.DataFrame(rows)
+
+
+def position_spans(
+    positions: pl.DataFrame,
+    accounts: pl.DataFrame,
+    flows_window: pl.DataFrame,
+    start: Edge,
+    end: Edge,
+) -> pl.DataFrame:
+    """[t_start, t_exit) of every active position inside the window."""
+    f = flows_window.sort("block_number", "log_index")
+    first_in = (
+        f.filter(pl.col("liquidity_delta") > 0)
+        .group_by("position_id")
+        .agg(t_first=pl.col("ts_us").first())
+    )
+    last_out = (
+        f.filter(pl.col("liquidity_delta") < 0)
+        .group_by("position_id")
+        .agg(t_last=pl.col("ts_us").last())
+    )
+    return (
+        accounts.filter(pl.col("active"))
+        .select("position_id", "liquidity_start", "liquidity_end")
+        .join(positions.select("position_id", "tick_lower", "tick_upper"), on="position_id")
+        .join(first_in, on="position_id", how="left")
+        .join(last_out, on="position_id", how="left")
+        .select(
+            "position_id",
+            "tick_lower",
+            "tick_upper",
+            t_start_us=pl.when(pl.col("liquidity_start") > 0)
+            .then(pl.lit(start.ts_us, dtype=pl.Int64))
+            .otherwise(pl.col("t_first")),
+            t_exit_us=pl.when(pl.col("liquidity_end") > 0)
+            .then(pl.lit(end.ts_us, dtype=pl.Int64))
+            .otherwise(pl.col("t_last")),
+        )
+    )
+
+
+def liquidity_path(accounts: pl.DataFrame, flows_window: pl.DataFrame, start: Edge) -> pl.DataFrame:
+    """Each position's liquidity after every change, from its window-start liquidity.
+
+    Rows are in event order (the base rows first, then the changes by block and log index), which
+    `time_weighted_value` relies on when several changes share a timestamp."""
+    base = accounts.select(
+        "position_id",
+        ts_us=pl.lit(start.ts_us, dtype=pl.Int64),
+        liquidity=pl.col("liquidity_start"),
+    )
+    changes = (
+        flows_window.sort("block_number", "log_index")
+        .join(
+            accounts.select("position_id", "liquidity_start"),
+            on="position_id",
+            maintain_order="left",
+        )
+        .with_columns(
+            liquidity=pl.col("liquidity_start")
+            + pl.col("liquidity_delta").cum_sum().over("position_id")
+        )
+        .select("position_id", "ts_us", "liquidity")
+    )
+    return pl.concat([base, changes]).with_columns(pl.col("ts_us").cast(pl.Int64))

@@ -255,3 +255,55 @@ def check_l4(ledger: "Ledger", end_state: pl.DataFrame, snapshot_block: int) -> 
         {"positions_checked": checked, "mismatches": n_bad},
         bad,
     )
+
+
+L6_REL_TOL = 1e-9
+
+
+def check_l6(
+    steps: pl.DataFrame,
+    accounts: pl.DataFrame,
+    aligned: pl.DataFrame,
+    swap_fees: pl.DataFrame,
+    n_window_flows: int,
+) -> CheckResult:
+    """Accounting identities (spec L6, plan Ruling 13).
+
+    Pool-level LP fees are summed over every accrued step, flash fees included (a flash grows fee
+    growth like a swap fee). Position fees floor at every checkpoint, so they may fall short of
+    the pool's by at most one raw unit per accrued step, one per window flow and two per account,
+    and can never exceed them."""
+    accrued = steps.filter(pl.col("accrued"))
+    pool0 = int(accrued.filter(pl.col("zero_for_one"))["lp_fee"].sum())
+    pool1 = int(accrued.filter(~pl.col("zero_for_one"))["lp_fee"].sum())
+    pos0, pos1 = int(accounts["fees_raw0"].sum()), int(accounts["fees_raw1"].sum())
+    tol = accrued.height + n_window_flows + 2 * accounts.height
+    fees_ok = 0 <= pool0 - pos0 <= tol and 0 <= pool1 - pos1 <= tol
+    pool_lvr = float(accrued["lvr_0"].sum())
+    pos_lvr = float(accounts["lvr_0"].sum())
+    lvr_ok = abs(pool_lvr - pos_lvr) <= L6_REL_TOL * max(1.0, abs(pool_lvr))
+    fee_usd = aligned.join(swap_fees, on=["block_number", "log_index"], how="left").select(
+        pl.when(pl.col("fee_token") == "USDC")
+        .then(pl.col("fee_raw").cast(pl.Float64) / 1e6)
+        .when(pl.col("fee_token") == "WETH")
+        .then(pl.col("fee_raw").cast(pl.Float64) / 1e18 * pl.col("p_cex_0"))
+        .otherwise(0.0)
+        .alias("fee_usd"),
+        "markout_usd_0",
+    )
+    identity = float((fee_usd["fee_usd"] + fee_usd["markout_usd_0"]).sum())
+    all_lvr = float(steps["lvr_0"].sum())
+    identity_ok = abs(all_lvr - identity) <= L6_REL_TOL * max(1.0, abs(all_lvr))
+    return CheckResult(
+        "L6 accounting identities",
+        fees_ok and lvr_ok and identity_ok and steps.height > 0,
+        {
+            "pool_lp_fees_raw": [pool0, pool1],
+            "position_fees_raw": [pos0, pos1],
+            "fee_shortfall_tolerance": tol,
+            "pool_lvr_0_usd": pool_lvr,
+            "position_lvr_0_usd": pos_lvr,
+            "markout_identity_lvr_usd": identity,
+            "all_steps_lvr_0_usd": all_lvr,
+        },
+    )

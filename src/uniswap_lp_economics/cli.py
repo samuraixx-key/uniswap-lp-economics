@@ -11,6 +11,7 @@ from uniswap_lp_economics import build, config, flows, snapshot, validate
 from uniswap_lp_economics.data import bigquery, binance, chain_state, history, transfers
 from uniswap_lp_economics.data import blocks as bq_blocks
 from uniswap_lp_economics.io import read_exact, write_exact, write_text_atomic
+from uniswap_lp_economics.lp import analyze as lp_analysis_module
 from uniswap_lp_economics.lp.positions import build_positions
 from uniswap_lp_economics.rpc import RpcClient
 
@@ -197,6 +198,7 @@ def main() -> None:
     sub.add_parser("build", help="decode raw data into interim tables")
     sub.add_parser("validate", help="run checks C1-C6 and write data_validation/validation_report")
     sub.add_parser("analyze", help="run checks A1-A6 and write results/ (tables, charts, summary)")
+    sub.add_parser("lp", help="LP P&L and LVR: checks L1-L7, results/ (sub-project 3)")
     sub.add_parser("all", help="fetch anything missing, build, then validate")
 
     args = parser.parse_args()
@@ -244,6 +246,12 @@ def main() -> None:
     elif args.command == "analyze":
         try:
             status = analysis.run_analysis()
+        except (FileNotFoundError, RuntimeError, ValueError) as e:
+            raise SystemExit(str(e)) from e
+        raise SystemExit(0 if status == "PASS" else 1)
+    elif args.command == "lp":
+        try:
+            status = lp_analysis_module.run_lp()
         except (FileNotFoundError, RuntimeError, ValueError) as e:
             raise SystemExit(str(e)) from e
         raise SystemExit(0 if status == "PASS" else 1)
