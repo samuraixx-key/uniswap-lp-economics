@@ -12,7 +12,7 @@ from uniswap_lp_economics.lp.engine import (
     iter_engine_rows,
     replay_window,
 )
-from uniswap_lp_economics.lp.state import FeeAccumulators, PoolState
+from uniswap_lp_economics.lp.state import Q128, FeeAccumulators, PoolState
 from uniswap_lp_economics.tickbook import TickBook
 from uniswap_lp_economics.v3math import get_sqrt_ratio_at_tick as sqrt_at
 from uniswap_lp_economics.v3swap import swap
@@ -34,6 +34,8 @@ SCHEMA: dict[str, Any] = {
     "sqrt_price_x96": pl.Int128,
     "tick": pl.Int64,
     "liquidity": pl.Int128,
+    "paid0": pl.Int128,
+    "paid1": pl.Int128,
 }
 OWNER = "0x" + "aa" * 20
 
@@ -155,6 +157,8 @@ def test_replay_window_accumulates_calls_hooks_and_captures() -> None:
     # tick 0 is a bitmap-word boundary: V3 first takes a zero-length step, then the real one
     assert run.steps["amount_in"].to_list()[0] == 0 and run.steps.height == 2
     assert run.steps["flow_label"].to_list() == ["searcher"] * 2
+    real = run.steps.row(1, named=True)
+    assert real["amount_in"] + real["fee"] == 10**14  # the exact input is consumed in one step
     assert rec.calls[0] == ("start", None) and rec.calls[-1] == ("finish", None)
     assert ("pool", ("mint", L)) in rec.calls  # mint applied before the hook
     assert ("pool", ("burn", L)) in rec.calls  # burn hook before the burn
@@ -201,3 +205,51 @@ def test_l2_compares_captures_with_chain_rows() -> None:
     bad = rows.with_columns(fee_growth0=pl.lit(u256_hex(1)))
     r = check_l2(run.captures, bad)
     assert not r.passed and r.summary["mismatches"] == 2
+
+
+def _with_extra_events(extra: list[dict[str, Any]]) -> pl.DataFrame:
+    """The window plus extra pool rows."""
+    base = window_events()
+    rows = []
+    for r in extra:
+        r = {"block_timestamp": T0, "tx_hash": "0x" + "00" * 32, **r}
+        rows.append(r)
+    return pl.concat([base, pl.DataFrame(rows, schema=SCHEMA)], how="diagonal_relaxed").sort(
+        "block_number", "log_index"
+    )
+
+
+def test_flash_between_swaps_changes_global_fee_growth() -> None:
+    flash = {"block_number": 2, "log_index": 1, "event": "flash", "paid0": 1000, "paid1": 0}
+    without = replay_window(window_events(), fresh(), CONTEXTS, capture={2: [-10]})
+    run = replay_window(_with_extra_events([flash]), fresh(), CONTEXTS, capture={2: [-10]})
+    # the flash adds 1000 / L of growth after the swap's growth
+    assert run.captures[2]["global0"] == without.captures[2]["global0"] + 1000 * Q128 // L
+    assert run.steps["flow_label"].to_list() == ["searcher", "searcher", "flash"]
+    assert run.steps["fee"].to_list()[-1] == 1000
+
+
+def test_flash_before_any_swap_uses_the_first_context_price() -> None:
+    flash = {"block_number": 1, "log_index": 1, "event": "flash", "paid0": 0, "paid1": 10**15}
+    run = replay_window(_with_extra_events([flash]), fresh(), CONTEXTS)
+    first = run.steps.row(0, named=True)
+    assert first["flow_label"] == "flash" and first["zero_for_one"] is False
+    assert first["fee_usd"] == pytest.approx(10**15 * 2000.0 / 1e18)
+
+
+def test_unknown_event_kind_raises() -> None:
+    events = _with_extra_events([{"block_number": 3, "log_index": 1, "event": "mystery"}])
+    with pytest.raises(ValueError, match="unknown event 'mystery' at block 3 log 1"):
+        replay_window(events, fresh(), CONTEXTS)
+
+
+def test_collect_protocol_and_other_are_no_ops_for_fee_state() -> None:
+    extra = [
+        {"block_number": 2, "log_index": 1, "event": "collect_protocol"},
+        {"block_number": 2, "log_index": 2, "event": "other"},
+    ]
+    st, rec = fresh(), Recorder()
+    run = replay_window(_with_extra_events(extra), st, CONTEXTS, ledger=rec)
+    assert run.steps.height == 2
+    kinds = [c[1][0] for c in rec.calls if c[0] == "pool"]
+    assert kinds == ["mint", "collect_protocol", "other", "burn"]

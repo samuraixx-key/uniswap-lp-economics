@@ -93,3 +93,36 @@ def test_pool_state_swap_accumulates_and_crosses() -> None:
     # tick 10 was initialized above the price (outside = 0), so after the cross it holds the
     # token1 growth accrued below it: exactly the first step's growth.
     assert s.acc.outside1[10] == records[0].lp_fee * Q128 // L
+
+
+def test_flash_grows_fee_growth_like_a_swap_fee() -> None:
+    s = state()
+    s.fee_protocol = 4 + (4 << 4)
+    records = s.flash(5, 3, 1000, 0, 2000.0, 7)
+    assert len(records) == 1  # nothing paid in token1: no second record
+    r = records[0]
+    assert (r.step, r.zero_for_one, r.flow_label, r.liquidity) == (0, True, "flash", L)
+    assert (r.amount_in, r.amount_out, r.fee) == (0, 0, 1000)
+    assert (r.protocol_fee, r.lp_fee, r.crossed_tick) == (250, 750, None)
+    assert (r.lvr_0, r.lvr_12, r.lvr_12_missing, r.accrued) == (0.0, 0.0, False, True)
+    assert r.fee_usd == pytest.approx(750 / 1e6)
+    assert s.acc.global0 == 750 * Q128 // L and s.acc.global1 == 0
+    assert s.acc.fglobal[0] == pytest.approx(750 / 1e6 / L)
+    assert (s.book.tick, s.book.liquidity) == (0, L)
+
+
+def test_flash_in_token1_only_and_both_tokens() -> None:
+    s = state()
+    (r,) = s.flash(5, 3, 0, 4 * 10**15, 2000.0, 7)
+    assert (r.step, r.zero_for_one, r.protocol_fee, r.lp_fee) == (1, False, 0, 4 * 10**15)
+    assert r.fee_usd == pytest.approx(4 * 10**15 * 2000.0 / 1e18)
+    assert s.acc.global0 == 0 and s.acc.global1 == 4 * 10**15 * Q128 // L
+    both = s.flash(6, 0, 10, 20, 2000.0, 8)
+    assert [x.step for x in both] == [0, 1]
+    assert s.flash(7, 0, 0, 0, 2000.0, 9) == []
+
+
+def test_flash_without_liquidity_accrues_nothing() -> None:
+    s = PoolState(TickBook(tick=0, sqrt_price_x96=sqrt_at(0), liquidity=0), FeeAccumulators(), 0)
+    (r,) = s.flash(1, 0, 1000, 0, 2000.0, 0)
+    assert not r.accrued and s.acc.global0 == 0

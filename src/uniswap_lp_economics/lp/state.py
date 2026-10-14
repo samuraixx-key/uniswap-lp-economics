@@ -199,6 +199,44 @@ class PoolState:
         self.book.apply_swap(sqrt_after, tick_after)
         return records
 
+    def flash(
+        self, block_number: int, log_index: int, paid0: int, paid1: int, p0: float, ts_us: int
+    ) -> list[StepRecord]:
+        """UniswapV3Pool.flash: each token's paid fee grows fee growth like a swap fee."""
+        liquidity = self.book.liquidity
+        records = []
+        for i, (zero_for_one, paid) in enumerate(((True, paid0), (False, paid1))):
+            if paid <= 0:
+                continue
+            usd_per_raw = 1 / 10**DECIMALS0 if zero_for_one else p0 / 10**DECIMALS1
+            cut = protocol_cut(paid, self.fee_protocol, zero_for_one)
+            lp_fee = paid - cut
+            fee_usd = lp_fee * usd_per_raw
+            accrued = self.acc.add(zero_for_one, lp_fee, liquidity, (fee_usd, 0.0, 0.0))
+            records.append(
+                StepRecord(
+                    block_number,
+                    log_index,
+                    i,
+                    zero_for_one,
+                    "flash",
+                    ts_us,
+                    liquidity,
+                    0,
+                    0,
+                    paid,
+                    cut,
+                    lp_fee,
+                    None,
+                    fee_usd,
+                    0.0,
+                    0.0,
+                    False,
+                    accrued,
+                )
+            )
+        return records
+
     def mint(self, lo: int, hi: int, amount: int) -> None:
         """Ticks flipping to initialized get their outside values first (Tick.update)."""
         for t in (lo, hi):

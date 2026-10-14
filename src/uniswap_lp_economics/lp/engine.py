@@ -35,6 +35,8 @@ class EngineRow(NamedTuple):
     fee_protocol0_new: int | None
     fee_protocol1_new: int | None
     token_id: int | None
+    paid0: int | None
+    paid1: int | None
 
 
 _DTYPES: dict[str, Any] = {
@@ -51,6 +53,8 @@ _DTYPES: dict[str, Any] = {
     "fee_protocol0_new": pl.Int64,
     "fee_protocol1_new": pl.Int64,
     "token_id": pl.Int64,
+    "paid0": pl.Int128,
+    "paid1": pl.Int128,
 }
 
 
@@ -175,6 +179,7 @@ def replay_window(
     modes: Counter[str] = Counter()
     unmatched: list[dict[str, Any]] = []
     current_day: date | None = None
+    last_p0: float | None = None
 
     def flush(before_block: int | None) -> None:
         while pending and (before_block is None or pending[0] < before_block):
@@ -201,6 +206,7 @@ def replay_window(
                     f"no reference price for the swap at block {row.block_number} "
                     f"log {row.log_index}"
                 )
+            last_p0 = ctx.p0
             sqrt, tick = _need(row, "sqrt_price_x96"), _need(row, "tick")
             rep = reproduce_swap(state.book, _need(row, "amount0"), _need(row, "amount1"), sqrt)
             if rep is None or rep.run is None:
@@ -233,12 +239,31 @@ def replay_window(
             if ledger is not None:
                 ledger.on_pool_event(row, state)
             state.burn(_need(row, "tick_lower"), _need(row, "tick_upper"), _need(row, "amount"))
-        elif row.event == "collect":
+        elif row.event in ("collect", "collect_protocol", "other"):
             if ledger is not None:
                 ledger.on_pool_event(row, state)
+        elif row.event == "flash":
+            if last_p0 is None:
+                if not contexts:
+                    raise ValueError("no reference price for the flash events")
+                last_p0 = next(iter(contexts.values())).p0
+            records.extend(
+                state.flash(
+                    row.block_number,
+                    row.log_index,
+                    row.paid0 or 0,
+                    row.paid1 or 0,
+                    last_p0,
+                    row.ts_us,
+                )
+            )
         elif row.event == "set_fee_protocol":
             state.fee_protocol = _need(row, "fee_protocol0_new") + (
                 _need(row, "fee_protocol1_new") << 4
+            )
+        else:
+            raise ValueError(
+                f"unknown event {row.event!r} at block {row.block_number} log {row.log_index}"
             )
     flush(None)
     if ledger is not None:
