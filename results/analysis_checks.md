@@ -1,7 +1,7 @@
 # Analysis checks: **PASS**
 
-- generated_utc: `2026-10-14T02:15:34+00:00`
-- git_commit: `5d4f780`
+- generated_utc: `2026-10-14T03:25:25+00:00`
+- git_commit: `87825d8`
 - input_sha256_16: `{'interim/cex_ethusdc.parquet': 'cd806aa6a7f87d7e', 'interim/cex_ethusdt_1s.parquet': '02a5ea793a51eea0', 'interim/events.parquet': 'fcb1cfcb7c07a6e7', 'interim/swaps.parquet': 'eb31e774d75fb9d3', 'raw/tickbook_snapshot.parquet': 'ccaa9baa98726baf', 'raw/snapshot_meta.json': '3b93b79ce12ca7b0', 'raw/blocks.parquet': '0026aebc769e72fd', 'raw/bot_tx_other_logs.parquet': 'f24f64f92d41ff77', 'raw/bot_transfers/0x149d330c8b9352573d17bc184b7a426ea020b38e.parquet': '6ec48b3108d16d0d', 'raw/bot_transfers/0x51c72848c68a965f66fa7a88855f9f7784502a7f.parquet': '4709759d4749f96e', 'raw/bot_transfers/0xbdb3ba9ffe392549e1f8658dd2630c141fdf47b6.parquet': 'f64808538b447479', 'raw/bot_transfers/0xeff6cb8b614999d130e537751ee99724d01aa167.parquet': '44e8dce9e7b7a224', 'labels/addresses.csv': '3bec3d79810c2c77'}`
 
 | Check | Result | Summary |
@@ -10,10 +10,10 @@
 | A2 block series complete and consistent | PASS | blocks=659799, expected_blocks=659799, missing=0, duplicates=0, block_table_starts_at_first_block=True, start_differs_from_previous_end=0, end_differs_from_last_swap=0, idle_blocks_changed=0 |
 | A3 trader + LP + protocol fee = 0 | PASS | values_checked=2671386, unevaluated=0, max_abs_residual_usd=2.205524651799351e-11, tolerance_usd=1e-06 |
 | A4 Binance reference coverage | PASS | null_0s=0, unexpected_null_0s=0, null_12s=0, unexpected_null_12s=0, null_60s=10, unexpected_null_60s=0, null_300s=35, unexpected_null_300s=0, null_3600s=454, unexpected_null_3600s=0, stale_ref_over_5s_at_0s=73139 |
-| A5 label coverage (reported) | PASS | other_contract_notional_share=0.10897229175784204, by_label={'searcher': 0.747554137005692, 'uniswap_router': 0.11604430840941152, 'other_contract': 0.10897229175784204, 'aggregator': 0.022448011851733847, 'intent_settlement': 0.004981250975320495} |
+| A5 label coverage (reported) | PASS | other_contract_notional_share=0.10897229175784204, by_label={'searcher': 0.747554137005692, 'uniswap_router': 0.11604430840941152, 'other_contract': 0.10897229175784204, 'aggregator': 0.022448011851733847, 'intent_settlement': 0.004981250975320493} |
 | A6 builder payments (reported) | PASS | top_bot_txs=110989, transfers_to_miner=56724, transfers_to_others=6, txs_with_coinbase_payment=56724, share_txs_with_coinbase_payment=0.5110776743641262, top_bot_txs_without_scope=0 |
 
-## A5 label coverage (reported): first mismatches
+## A5 label coverage (reported): details
 
 ```
 {'address': '0x8f40082c34812db98681c63db3bbeb29dbe871a7', 'swaps': 2460, 'notional_usd': 129314737.64324899}

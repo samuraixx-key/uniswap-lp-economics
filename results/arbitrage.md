@@ -14,8 +14,11 @@ Builder payments are detected only as direct ETH transfers from the bot contract
 | priority_fee_usd | 537,509.7422 |
 | coinbase_usd | 862,314.0084 |
 | kept_usd | -192,094.7013 |
+| top_bot_single_pool_gross_12s_usd | 1,467,181.8443 |
+| kept_12s_usd | 59,529.7668 |
 | captured_over_available | 0.8281 |
 | kept_over_top_bot_gross | -0.1580 |
+| kept_over_top_bot_gross_12s | 0.0406 |
 
 ## By day
 

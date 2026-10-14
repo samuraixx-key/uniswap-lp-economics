@@ -1,6 +1,6 @@
 {
-  "generated_utc": "2026-10-14T02:15:34+00:00",
-  "git_commit": "5d4f780",
+  "generated_utc": "2026-10-14T03:25:25+00:00",
+  "git_commit": "87825d8",
   "input_sha256_16": {
     "interim/cex_ethusdc.parquet": "cd806aa6a7f87d7e",
     "interim/cex_ethusdt_1s.parquet": "02a5ea793a51eea0",
@@ -28,6 +28,8 @@
   "markouts_all": [
     {
       "grouping": "all",
+      "flow_label": null,
+      "size_bucket": null,
       "horizon_s": 0,
       "swaps": 534377,
       "notional_usd": 7049939044.909204,
@@ -35,66 +37,66 @@
       "mean_bp": 0.2533863032608462,
       "median_bp": -2.190964682981687,
       "ci_lo_bp": -0.13707210662318492,
-      "ci_hi_bp": 0.7654885312344645,
-      "flow_label": null,
-      "size_bucket": null
+      "ci_hi_bp": 0.7654885312344646
     },
     {
       "grouping": "all",
+      "flow_label": null,
+      "size_bucket": null,
       "horizon_s": 12,
       "swaps": 534377,
       "notional_usd": 7049939044.909204,
       "markout_usd": 564229.587743267,
       "mean_bp": 0.8003325761386547,
       "median_bp": -2.4475963231812514,
-      "ci_lo_bp": 0.30422292525156625,
-      "ci_hi_bp": 1.4765565673567527,
-      "flow_label": null,
-      "size_bucket": null
+      "ci_lo_bp": 0.30422292525156636,
+      "ci_hi_bp": 1.4765565673567527
     },
     {
       "grouping": "all",
+      "flow_label": null,
+      "size_bucket": null,
       "horizon_s": 60,
       "swaps": 534367,
       "notional_usd": 7049910082.573584,
       "markout_usd": 734805.8629110735,
       "mean_bp": 1.0422911133681172,
       "median_bp": -2.9388134655086806,
-      "ci_lo_bp": 0.2567097339794158,
-      "ci_hi_bp": 2.198417747562569,
-      "flow_label": null,
-      "size_bucket": null
+      "ci_lo_bp": 0.25670973397941593,
+      "ci_hi_bp": 2.198417747562568
     },
     {
       "grouping": "all",
+      "flow_label": null,
+      "size_bucket": null,
       "horizon_s": 300,
       "swaps": 534342,
       "notional_usd": 7049775762.850568,
       "markout_usd": 612580.8163396935,
       "mean_bp": 0.8689365973422072,
       "median_bp": -3.177538340441922,
-      "ci_lo_bp": 0.027551694043656073,
-      "ci_hi_bp": 2.0574559480907917,
-      "flow_label": null,
-      "size_bucket": null
+      "ci_lo_bp": 0.027551694043656084,
+      "ci_hi_bp": 2.0574559480907917
     },
     {
       "grouping": "all",
+      "flow_label": null,
+      "size_bucket": null,
       "horizon_s": 3600,
       "swaps": 533923,
       "notional_usd": 7048649619.831041,
       "markout_usd": 1686249.7996513147,
       "mean_bp": 2.3923019168198274,
       "median_bp": -3.24674007863463,
-      "ci_lo_bp": -0.7247769265912234,
-      "ci_hi_bp": 7.686210412905924,
-      "flow_label": null,
-      "size_bucket": null
+      "ci_lo_bp": -0.7247769265912233,
+      "ci_hi_bp": 7.686210412905919
     }
   ],
   "markouts_by_label": [
     {
       "grouping": "flow_label",
+      "flow_label": "aggregator",
+      "size_bucket": null,
       "horizon_s": 0,
       "swaps": 17822,
       "notional_usd": 158257115.23412302,
@@ -102,12 +104,12 @@
       "mean_bp": -6.761129197532389,
       "median_bp": -2.26756282264755,
       "ci_lo_bp": -7.891613895610133,
-      "ci_hi_bp": -5.845657267753048,
-      "flow_label": "aggregator",
-      "size_bucket": null
+      "ci_hi_bp": -5.845657267753048
     },
     {
       "grouping": "flow_label",
+      "flow_label": "intent_settlement",
+      "size_bucket": null,
       "horizon_s": 0,
       "swaps": 3565,
       "notional_usd": 35117515.743404,
@@ -115,12 +117,12 @@
       "mean_bp": -5.110090069463242,
       "median_bp": -1.3884076351616532,
       "ci_lo_bp": -7.249035643756094,
-      "ci_hi_bp": -3.251966164552265,
-      "flow_label": "intent_settlement",
-      "size_bucket": null
+      "ci_hi_bp": -3.251966164552265
     },
     {
       "grouping": "flow_label",
+      "flow_label": "other_contract",
+      "size_bucket": null,
       "horizon_s": 0,
       "swaps": 91722,
       "notional_usd": 768248014.476848,
@@ -128,12 +130,12 @@
       "mean_bp": -4.346917053634721,
       "median_bp": -2.5100917219053747,
       "ci_lo_bp": -5.294067765851208,
-      "ci_hi_bp": -3.4579161250211654,
-      "flow_label": "other_contract",
-      "size_bucket": null
+      "ci_hi_bp": -3.4579161250211654
     },
     {
       "grouping": "flow_label",
+      "flow_label": "searcher",
+      "size_bucket": null,
       "horizon_s": 0,
       "swaps": 253280,
       "notional_usd": 5270211098.659831,
@@ -141,12 +143,12 @@
       "mean_bp": 2.863753014146034,
       "median_bp": -0.5656982276705103,
       "ci_lo_bp": 2.3763495836126522,
-      "ci_hi_bp": 3.501407148726504,
-      "flow_label": "searcher",
-      "size_bucket": null
+      "ci_hi_bp": 3.501407148726504
     },
     {
       "grouping": "flow_label",
+      "flow_label": "uniswap_router",
+      "size_bucket": null,
       "horizon_s": 0,
       "swaps": 167988,
       "notional_usd": 818105300.794996,
@@ -154,12 +156,12 @@
       "mean_bp": -10.655430359828273,
       "median_bp": -4.676340699263138,
       "ci_lo_bp": -11.276910944741305,
-      "ci_hi_bp": -10.01038173059664,
-      "flow_label": "uniswap_router",
-      "size_bucket": null
+      "ci_hi_bp": -10.01038173059664
     },
     {
       "grouping": "flow_label",
+      "flow_label": "aggregator",
+      "size_bucket": null,
       "horizon_s": 12,
       "swaps": 17822,
       "notional_usd": 158257115.23412302,
@@ -167,12 +169,12 @@
       "mean_bp": -6.5373884994438844,
       "median_bp": -2.45177618183718,
       "ci_lo_bp": -7.487639316850353,
-      "ci_hi_bp": -5.713383574441045,
-      "flow_label": "aggregator",
-      "size_bucket": null
+      "ci_hi_bp": -5.713383574441045
     },
     {
       "grouping": "flow_label",
+      "flow_label": "intent_settlement",
+      "size_bucket": null,
       "horizon_s": 12,
       "swaps": 3565,
       "notional_usd": 35117515.743404,
@@ -180,12 +182,12 @@
       "mean_bp": -4.205166416746706,
       "median_bp": -1.449435849536365,
       "ci_lo_bp": -5.977255938444108,
-      "ci_hi_bp": -2.615975657047916,
-      "flow_label": "intent_settlement",
-      "size_bucket": null
+      "ci_hi_bp": -2.615975657047916
     },
     {
       "grouping": "flow_label",
+      "flow_label": "other_contract",
+      "size_bucket": null,
       "horizon_s": 12,
       "swaps": 91722,
       "notional_usd": 768248014.476848,
@@ -193,12 +195,12 @@
       "mean_bp": -4.497533353711994,
       "median_bp": -2.7797070103358767,
       "ci_lo_bp": -5.568823877538868,
-      "ci_hi_bp": -3.569019270079818,
-      "flow_label": "other_contract",
-      "size_bucket": null
+      "ci_hi_bp": -3.569019270079818
     },
     {
       "grouping": "flow_label",
+      "flow_label": "searcher",
+      "size_bucket": null,
       "horizon_s": 12,
       "swaps": 253280,
       "notional_usd": 5270211098.659831,
@@ -206,12 +208,12 @@
       "mean_bp": 3.5782116207005092,
       "median_bp": -0.7538863789797581,
       "ci_lo_bp": 2.969590744577057,
-      "ci_hi_bp": 4.407180792337421,
-      "flow_label": "searcher",
-      "size_bucket": null
+      "ci_hi_bp": 4.407180792337421
     },
     {
       "grouping": "flow_label",
+      "flow_label": "uniswap_router",
+      "size_bucket": null,
       "horizon_s": 12,
       "swaps": 167988,
       "notional_usd": 818105300.794996,
@@ -219,12 +221,12 @@
       "mean_bp": -10.485386659929718,
       "median_bp": -4.695237217661521,
       "ci_lo_bp": -11.182200268106858,
-      "ci_hi_bp": -9.765685245428337,
-      "flow_label": "uniswap_router",
-      "size_bucket": null
+      "ci_hi_bp": -9.765685245428337
     },
     {
       "grouping": "flow_label",
+      "flow_label": "aggregator",
+      "size_bucket": null,
       "horizon_s": 60,
       "swaps": 17822,
       "notional_usd": 158257115.23412302,
@@ -232,12 +234,12 @@
       "mean_bp": -6.717351416733204,
       "median_bp": -2.8787966123546194,
       "ci_lo_bp": -7.760763649671901,
-      "ci_hi_bp": -5.845927975046953,
-      "flow_label": "aggregator",
-      "size_bucket": null
+      "ci_hi_bp": -5.845927975046953
     },
     {
       "grouping": "flow_label",
+      "flow_label": "intent_settlement",
+      "size_bucket": null,
       "horizon_s": 60,
       "swaps": 3565,
       "notional_usd": 35117515.743404,
@@ -245,12 +247,12 @@
       "mean_bp": -4.19324994397742,
       "median_bp": -1.7539808169205116,
       "ci_lo_bp": -6.431228954174645,
-      "ci_hi_bp": -2.2295437436570142,
-      "flow_label": "intent_settlement",
-      "size_bucket": null
+      "ci_hi_bp": -2.2295437436570142
     },
     {
       "grouping": "flow_label",
+      "flow_label": "other_contract",
+      "size_bucket": null,
       "horizon_s": 60,
       "swaps": 91721,
       "notional_usd": 768247522.715598,
@@ -258,12 +260,12 @@
       "mean_bp": -4.582471871496328,
       "median_bp": -3.147712379132865,
       "ci_lo_bp": -5.865677950948155,
-      "ci_hi_bp": -3.4999439647337045,
-      "flow_label": "other_contract",
-      "size_bucket": null
+      "ci_hi_bp": -3.4999439647337045
     },
     {
       "grouping": "flow_label",
+      "flow_label": "searcher",
+      "size_bucket": null,
       "horizon_s": 60,
       "swaps": 253272,
       "notional_usd": 5270182655.505462,
@@ -271,12 +273,12 @@
       "mean_bp": 3.927074042755208,
       "median_bp": -1.5158851004643394,
       "ci_lo_bp": 2.8843905590950425,
-      "ci_hi_bp": 5.448299762709718,
-      "flow_label": "searcher",
-      "size_bucket": null
+      "ci_hi_bp": 5.448299762709718
     },
     {
       "grouping": "flow_label",
+      "flow_label": "uniswap_router",
+      "size_bucket": null,
       "horizon_s": 60,
       "swaps": 167987,
       "notional_usd": 818105273.3749961,
@@ -284,12 +286,12 @@
       "mean_bp": -10.533535618236717,
       "median_bp": -4.754761403732704,
       "ci_lo_bp": -11.20739173551974,
-      "ci_hi_bp": -9.828556132487472,
-      "flow_label": "uniswap_router",
-      "size_bucket": null
+      "ci_hi_bp": -9.828556132487472
     },
     {
       "grouping": "flow_label",
+      "flow_label": "aggregator",
+      "size_bucket": null,
       "horizon_s": 300,
       "swaps": 17821,
       "notional_usd": 158256265.23412302,
@@ -297,25 +299,25 @@
       "mean_bp": -6.9564997273617895,
       "median_bp": -3.139783325813073,
       "ci_lo_bp": -8.18344963059404,
-      "ci_hi_bp": -5.765574186453263,
-      "flow_label": "aggregator",
-      "size_bucket": null
+      "ci_hi_bp": -5.765574186453263
     },
     {
       "grouping": "flow_label",
+      "flow_label": "intent_settlement",
+      "size_bucket": null,
       "horizon_s": 300,
       "swaps": 3565,
       "notional_usd": 35117515.743404,
       "markout_usd": -11680.970550880947,
       "mean_bp": -3.326251958205484,
       "median_bp": -2.0616988159991916,
-      "ci_lo_bp": -6.452730172221624,
-      "ci_hi_bp": -0.3514002392252559,
-      "flow_label": "intent_settlement",
-      "size_bucket": null
+      "ci_lo_bp": -6.452730172221625,
+      "ci_hi_bp": -0.3514002392252559
     },
     {
       "grouping": "flow_label",
+      "flow_label": "other_contract",
+      "size_bucket": null,
       "horizon_s": 300,
       "swaps": 91714,
       "notional_usd": 768217080.9471209,
@@ -323,12 +325,12 @@
       "mean_bp": -4.73912714461559,
       "median_bp": -3.515358246292058,
       "ci_lo_bp": -5.90810048596322,
-      "ci_hi_bp": -3.469640241174709,
-      "flow_label": "other_contract",
-      "size_bucket": null
+      "ci_hi_bp": -3.469640241174709
     },
     {
       "grouping": "flow_label",
+      "flow_label": "searcher",
+      "size_bucket": null,
       "horizon_s": 300,
       "swaps": 253260,
       "notional_usd": 5270140856.984268,
@@ -336,12 +338,12 @@
       "mean_bp": 3.7846298034284502,
       "median_bp": -1.8681396681947473,
       "ci_lo_bp": 2.5564321882348797,
-      "ci_hi_bp": 5.461323582886349,
-      "flow_label": "searcher",
-      "size_bucket": null
+      "ci_hi_bp": 5.461323582886349
     },
     {
       "grouping": "flow_label",
+      "flow_label": "uniswap_router",
+      "size_bucket": null,
       "horizon_s": 300,
       "swaps": 167982,
       "notional_usd": 818044043.9416529,
@@ -349,12 +351,12 @@
       "mean_bp": -10.954576670829857,
       "median_bp": -4.746394694515482,
       "ci_lo_bp": -11.930194095077901,
-      "ci_hi_bp": -9.96041544233096,
-      "flow_label": "uniswap_router",
-      "size_bucket": null
+      "ci_hi_bp": -9.96041544233096
     },
     {
       "grouping": "flow_label",
+      "flow_label": "aggregator",
+      "size_bucket": null,
       "horizon_s": 3600,
       "swaps": 17814,
       "notional_usd": 158162347.289977,
@@ -362,12 +364,12 @@
       "mean_bp": -6.97862479010052,
       "median_bp": -3.556195685032252,
       "ci_lo_bp": -10.066564828841743,
-      "ci_hi_bp": -4.025337453379658,
-      "flow_label": "aggregator",
-      "size_bucket": null
+      "ci_hi_bp": -4.025337453379658
     },
     {
       "grouping": "flow_label",
+      "flow_label": "intent_settlement",
+      "size_bucket": null,
       "horizon_s": 3600,
       "swaps": 3564,
       "notional_usd": 35117189.146409996,
@@ -375,12 +377,12 @@
       "mean_bp": 0.5537965499338834,
       "median_bp": -1.975028464235236,
       "ci_lo_bp": -11.204630257982483,
-      "ci_hi_bp": 14.490210532667003,
-      "flow_label": "intent_settlement",
-      "size_bucket": null
+      "ci_hi_bp": 14.490210532667003
     },
     {
       "grouping": "flow_label",
+      "flow_label": "other_contract",
+      "size_bucket": null,
       "horizon_s": 3600,
       "swaps": 91659,
       "notional_usd": 768154909.895223,
@@ -388,12 +390,12 @@
       "mean_bp": -5.718472719132928,
       "median_bp": -3.8436081057916534,
       "ci_lo_bp": -8.537786245233331,
-      "ci_hi_bp": -2.7692464978546387,
-      "flow_label": "other_contract",
-      "size_bucket": null
+      "ci_hi_bp": -2.7692464978546387
     },
     {
       "grouping": "flow_label",
+      "flow_label": "searcher",
+      "size_bucket": null,
       "horizon_s": 3600,
       "swaps": 252950,
       "notional_usd": 5269286609.364101,
@@ -401,12 +403,12 @@
       "mean_bp": 6.650187700785904,
       "median_bp": -1.8044474633660161,
       "ci_lo_bp": 1.9322579620575129,
-      "ci_hi_bp": 13.8837323617258,
-      "flow_label": "searcher",
-      "size_bucket": null
+      "ci_hi_bp": 13.8837323617258
     },
     {
       "grouping": "flow_label",
+      "flow_label": "uniswap_router",
+      "size_bucket": null,
       "horizon_s": 3600,
       "swaps": 167936,
       "notional_usd": 817928564.13533,
@@ -414,9 +416,7 @@
       "mean_bp": -15.529799014483007,
       "median_bp": -4.882726004500455,
       "ci_lo_bp": -24.61710932995569,
-      "ci_hi_bp": -9.007394907040226,
-      "flow_label": "uniswap_router",
-      "size_bucket": null
+      "ci_hi_bp": -9.007394907040226
     }
   ],
   "basis": {
@@ -624,8 +624,11 @@
     "priority_fee_usd": 537509.7421742802,
     "coinbase_usd": 862314.0084496128,
     "kept_usd": -192094.70132513926,
+    "top_bot_single_pool_gross_12s_usd": 1467181.8442646074,
+    "kept_12s_usd": 59529.76682125148,
     "captured_over_available": 0.8281032076541501,
-    "kept_over_top_bot_gross": -0.15803013917662861
+    "kept_over_top_bot_gross": -0.15803013917662861,
+    "kept_over_top_bot_gross_12s": 0.04057422537905618
   },
   "bot_profit_total": {
     "sender": "TOTAL",
@@ -641,26 +644,27 @@
     "multi_pool_gross_usd": 324841.0800400417,
     "kept_usd": -192094.70132513973,
     "builder_usd": 1399823.750623893,
-    "builder_share_of_gross": 1.1515900262101297
+    "builder_share_of_gross": 1.1515900262101297,
+    "share_txs_with_coinbase": 0.6445762596304629
   },
   "label_coverage": [
     {
       "flow_label": "searcher",
       "swaps": 253280,
-      "notional_usd": 5270211098.659824,
-      "notional_share": 0.7475541370056911
+      "notional_usd": 5270211098.659832,
+      "notional_share": 0.7475541370056922
     },
     {
       "flow_label": "uniswap_router",
       "swaps": 167988,
-      "notional_usd": 818105300.7949957,
-      "notional_share": 0.11604430840941155
+      "notional_usd": 818105300.7949961,
+      "notional_share": 0.11604430840941161
     },
     {
       "flow_label": "other_contract",
       "swaps": 91722,
-      "notional_usd": 768248014.4768491,
-      "notional_share": 0.10897229175784222
+      "notional_usd": 768248014.4768478,
+      "notional_share": 0.10897229175784204
     },
     {
       "flow_label": "aggregator",
@@ -671,8 +675,8 @@
     {
       "flow_label": "intent_settlement",
       "swaps": 3565,
-      "notional_usd": 35117515.74340399,
-      "notional_share": 0.004981250975320494
+      "notional_usd": 35117515.743404,
+      "notional_share": 0.004981250975320495
     }
   ],
   "limitation": "Builder payments are detected only as direct ETH transfers from the bot contract to the block's fee recipient within the same transaction. Payments routed elsewhere (another contract, a separate transaction in the bundle, off-chain agreements) are missed, so the reported net profit is an **upper bound** on what the bots keep. Binance-side trading fees, inventory and hedging costs are not observed."
