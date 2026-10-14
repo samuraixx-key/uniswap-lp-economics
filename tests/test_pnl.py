@@ -316,3 +316,101 @@ def test_bootstrap_is_reproducible_and_handles_empty_input() -> None:
     num, den = np.array([1.0, 3.0, 2.0]), np.array([100.0, 100.0, 50.0])
     assert bootstrap_ratio(num, den) == bootstrap_ratio(num, den)
     assert all(math.isnan(x) for x in bootstrap_ratio(np.array([]), np.array([])))
+
+
+def _gas_inputs(
+    tx_hash: str = f"0x{20:064x}",
+    gas_used: int | None = 100_000,
+    gas_price: int | None = 20 * 10**9,
+    block: int = 20,
+) -> tuple[pl.DataFrame, pl.DataFrame]:
+    flows = pl.DataFrame([flow("nft:1", block, "increase", L, 1, 1)], schema=FLOW_SCHEMA)
+    events = pl.DataFrame(
+        {
+            "tx_hash": [tx_hash],
+            "block_number": [block],
+            "receipt_gas_used": [gas_used],
+            "receipt_effective_gas_price": [gas_price],
+        },
+        schema={
+            "tx_hash": pl.String,
+            "block_number": pl.Int64,
+            "receipt_gas_used": pl.Int64,
+            "receipt_effective_gas_price": pl.Int64,
+        },
+    )
+    return flows, events
+
+
+def test_gas_by_position_accepts_a_complete_receipt() -> None:
+    assert gas_by_position(*_gas_inputs(), PRICES) == {"nft:1": pytest.approx(4.0)}
+
+
+def test_gas_by_position_rejects_a_flow_without_a_receipt() -> None:
+    flows, events = _gas_inputs(tx_hash="0x" + "ee" * 32)
+    with pytest.raises(ValueError, match=r"0x0*14 \(block 20\) has no receipt"):
+        gas_by_position(flows, events, PRICES)
+
+
+def test_gas_by_position_rejects_a_block_without_a_price() -> None:
+    flows, events = _gas_inputs(tx_hash=f"0x{7:064x}", block=7)
+    with pytest.raises(ValueError, match=r"0x0*7 \(block 7\) has no price"):
+        gas_by_position(flows, events, PRICES)
+
+
+@pytest.mark.parametrize("missing", ["gas_used", "gas_price"])
+def test_gas_by_position_rejects_null_gas_fields(missing: str) -> None:
+    kwargs: dict[str, Any] = {missing: None}
+    flows, events = _gas_inputs(**kwargs)
+    with pytest.raises(ValueError, match=r"\(block 20\) has a null gas"):
+        gas_by_position(flows, events, PRICES)
+
+
+def test_position_without_a_grid_point_is_valued_at_its_first_deposit() -> None:
+    prices = {**PRICES, 35: (420 * US, 2000.0)}
+    positions = pl.DataFrame([pos("direct:x", "direct", DIRECT, DIRECT)], schema=POSITION_SCHEMA)
+    accounts = pl.DataFrame([acc("direct:x", 0, 0, (0, 0), 1.0, 0.5)], schema=ACCOUNT_SCHEMA)
+    flows = pl.DataFrame(
+        [
+            flow("direct:x", 20, "mint", L, 2_000_000, 10**15),
+            flow("direct:x", 25, "burn", -L, 2_000_000, 10**15),
+            flow("direct:x", 30, "mint", L, 5_000_000, 0),
+            flow("direct:x", 35, "burn", -L, 5_000_000, 0),
+        ],
+        schema=FLOW_SCHEMA,
+    )
+    df = window_pnl(positions, accounts, flows, prices, {}, {}, set(), {}, START, END)
+    r = df.row(0, named=True)
+    assert r["twv_usd"] == pytest.approx(usd(2_000_000, 10**15, 2000.0))  # not the sum of both
+
+
+def test_time_weighted_value_reads_the_last_change_at_a_timestamp() -> None:
+    grid = pl.DataFrame(
+        {
+            "ts_us": [k * 3600 * US for k in range(4)],
+            "sqrt": [sqrt_at(0) / Q96] * 4,
+            "p_cex": [2000.0] * 4,
+        }
+    )
+    schema = {"position_id": pl.String, "ts_us": pl.Int64, "liquidity": pl.Int128}
+    # two changes at t = 0 (event order: L, then 2L), a third between grid points 1 and 2
+    path = pl.DataFrame(
+        {
+            "position_id": ["p", "p", "p"],
+            "ts_us": [0, 0, 5400 * US],
+            "liquidity": [L, 2 * L, 4 * L],
+        },
+        schema=schema,
+    )
+    spans = pl.DataFrame(
+        {
+            "position_id": ["p"],
+            "tick_lower": [-10],
+            "tick_upper": [10],
+            "t_start_us": [0],
+            "t_exit_us": [12600 * US],
+        }
+    )
+    twv = dict(time_weighted_value(path, spans, grid).iter_rows())
+    unit = usd(*position_amounts(L, -10, 10, sqrt_at(0)), 2000.0)
+    assert twv["p"] == pytest.approx(unit * (2 + 2 + 4 + 4) / 4, rel=1e-9)

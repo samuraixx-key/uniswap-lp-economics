@@ -108,21 +108,29 @@ def gas_by_position(
 ) -> dict[str, float]:
     """Gas of each window transaction that changed a position, split equally across the
     positions it touched, at the Binance price of its block."""
-    txs = events.group_by("tx_hash").agg(
-        pl.col("block_number").first(),
-        pl.col("receipt_gas_used").first(),
-        pl.col("receipt_effective_gas_price").first(),
-    )
-    cost = {
-        tx: int(g or 0) * int(p or 0) / 1e18 * prices[b][1]
-        for tx, b, g, p in txs.iter_rows()
-        if b in prices
+    receipts = {
+        tx: (g, p)
+        for tx, g, p in events.group_by("tx_hash")
+        .agg(
+            pl.col("receipt_gas_used").first(),
+            pl.col("receipt_effective_gas_price").first(),
+        )
+        .iter_rows()
     }
+    touched = flows_window.group_by("tx_hash").agg(
+        pl.col("position_id").unique(), pl.col("block_number").first()
+    )
     out: dict[str, float] = {}
-    for tx, pids in (
-        flows_window.group_by("tx_hash").agg(pl.col("position_id").unique()).iter_rows()
-    ):
-        share = cost.get(tx, 0.0) / len(pids)
+    for tx, pids, block in touched.iter_rows():
+        where = f"transaction {tx} (block {block})"
+        if tx not in receipts:
+            raise ValueError(f"{where} has no receipt row in the events")
+        if block not in prices:
+            raise ValueError(f"{where} has no price for its block")
+        gas_used, gas_price = receipts[tx]
+        if gas_used is None or gas_price is None:
+            raise ValueError(f"{where} has a null gas-used or effective-gas-price")
+        share = int(gas_used) * int(gas_price) / 1e18 * prices[block][1] / len(pids)
         for pid in pids:
             out[pid] = out.get(pid, 0.0) + share
     return out
@@ -135,7 +143,8 @@ def time_weighted_value(
 
     liq_path: position_id, ts_us, liquidity (after each change). spans: position_id,
     tick_lower, tick_upper, t_start_us, t_exit_us. grid: ts_us (hourly), sqrt (sqrtPrice/2^96 as
-    a float), p_cex. Positions without a grid point are left out (the caller falls back)."""
+    a float), p_cex. Positions without a grid point are left out (the caller falls back).
+    Rows of liq_path that share a timestamp must be in event order: the last one wins."""
     g0 = int(grid["ts_us"].min())  # type: ignore[arg-type]
     n = grid.height
     idx = spans.with_columns(
@@ -148,7 +157,9 @@ def time_weighted_value(
         .with_columns(ts_us=g0 + pl.col("k") * HOUR_US)
         .sort("ts_us")
     )
-    path = liq_path.with_columns(pl.col("liquidity").cast(pl.Float64)).sort("ts_us")
+    path = liq_path.with_columns(pl.col("liquidity").cast(pl.Float64)).sort(
+        "ts_us", maintain_order=True
+    )
     joined = points.join_asof(
         path, on="ts_us", by="position_id", strategy="backward", check_sortedness=False
     ).join(grid, on="ts_us", how="left")
@@ -218,11 +229,17 @@ def window_pnl(
         if open_at_start:
             d0, d1 = position_amounts(a["liquidity_start"], lo, hi, start.sqrt_price_x96)
             dep0, dep1, t_start, b_start = d0, d1, start.ts_us, start.block
+            first_amounts, first_price = (d0, d1), start.p_cex
         else:
             first = next((f for f in fl if f["liquidity_delta"] > 0), None)
             if first is None:
-                raise ValueError(f"{pid} is active but has no liquidity at the window start or add")
+                raise ValueError(
+                    f"{pid} is active, but held no liquidity at the start "
+                    "and added none in the window"
+                )
             t_start, b_start = first["ts_us"], first["block_number"]
+            first_amounts = (first["amount0"], first["amount1"])
+            first_price = prices[b_start][1]
         for f in fl:
             if f["event"] in ("mint", "increase"):
                 dep0 += f["amount0"]
@@ -250,7 +267,7 @@ def window_pnl(
         days = BLOCK_TIME_S / DAY_S if jit else max(exit_ts - t_start, 0) / (DAY_S * US)
         tw = twv.get(pid)
         if tw is None:  # no hourly grid point while open (plan Ruling 5)
-            tw = usd(dep0, dep1, prices[b_start][1])
+            tw = usd(*first_amounts, first_price)
         lp, kind = p["lp"], p["kind"]
         if jit:
             lp_type = "jit"
