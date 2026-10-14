@@ -271,7 +271,13 @@ def check_c6(swaps: pl.DataFrame, trades: pl.DataFrame) -> CheckResult:
     )
 
 
-def write_report(results: list[CheckResult], out_dir: Path, extra: dict[str, Any]) -> str:
+def write_report(
+    results: list[CheckResult],
+    out_dir: Path,
+    extra: dict[str, Any],
+    stem: str = "validation_report",
+    title: str = "Validation report",
+) -> str:
     status = "PASS" if results and all(r.passed for r in results) else "FAIL"
     out_dir.mkdir(parents=True, exist_ok=True)
     body = {
@@ -282,8 +288,8 @@ def write_report(results: list[CheckResult], out_dir: Path, extra: dict[str, Any
             for r in results
         ],
     }
-    (out_dir / "validation_report.json").write_text(json.dumps(body, indent=2, default=str))
-    lines = [f"# Validation report: **{status}**", ""]
+    (out_dir / f"{stem}.json").write_text(json.dumps(body, indent=2, default=str))
+    lines = [f"# {title}: **{status}**", ""]
     lines += [f"- {k}: `{v}`" for k, v in extra.items()]
     lines += ["", "| Check | Result | Summary |", "|---|---|---|"]
     lines += [
@@ -302,7 +308,7 @@ def write_report(results: list[CheckResult], out_dir: Path, extra: dict[str, Any
                 *map(str, r.mismatches),
                 "```",
             ]
-    (out_dir / "validation_report.md").write_text("\n".join(lines) + "\n")
+    (out_dir / f"{stem}.md").write_text("\n".join(lines) + "\n")
     return status
 
 
