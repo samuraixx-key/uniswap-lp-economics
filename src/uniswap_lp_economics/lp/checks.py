@@ -123,7 +123,8 @@ def check_l7(
 
     ours, theirs = keyed(window_events), keyed(history_window)
     missing, extra = ours - theirs, theirs - ours
-    unassigned = [k for k in ours if (k[0], k[1]) not in data.pool_event_position]
+    noop = {k for k in ours if (k[0], k[1]) in data.noop_collects}
+    unassigned = [k for k in ours if (k[0], k[1]) not in data.pool_event_position and k not in noop]
     listed = [
         {"block": k[0], "log_index": k[1], "issue": "missing_in_history"}
         for k in sorted(missing)[:MAX_LISTED]
@@ -140,6 +141,7 @@ def check_l7(
             "missing_in_history": len(missing),
             "extra_in_history": len(extra),
             "without_position": len(unassigned),
+            "noop_collects": len(noop),
         },
         listed,
     )

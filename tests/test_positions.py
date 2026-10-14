@@ -144,6 +144,37 @@ def test_direct_key_reuse_starts_a_new_position() -> None:
     assert data.positions.filter(pl.col("position_id") == first)["close_block"].item() == 2
 
 
+def test_zero_collect_on_a_never_minted_direct_key_is_a_noop() -> None:
+    pool = pl.DataFrame(
+        [
+            p(1, 0, "collect", DIRECT, 0, 0, 0, lo=0, hi=0),
+            p(2, 0, "mint", DIRECT, L, 5, 6),
+            p(3, 0, "collect", DIRECT, 0, 0, 0),  # zero, but the key was minted: a real collect
+            p(4, 0, "collect", BOB, 0, 0, 0),
+        ],
+        schema=POOL_SCHEMA,
+    )
+    data = build_positions(pool, pl.DataFrame(schema=NPM_SCHEMA))
+    pid = f"direct:{DIRECT}:-10:10:0"
+    assert data.noop_collects == {(1, 0), (4, 0)}
+    assert data.positions["position_id"].to_list() == [pid]
+    assert data.flows["event"].to_list() == ["mint", "collect"]
+    assert data.pool_event_position == {(2, 0): pid, (3, 0): pid}
+
+
+def test_nonzero_collect_or_any_burn_on_a_never_minted_key_still_raises() -> None:
+    schema = pl.DataFrame(schema=NPM_SCHEMA)
+    for bad in (
+        p(1, 0, "collect", DIRECT, 0, 1, 0),
+        p(1, 0, "collect", DIRECT, 0, 0, 1),
+        p(1, 0, "burn", DIRECT, 0),
+        p(1, 0, "burn", DIRECT, L, 1, 1),
+    ):
+        pool = pl.DataFrame([bad], schema=POOL_SCHEMA)
+        with pytest.raises(ValueError, match="for a position never minted"):
+            build_positions(pool, schema)
+
+
 def test_unmatched_position_manager_pool_event_raises() -> None:
     pool = pl.DataFrame([p(1, 0, "mint", NPM_ADDRESS, L, 5, 6)], schema=POOL_SCHEMA)
     with pytest.raises(ValueError, match="no matching NonfungiblePositionManager event"):
@@ -180,3 +211,21 @@ def test_l7_matches_window_events_and_positions() -> None:
     assert check_l7(window, window, data).passed
     r = check_l7(window, window.filter(pl.col("block_number") != 5), data)
     assert not r.passed and r.summary["missing_in_history"] == 1
+
+
+def test_l7_passes_with_noop_collects_and_counts_them() -> None:
+    pool = pl.DataFrame(
+        [
+            p(1, 0, "mint", DIRECT, L, 5, 6),
+            p(2, 0, "collect", BOB, 0, 0, 0, lo=0, hi=0),
+        ],
+        schema=POOL_SCHEMA,
+    )
+    data = build_positions(pool, pl.DataFrame(schema=NPM_SCHEMA))
+    r = check_l7(pool, pool, data)
+    assert r.passed
+    assert r.summary["noop_collects"] == 1 and r.summary["without_position"] == 0
+    assert r.summary["window_liquidity_events"] == 2
+    # a window event unknown to the ledger is still unassigned
+    stray = pool.vstack(pl.DataFrame([p(3, 0, "mint", BOB, L, 1, 1)], schema=POOL_SCHEMA))
+    assert not check_l7(stray, stray, data).passed

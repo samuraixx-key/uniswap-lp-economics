@@ -186,6 +186,8 @@ class Ledger:
             )
 
     def on_pool_event(self, row: EngineRow, state: PoolState) -> None:
+        if (row.block_number, row.log_index) in self.data.noop_collects:
+            return  # a zero Collect on a key that never held a position: no state change
         assert row.owner is not None and row.tick_lower is not None and row.tick_upper is not None
         key = (row.owner, row.tick_lower, row.tick_upper)
         where = f"{row.event} at block {row.block_number} log {row.log_index}"

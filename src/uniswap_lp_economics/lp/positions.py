@@ -68,6 +68,9 @@ class LedgerData:
     flows: pl.DataFrame
     pool_event_position: dict[tuple[int, int], str] = field(default_factory=dict)
     token_position: dict[int, str] = field(default_factory=dict)
+    # (block_number, log_index) of zero collects on direct keys that were never minted: the pool
+    # contract emits Collect(0, 0) for any key, so these are no-ops with no position and no flow.
+    noop_collects: set[tuple[int, int]] = field(default_factory=set)
 
 
 def _rows(df: pl.DataFrame, source: str, columns: list[str]) -> list[dict[str, Any]]:
@@ -118,6 +121,7 @@ def build_positions(
     tokens: dict[int, _Position] = {}
     owners: dict[int, list[tuple[int, int, str]]] = {}
     pool_event_position: dict[tuple[int, int], str] = {}
+    noop_collects: set[tuple[int, int]] = set()
     pending: list[dict[str, Any]] = []
     current_tx: str | None = None
 
@@ -189,6 +193,9 @@ def build_positions(
             pos.liquidity += r["amount"]
             flow(pos, r, "mint", r["amount"], r["log_index"])
         elif pos is None:
+            if r["event"] == "collect" and not r["amount0"] and not r["amount1"]:
+                noop_collects.add((r["block_number"], r["log_index"]))
+                return
             raise ValueError(f"pool {r['event']} at {where(r)} for a position never minted")
         elif r["event"] == "burn":
             if r["amount"] > pos.liquidity:
@@ -314,6 +321,7 @@ def build_positions(
         flows=pl.DataFrame(flows, schema=FLOW_SCHEMA),
         pool_event_position=pool_event_position,
         token_position={tid: pos.position_id for tid, pos in tokens.items()},
+        noop_collects=noop_collects,
     )
 
 

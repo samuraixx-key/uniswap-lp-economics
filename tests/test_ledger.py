@@ -124,48 +124,62 @@ def key_row(owner: str, liquidity: int, last0: int, owed0: int, owed1: int = 0) 
     }
 
 
-def direct_case(extra: int = 0) -> tuple[Ledger, int, int]:
+def noop_collect_row(block: int, log: int) -> dict[str, Any]:
+    return pool_row(
+        block,
+        log,
+        "collect",
+        owner=OTHER,
+        tick_lower=0,
+        tick_upper=0,
+        amount=0,
+        amount0=0,
+        amount1=0,
+    )
+
+
+def direct_case(extra: int = 0, noop: bool = False) -> tuple[Ledger, int, int]:
     run = a_swap()
     owed = owed_for(run)
-    events = pl.DataFrame(
-        [
-            pool_row(
-                1,
-                0,
-                "mint",
-                owner=DIRECT,
-                tick_lower=-10,
-                tick_upper=10,
-                amount=L,
-                amount0=7,
-                amount1=8,
-            ),
-            swap_row(2, run),
-            pool_row(
-                3,
-                0,
-                "burn",
-                owner=DIRECT,
-                tick_lower=-10,
-                tick_upper=10,
-                amount=L,
-                amount0=5,
-                amount1=6,
-            ),
-            pool_row(
-                3,
-                1,
-                "collect",
-                owner=DIRECT,
-                tick_lower=-10,
-                tick_upper=10,
-                amount=0,
-                amount0=5 + owed + extra,
-                amount1=6,
-            ),
-        ],
-        schema=POOL,
-    )
+    extras = [noop_collect_row(1, 1), noop_collect_row(2, 1)] if noop else []
+    rows = [
+        pool_row(
+            1,
+            0,
+            "mint",
+            owner=DIRECT,
+            tick_lower=-10,
+            tick_upper=10,
+            amount=L,
+            amount0=7,
+            amount1=8,
+        ),
+        swap_row(2, run),
+        pool_row(
+            3,
+            0,
+            "burn",
+            owner=DIRECT,
+            tick_lower=-10,
+            tick_upper=10,
+            amount=L,
+            amount0=5,
+            amount1=6,
+        ),
+        pool_row(
+            3,
+            1,
+            "collect",
+            owner=DIRECT,
+            tick_lower=-10,
+            tick_upper=10,
+            amount=0,
+            amount0=5 + owed + extra,
+            amount1=6,
+        ),
+    ]
+    rows = sorted(rows + extras, key=lambda r: (r["block_number"], r["log_index"]))
+    events = pl.DataFrame(rows, schema=POOL)
     data = build_positions(events, pl.DataFrame(schema=NPM))
     ledger = Ledger(data, pl.DataFrame(schema=POSITION_STATE_SCHEMA), 0)
     replay_window(events, fresh(), {(2, 0): ctx(2)}, ledger=ledger)
@@ -178,6 +192,22 @@ def test_direct_position_fees_equal_collect_minus_principal() -> None:
     assert acc.fees0 == owed and acc.fees1 == 0
     km = ledger.keys[(DIRECT, -10, 10)]
     assert (km.liquidity, km.owed0, km.owed1) == (0, 0, 0)
+    end = pl.DataFrame([key_row(DIRECT, 0, km.last0, 0)], schema=POSITION_STATE_SCHEMA)
+    assert check_l3(ledger, end).passed
+    r = check_l4(ledger, end, 0)
+    assert r.passed and r.summary["positions_checked"] == 1
+
+
+def test_noop_collects_on_never_minted_keys_leave_the_replay_unchanged() -> None:
+    plain, owed, _ = direct_case()
+    ledger, owed2, _ = direct_case(noop=True)
+    assert owed2 == owed
+    assert ledger.data.noop_collects == {(1, 1), (2, 1)}
+    assert (OTHER, 0, 0) not in ledger.keys
+    assert set(ledger.accounts) == set(plain.accounts)
+    acc = ledger.accounts[f"direct:{DIRECT}:-10:10:0"]
+    assert acc.fees0 == owed and acc.fees1 == 0
+    km = ledger.keys[(DIRECT, -10, 10)]
     end = pl.DataFrame([key_row(DIRECT, 0, km.last0, 0)], schema=POSITION_STATE_SCHEMA)
     assert check_l3(ledger, end).passed
     r = check_l4(ledger, end, 0)
