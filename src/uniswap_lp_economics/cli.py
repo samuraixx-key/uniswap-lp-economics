@@ -11,6 +11,7 @@ from uniswap_lp_economics import build, config, flows, snapshot, validate
 from uniswap_lp_economics.data import bigquery, binance, chain_state, history, transfers
 from uniswap_lp_economics.data import blocks as bq_blocks
 from uniswap_lp_economics.io import read_exact, write_exact, write_text_atomic
+from uniswap_lp_economics.lp.positions import build_positions
 from uniswap_lp_economics.rpc import RpcClient
 
 
@@ -125,7 +126,7 @@ def fetch_transfers() -> None:
 
 
 def fetch_chain_state() -> None:
-    """D2-D4 (spec 3.1). Fee state now; position state once the history exists (Task 15)."""
+    """D2-D4 (spec 3.1). Fee state, then position state and owner code once the history exists."""
     client = _rpc()
     meta = build.load_snapshot_meta(config.RAW_DIR)
     folder = config.RAW_DIR / chain_state.CHAIN_DIR
@@ -139,6 +140,29 @@ def fetch_chain_state() -> None:
     else:
         sample_ticks = read_exact(config.RAW_DIR / "onchain_sample_ticks.parquet")
         chain_state.fetch_sample_fees(client, config.RAW_DIR, sample_ticks.select("block", "tick"))
+    hist = config.RAW_DIR / history.HISTORY_DIR / history.POOL_FILE
+    if not hist.exists():
+        print("no history yet: position state comes after `ulpe fetch-history`")
+        return
+    data = build_positions(*history.load_history(config.RAW_DIR))
+    snap = int(meta["block"])
+    end_block = int(
+        pl.read_parquet(config.RAW_DIR / bq_blocks.BLOCKS_FILE)["block_number"].max()  # type: ignore[arg-type]
+    )
+    for name, block, include_new in (
+        (chain_state.START_POSITIONS, snap, False),
+        (chain_state.END_POSITIONS, end_block, True),
+    ):
+        if (folder / name).exists():
+            print(f"{name} already downloaded, skipping")
+            continue
+        keys, tokens = chain_state.state_targets(data, block, snap, include_new)
+        chain_state.fetch_position_state(client, config.RAW_DIR, block, keys, tokens, name)
+    active = data.positions.filter(
+        pl.col("position_id").is_in(chain_state.window_active_ids(data, snap))
+    )
+    addresses = sorted(set(active["lp"].to_list()) | set(active["owner"].to_list()))
+    chain_state.fetch_owner_code(client, config.RAW_DIR, addresses, end_block)
 
 
 def main() -> None:

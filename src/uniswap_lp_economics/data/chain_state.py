@@ -8,15 +8,21 @@ from typing import Any
 
 import polars as pl
 
-from uniswap_lp_economics.config import POOL_ADDRESS
+from uniswap_lp_economics.config import NPM_ADDRESS, POOL_ADDRESS
 from uniswap_lp_economics.io import u256_hex, write_exact
+from uniswap_lp_economics.lp.positions import LedgerData, liquidity_at
 from uniswap_lp_economics.rpc import (
     FEE_GROWTH_GLOBAL0_CALL,
     FEE_GROWTH_GLOBAL1_CALL,
     RpcClient,
+    decode_npm_position,
+    decode_pool_position,
     decode_tick_fees,
     decode_ticks,
     decode_uint,
+    npm_positions_call,
+    pool_positions_call,
+    position_key,
     ticks_call,
 )
 from uniswap_lp_economics.snapshot import batched
@@ -87,4 +93,150 @@ def fetch_sample_fees(client: RpcClient, raw_dir: Path, sample_ticks: pl.DataFra
             print(f"  {i + 1}/{len(groups)} sample blocks")
     write_exact(pl.concat(frames), out)
     print(f"sample fee state: {len(groups)} blocks")
+    return out
+
+
+START_POSITIONS = "start_positions.parquet"
+END_POSITIONS = "end_positions.parquet"
+OWNER_CODE = "owner_code.parquet"
+POSITION_STATE_SCHEMA: dict[str, Any] = {
+    "block": pl.Int64,
+    "kind": pl.String,
+    "owner": pl.String,
+    "tick_lower": pl.Int64,
+    "tick_upper": pl.Int64,
+    "token_id": pl.Int64,
+    "found": pl.Boolean,
+    "liquidity": pl.Int128,
+    "fee_growth_inside0_last": pl.String,
+    "fee_growth_inside1_last": pl.String,
+    "tokens_owed0": pl.Int128,
+    "tokens_owed1": pl.Int128,
+}
+_I128_MAX = 2**127 - 1
+
+
+def _owed(value: int) -> int:
+    if value > _I128_MAX:
+        raise ValueError(f"tokens owed {value} does not fit Int128")
+    return value
+
+
+def read_position_state(
+    client: RpcClient, block: int, keys: list[tuple[str, int, int]], tokens: list[int]
+) -> pl.DataFrame:
+    """pool.positions(key) for each (owner, lower, upper) and NPM.positions(tokenId) at `block`.
+
+    A token whose call reverts (burned NFT) comes back with found = False."""
+    calls = [(POOL_ADDRESS, pool_positions_call(position_key(*k))) for k in keys]
+    calls += [(NPM_ADDRESS, npm_positions_call(t)) for t in tokens]
+    results = batched(client, calls, block, allow_failure=True)
+    rows: list[dict[str, Any]] = []
+    for (owner, lo, hi), res in zip(keys, results[: len(keys)], strict=True):
+        if res is None:
+            raise RuntimeError(f"pool.positions failed for {owner} {lo} {hi} at block {block}")
+        d = decode_pool_position(res)
+        rows.append(
+            {
+                "block": block,
+                "kind": "pool_key",
+                "owner": owner,
+                "tick_lower": lo,
+                "tick_upper": hi,
+                "token_id": None,
+                "found": True,
+                "liquidity": d["liquidity"],
+                "fee_growth_inside0_last": u256_hex(d["fee_growth_inside0_last"]),
+                "fee_growth_inside1_last": u256_hex(d["fee_growth_inside1_last"]),
+                "tokens_owed0": _owed(d["tokens_owed0"]),
+                "tokens_owed1": _owed(d["tokens_owed1"]),
+            }
+        )
+    for token, res in zip(tokens, results[len(keys) :], strict=True):
+        if res is None:
+            rows.append({"block": block, "kind": "npm_token", "token_id": token, "found": False})
+            continue
+        n = decode_npm_position(res)
+        rows.append(
+            {
+                "block": block,
+                "kind": "npm_token",
+                "owner": NPM_ADDRESS,
+                "tick_lower": n["tick_lower"],
+                "tick_upper": n["tick_upper"],
+                "token_id": token,
+                "found": True,
+                "liquidity": n["liquidity"],
+                "fee_growth_inside0_last": u256_hex(n["fee_growth_inside0_last"]),
+                "fee_growth_inside1_last": u256_hex(n["fee_growth_inside1_last"]),
+                "tokens_owed0": _owed(n["tokens_owed0"]),
+                "tokens_owed1": _owed(n["tokens_owed1"]),
+            }
+        )
+    return pl.DataFrame(rows, schema=POSITION_STATE_SCHEMA)
+
+
+def state_targets(
+    data: LedgerData, block: int, snapshot_block: int, include_new: bool
+) -> tuple[list[tuple[str, int, int]], list[int]]:
+    """Pool keys and NPM tokens whose on-chain state the ledger needs at `block`: liquidity > 0
+    there, or any flow after the snapshot. Without include_new, only positions that existed by
+    the snapshot."""
+    open_ids = set(liquidity_at(data, block)["position_id"].to_list())
+    touched = set(
+        data.flows.filter(pl.col("block_number") > snapshot_block)["position_id"].to_list()
+    )
+    pos = data.positions.filter(pl.col("position_id").is_in(list(open_ids | touched)))
+    if not include_new:
+        pos = pos.filter(pl.col("first_block") <= snapshot_block)
+    keys = sorted(
+        {(o, lo, hi) for o, lo, hi in pos.select("owner", "tick_lower", "tick_upper").iter_rows()},
+        key=lambda k: (k[0], k[1], k[2]),
+    )
+    tokens = sorted(int(t) for t in pos["token_id"].drop_nulls().to_list())
+    return keys, tokens
+
+
+def window_active_ids(data: LedgerData, snapshot_block: int) -> list[str]:
+    """Positions holding liquidity at some moment of the window (spec section 4)."""
+    open_at_start = set(liquidity_at(data, snapshot_block)["position_id"].to_list())
+    added = set(
+        data.flows.filter(
+            (pl.col("block_number") > snapshot_block) & (pl.col("liquidity_delta") > 0)
+        )["position_id"].to_list()
+    )
+    return sorted(open_at_start | added)
+
+
+def fetch_position_state(
+    client: RpcClient,
+    raw_dir: Path,
+    block: int,
+    keys: list[tuple[str, int, int]],
+    tokens: list[int],
+    name: str,
+) -> Path:
+    out = raw_dir / CHAIN_DIR / name
+    out.parent.mkdir(parents=True, exist_ok=True)
+    df = read_position_state(client, block, keys, tokens)
+    write_exact(df, out)
+    print(f"{name}: {len(keys)} pool keys, {len(tokens)} NFT positions at block {block}")
+    return out
+
+
+def fetch_owner_code(client: RpcClient, raw_dir: Path, addresses: list[str], block: int) -> Path:
+    """Whether each address has contract code at `block`; cached, so reruns read only new ones."""
+    out = raw_dir / CHAIN_DIR / OWNER_CODE
+    out.parent.mkdir(parents=True, exist_ok=True)
+    schema = {"address": pl.String, "has_code": pl.Boolean}
+    known = pl.read_parquet(out) if out.exists() else pl.DataFrame(schema=schema)
+    done = set(known["address"].to_list())
+    todo = [a for a in sorted(set(addresses)) if a not in done]
+    rows = []
+    for i, a in enumerate(todo):
+        rows.append({"address": a, "has_code": client.get_code(a, block) not in ("0x", "")})
+        if (i + 1) % 500 == 0:
+            print(f"  {i + 1}/{len(todo)} owner addresses")
+    new = pl.DataFrame(rows, schema=schema)
+    write_exact(pl.concat([known, new]), out)
     return out
