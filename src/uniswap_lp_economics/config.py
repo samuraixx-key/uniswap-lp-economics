@@ -25,6 +25,7 @@ DATA_DIR = Path(os.getenv("DATA_DIR", ROOT / "data"))
 
 WINDOW_START = date(2026, 7, 1)
 WINDOW_END = date(2026, 10, 1)  # exclusive
+HORIZONS_S = (0, 12, 60, 300, 3600)  # markout horizons after the block timestamp
 
 # On-chain validation samples (fetch-samples) and the coverage C3 demands of them.
 N_SAMPLES = 500
