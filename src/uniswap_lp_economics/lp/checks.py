@@ -1,12 +1,15 @@
 """Checks L1-L7 (gated) and the reported checks of sub-project 3 (spec section 9)."""
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import polars as pl
 
 from uniswap_lp_economics.io import hex_u256
 from uniswap_lp_economics.lp.positions import LedgerData
 from uniswap_lp_economics.validate import MAX_LISTED, CheckResult
+
+if TYPE_CHECKING:
+    from uniswap_lp_economics.lp.ledger import Ledger
 
 
 def check_l1(swap_fees: pl.DataFrame) -> CheckResult:
@@ -139,4 +142,109 @@ def check_l7(
             "without_position": len(unassigned),
         },
         listed,
+    )
+
+
+def check_l3(ledger: "Ledger", end_state: pl.DataFrame) -> CheckResult:
+    """The contract mirror equals the chain at the end of the window, and the start state
+    matched the rebuilt positions (no start mismatches)."""
+    bad: list[dict[str, Any]] = []
+    n_bad = 0
+    for r in end_state.iter_rows(named=True):
+        if r["kind"] == "pool_key":
+            m = ledger.keys.get((r["owner"], r["tick_lower"], r["tick_upper"]))
+        else:
+            m = ledger.token_mirror(r["token_id"])
+        if not r["found"]:  # a burned NFT: NPM.burn requires zero liquidity and zero owed
+            got: tuple[int, ...] | None = None if m is None else (m.liquidity, m.owed0, m.owed1)
+            want: tuple[int, ...] = (0, 0, 0)
+        else:
+            got = None if m is None else (m.liquidity, m.last0, m.last1, m.owed0, m.owed1)
+            want = (
+                r["liquidity"],
+                hex_u256(r["fee_growth_inside0_last"]),
+                hex_u256(r["fee_growth_inside1_last"]),
+                r["tokens_owed0"],
+                r["tokens_owed1"],
+            )
+        if got != want:
+            n_bad += 1
+            if len(bad) < MAX_LISTED:
+                bad.append(
+                    {
+                        "kind": r["kind"],
+                        "owner": r["owner"],
+                        "token_id": r["token_id"],
+                        "tick_lower": r["tick_lower"],
+                        "onchain": want,
+                        "mirror": got,
+                    }
+                )
+    for s in ledger.start_mismatches[:MAX_LISTED]:
+        bad.append({"start": s})
+    return CheckResult(
+        "L3 position state matches the chain at both ends",
+        n_bad == 0 and not ledger.start_mismatches and end_state.height > 0,
+        {
+            "compared": end_state.height,
+            "mismatches": n_bad,
+            "start_mismatches": len(ledger.start_mismatches),
+        },
+        bad,
+    )
+
+
+def check_l4(ledger: "Ledger", end_state: pl.DataFrame, snapshot_block: int) -> CheckResult:
+    """Positions opened, closed and fully collected inside the window: fees = collected -
+    withdrawn principal, exactly (fully collected = the chain owes nothing at the end)."""
+    chain_owed: dict[Any, tuple[int, int]] = {}
+    for r in end_state.iter_rows(named=True):
+        owed = (int(r["tokens_owed0"] or 0), int(r["tokens_owed1"] or 0)) if r["found"] else (0, 0)
+        if r["kind"] == "pool_key":
+            chain_owed[(r["owner"], r["tick_lower"], r["tick_upper"])] = owed
+        else:
+            chain_owed[r["token_id"]] = owed
+    flows = ledger.data.flows.filter(pl.col("block_number") > snapshot_block)
+    collected = (
+        flows.filter(pl.col("event") == "collect")
+        .group_by("position_id")
+        .agg(pl.col("amount0").sum().alias("c0"), pl.col("amount1").sum().alias("c1"))
+    )
+    principal = (
+        flows.filter(pl.col("event").is_in(["burn", "decrease"]))
+        .group_by("position_id")
+        .agg(pl.col("amount0").sum().alias("p0"), pl.col("amount1").sum().alias("p1"))
+    )
+    sums = {r[0]: r[1:] for r in collected.iter_rows()}
+    princ = {r[0]: r[1:] for r in principal.iter_rows()}
+    pos = {r["position_id"]: r for r in ledger.data.positions.iter_rows(named=True)}
+    bad: list[dict[str, Any]] = []
+    checked = n_bad = 0
+    for pid, acc in ledger.accounts.items():
+        p = pos[pid]
+        if p["first_block"] <= snapshot_block or acc.liquidity != 0 or acc.carried_owed:
+            continue
+        ref = (
+            p["token_id"] if p["kind"] == "nft" else (p["owner"], p["tick_lower"], p["tick_upper"])
+        )
+        if chain_owed.get(ref) != (0, 0):
+            continue
+        c0, c1 = sums.get(pid, (0, 0))
+        p0, p1 = princ.get(pid, (0, 0))
+        checked += 1
+        if (acc.fees0, acc.fees1) != (c0 - p0, c1 - p1):
+            n_bad += 1
+            if len(bad) < MAX_LISTED:
+                bad.append(
+                    {
+                        "position_id": pid,
+                        "engine": (acc.fees0, acc.fees1),
+                        "collected_minus_principal": (c0 - p0, c1 - p1),
+                    }
+                )
+    return CheckResult(
+        "L4 fees equal Collect minus principal",
+        n_bad == 0 and checked > 0,
+        {"positions_checked": checked, "mismatches": n_bad},
+        bad,
     )
