@@ -1,0 +1,21 @@
+address,name,category,source_url,notes
+0xe592427a0aece92de3edee1f18e0157c05861564,Uniswap V3 SwapRouter,uniswap_router,https://developers.uniswap.org/docs/protocols/v3/deployments/v3-ethereum-deployments,Etherscan tag 'Uniswap V3: Router'
+0x68b3465833fb72a70ecdf485e0e4c7bd8665fc45,Uniswap SwapRouter02,uniswap_router,https://developers.uniswap.org/docs/protocols/v3/deployments/v3-ethereum-deployments,Etherscan tag 'Uniswap V3: Router 2'
+0xef1c6e67703c7bd7107eed8303fbe6ec2554bf6b,Uniswap Universal Router v1,uniswap_router,https://raw.githubusercontent.com/Uniswap/universal-router/main/deploy-addresses/mainnet.json,Etherscan tag 'Uniswap: Universal Router v1'
+0x3fc91a3afd70395cd496c647d5a6cc9d4b2b7fad,Uniswap Universal Router v1.2,uniswap_router,https://raw.githubusercontent.com/Uniswap/universal-router/main/deploy-addresses/mainnet.json,Etherscan tag 'Uniswap: Universal Router v1.2'
+0x66a9893cc07d91d95644aedd05d03f95e1dba8af,Uniswap Universal Router v2,uniswap_router,https://developers.uniswap.org/docs/protocols/v4/deployments,Etherscan tag 'Uniswap: Universal Router v2'; also the v4 router
+0x4c82d1fbfe28c977cbb58d8c7ff8fcf9f70a2cca,Uniswap Universal Router v2.1.1,uniswap_router,https://raw.githubusercontent.com/Uniswap/universal-router/main/deploy-addresses/mainnet.json,Etherscan tag 'Uniswap: Universal Router v2.1.1'
+0x23617e59a5925b2a4bf75d73ff6711cd0b29de85,Uniswap Universal Router v2.1.2,uniswap_router,https://raw.githubusercontent.com/Uniswap/universal-router/main/deploy-addresses/mainnet.json,Etherscan tag 'Uniswap: Universal Router v2.1.2'
+0x6000da47483062a0d734ba3dc7576ce6a0b645c4,UniswapX ExclusiveDutchOrderReactor,intent_settlement,https://github.com/Uniswap/UniswapX,Etherscan tag 'UniswapX: Dutch Order Reactor'
+0x00000011f84b9aa48e5f8aa8b9897600006289be,UniswapX V2DutchOrderReactor,intent_settlement,https://github.com/Uniswap/UniswapX,Etherscan tag 'UniswapX: Dutch Order Reactor V2'
+0x0000000015757c461808ea25eb309638b62681cf,UniswapX V3DutchOrderReactor,intent_settlement,https://github.com/Uniswap/UniswapX,Listed in the repo README and deployments.md; Etherscan shows verified contract V3DutchOrderReactor (no name tag)
+0x9008d19f58aabd9ed0d60971565aa8510560ab41,CoW Protocol GPv2Settlement,intent_settlement,https://docs.cow.fi/cow-protocol/reference/contracts/core,Batch auctions; Etherscan tag 'CoW Protocol: GPv2Settlement'
+0x1111111254eeb25477b68fb85ed929f73a960582,1inch AggregationRouterV5,aggregator,https://etherscan.io/address/0x1111111254eeb25477b68fb85ed929f73a960582,Etherscan tag 'Aggregation Router V5'
+0x111111125421ca6dc452d289314280a0f8842a65,1inch AggregationRouterV6,aggregator,https://etherscan.io/address/0x111111125421ca6dc452d289314280a0f8842a65,Etherscan tag '1inch: Aggregation Router V6'
+0xdef1c0ded9bec7f1a1670819833240f027b25eff,0x Exchange Proxy,aggregator,https://etherscan.io/address/0xdef1c0ded9bec7f1a1670819833240f027b25eff,Etherscan tag '0x: Exchange Proxy'
+0x0000000000001ff3684f28c67538d4d072c22734,0x AllowanceHolder,aggregator,https://docs.0x.org/docs/core-concepts/contracts,Entry point for 0x v2 swaps; Etherscan tag '0x: Allowance Holder'
+0xdef171fe48cf0115b1d80b88dc8eab59176fee57,ParaSwap Augustus V5,aggregator,https://etherscan.io/address/0xdef171fe48cf0115b1d80b88dc8eab59176fee57,Etherscan tag 'Velora v5: Augustus Swapper'; Velora was formerly ParaSwap
+0x6a000f20005980200259b80c5102003040001068,Velora Augustus V6.2,aggregator,https://etherscan.io/address/0x6a000f20005980200259b80c5102003040001068,Etherscan tag 'Velora: Augustus V6.2'; Velora was formerly ParaSwap
+0x6131b5fae19ea4f9d964eac0408e4408b66337b5,KyberSwap MetaAggregationRouterV2,aggregator,https://etherscan.io/address/0x6131b5fae19ea4f9d964eac0408e4408b66337b5,Etherscan tag 'KyberSwap: Meta Aggregation Router v2'
+0xcf5540fffcdc3d510b18bfca6d2b9987b0772559,Odos Router V2,aggregator,https://etherscan.io/address/0xcf5540fffcdc3d510b18bfca6d2b9987b0772559,Etherscan tag 'Odos: Router V2'
+0x881d40237659c251811cec9c364ef91dc08d300c,MetaMask Swap Router,aggregator,https://etherscan.io/address/0x881d40237659c251811cec9c364ef91dc08d300c,Etherscan tag 'Metamask: Swap Router'

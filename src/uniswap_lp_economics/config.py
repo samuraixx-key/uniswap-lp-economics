@@ -31,3 +31,4 @@ N_FULL_BOOK = 5  # of the N_SAMPLES blocks, how many read the full tick book
 RAW_DIR = DATA_DIR / "raw"
 INTERIM_DIR = DATA_DIR / "interim"
 VALIDATION_DIR = ROOT / "data_validation"
+LABELS_CSV = ROOT / "labels" / "addresses.csv"
