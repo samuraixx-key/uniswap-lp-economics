@@ -7,6 +7,7 @@ import pytest
 from lpworld import T0, US, WALLET, D, J, L, T, world_inputs
 
 from uniswap_lp_economics.lp import analyze as lp
+from uniswap_lp_economics.lp import destination
 from uniswap_lp_economics.lp.analyze import LpInputs
 from uniswap_lp_economics.lp.checks import check_l6
 from uniswap_lp_economics.lp.pnl import (
@@ -36,6 +37,7 @@ def test_lp_analysis_end_to_end(tmp_path: Path) -> None:
         "lp_groups.md",
         "positions.csv",
         "lifetime.md",
+        "lvr_destination.md",
     ):
         assert (results / name).exists(), name
     for name in lp.LP_FIGURES.values():
@@ -48,6 +50,26 @@ def test_lp_analysis_end_to_end(tmp_path: Path) -> None:
     assert summary["lp"]["collect_shortfalls"] == {"count": 0, "max_d0": 0, "max_d1": 0}
     assert summary["lp"]["n_excluded_carry"] == 0 == summary["lp"]["lifetime"]["n_excluded_carry"]
     assert any("L6" in name for name in summary["lp"]["checks"])
+    assert "destination" in summary["lp"]
+    assert summary["lp"]["destination_limitation"] == destination.LIMITATION_TEXT
+    checks_text = (results / "lp_checks.md").read_text(encoding="utf-8")
+    assert all(f"R{i}" in checks_text for i in range(1, 6))
+    dest = summary["lp"]["destination"]
+    # Chain (0 s): LVR on searcher steps = LP fees + protocol fees + searchers' gross markout.
+    assert dest["lvr_searcher_usd"] == pytest.approx(
+        dest["lp_fees_searcher_usd"]
+        + dest["protocol_fees_searcher_usd"]
+        + dest["searcher_gross_usd"]
+    )
+    assert dest["lvr_other_flows_usd"] == 0.0 and dest["multi_pool_gross_usd"] == 0.0
+    # 100,000 gas at 1 gwei base fee, 0 priority: burned = 1e-4 ETH per swap, none paid on top.
+    assert dest["gas_burned_usd"] == pytest.approx(
+        sum(1e-4 * p for p in inp.aligned["p_cex_0"].to_list())
+    )
+    assert dest["builder_margin_usd"] == pytest.approx(0.0)
+    assert dest["searcher_kept_usd"] == pytest.approx(
+        dest["single_pool_gross_usd"] - dest["gas_burned_usd"]
+    )
     positions = pl.read_csv(results / "positions.csv")
     assert set(positions["lp_type"].to_list()) == {"jit", "nft_wallet", "direct_other"}
     _assert_world_numbers(inp, summary["lp"], positions)

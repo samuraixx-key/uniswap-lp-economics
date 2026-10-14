@@ -307,3 +307,65 @@ def check_l6(
             "all_steps_lvr_0_usd": all_lvr,
         },
     )
+
+
+def check_r1_relays(relays: pl.DataFrame, split: pl.DataFrame) -> CheckResult:
+    found = relays.filter(pl.col("found")).join(
+        split.select("block_number", "payment_wei"), on="block_number", how="inner"
+    )
+    diff = (found["value_wei"] - found["payment_wei"]).abs()
+    exact = int((diff <= 1).sum()) if found.height else 0
+    within = (
+        int((diff.cast(pl.Float64) <= 0.01 * found["value_wei"].cast(pl.Float64)).sum())
+        if found.height
+        else 0
+    )
+    return CheckResult(
+        "R1 relay vs on-chain proposer payment (reported)",
+        True,
+        {
+            "sampled": relays.height,
+            "found_on_a_relay": found.height,
+            "match_within_1_wei": exact,
+            "match_within_1pct": within,
+        },
+    )
+
+
+def check_r2_traces_vs_alchemy(
+    tx_direct: pl.DataFrame, bot_transfers: pl.DataFrame, blocks: pl.DataFrame
+) -> CheckResult:
+    from uniswap_lp_economics.arbprofit import coinbase_payments
+
+    alchemy = coinbase_payments(bot_transfers, blocks)
+    both = alchemy.join(tx_direct, on="tx_hash", how="left")
+    same = (
+        int((both["coinbase_wei"] == both["direct_wei"].fill_null(0)).sum()) if both.height else 0
+    )
+    return CheckResult(
+        "R2 traces vs Alchemy builder payments, top bots (reported)",
+        True,
+        {"alchemy_txs_with_payment": alchemy.height, "same_amount_in_traces": same},
+    )
+
+
+def check_r3_lp_types(positions: pl.DataFrame) -> CheckResult:
+    by = positions.group_by("lp_type").agg(positions=pl.len(), fee_usd=pl.col("fee_usd").sum())
+    return CheckResult("R3 LP-type coverage (reported)", True, {"by_lp_type": by.to_dicts()})
+
+
+def check_r4_transferred(positions_table: pl.DataFrame, active_ids: list[str]) -> CheckResult:
+    active = positions_table.filter(pl.col("position_id").is_in(active_ids))
+    return CheckResult(
+        "R4 NFT positions transferred while open (reported)",
+        True,
+        {"window_active": active.height, "transferred": int(active["transferred"].sum())},
+    )
+
+
+def check_r5_null_12s(null_12s_steps: int, steps: pl.DataFrame) -> CheckResult:
+    return CheckResult(
+        "R5 steps without a 12 s reference (reported)",
+        True,
+        {"steps": steps.height, "without_12s_reference": null_12s_steps},
+    )

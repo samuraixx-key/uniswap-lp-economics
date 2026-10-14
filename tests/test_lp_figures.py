@@ -46,3 +46,21 @@ def test_group_chart_survives_bounds_on_the_wrong_side(tmp_path: Path) -> None:
     )
     figures.group_chart(groups, tmp_path / "d.png")
     assert (tmp_path / "d.png").stat().st_size > 0
+
+
+def test_destination_waterfall(tmp_path: Path) -> None:
+    figures.destination_waterfall({}, tmp_path / "w0.png")
+    d = {
+        "lvr_searcher_usd": 100.0,
+        "lp_fees_searcher_usd": 40.0,
+        "protocol_fees_searcher_usd": 5.0,
+        "searcher_gross_usd": 55.0,
+        "multi_pool_gross_usd": 5.0,
+        "single_pool_gross_usd": 50.0,
+        "gas_burned_usd": 5.0,
+        "builder_margin_usd": 10.0,
+        "proposer_usd": 25.0,
+        "searcher_kept_usd": 10.0,
+    }
+    figures.destination_waterfall(d, tmp_path / "w1.png")
+    assert (tmp_path / "w1.png").stat().st_size > 0

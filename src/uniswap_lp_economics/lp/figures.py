@@ -1,4 +1,4 @@
-"""Charts 7-11 (spec section 10). Every chart renders even from empty input."""
+"""Charts 7-12 (spec section 10). Every chart renders even from empty input."""
 
 from pathlib import Path
 
@@ -96,4 +96,45 @@ def lifetime_chart(by_width: pl.DataFrame, by_life: pl.DataFrame, path: Path) ->
         ax.axhline(0.5, color="grey", lw=0.8, ls="--")
         ax.set_title(f"Beat holding, by {col.replace('_', ' ')}")
         ax.set_ylabel("share of positions")
+    save_figure(fig, path)
+
+
+DESTINATION_STEPS = [
+    ("lvr_searcher_usd", "LVR on\nsearcher swaps", "total"),
+    ("lp_fees_searcher_usd", "- LP fees", "down"),
+    ("protocol_fees_searcher_usd", "- protocol\nfees", "down"),
+    ("multi_pool_gross_usd", "- multi-pool\n(no split)", "down"),
+    ("gas_burned_usd", "- gas\nburned", "down"),
+    ("builder_margin_usd", "- builder\nmargin", "down"),
+    ("proposer_usd", "- proposer", "down"),
+    ("searcher_kept_usd", "searcher kept\n(upper bound)", "total"),
+]
+
+
+def destination_waterfall(d: dict[str, float], path: Path) -> None:
+    """Chart 12: where LVR goes, as a floating waterfall."""
+    fig, ax = plt.subplots(figsize=(12, 5))
+    if not d:
+        no_data(ax)
+    else:
+        level = 0.0
+        for i, (key, _label, kind) in enumerate(DESTINATION_STEPS):
+            v = d.get(key, 0.0) / 1e3
+            if kind == "total":
+                ax.bar(i, v, color="tab:blue")
+                level = v
+            else:
+                ax.bar(i, -v, bottom=level, color="tab:red")
+                level -= v
+            ax.annotate(
+                f"{v:,.1f}",
+                (i, max(level, v if kind == "total" else level)),
+                ha="center",
+                va="bottom",
+                fontsize=8,
+            )
+        ax.set_xticks(range(len(DESTINATION_STEPS)), [s[1] for s in DESTINATION_STEPS])
+    ax.axhline(0.0, color="grey", lw=0.8)
+    ax.set_ylabel("USD thousands")
+    ax.set_title("Where LVR goes: fees, gas, builders, proposers, searchers")
     save_figure(fig, path)

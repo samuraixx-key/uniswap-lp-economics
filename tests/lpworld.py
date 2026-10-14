@@ -25,6 +25,7 @@ L = 10**18
 SNAP = 5
 T0 = datetime(2026, 7, 1, tzinfo=UTC)
 US = 1_000_000
+MINER = "0x" + "fe" * 20
 D, J = "0x" + "d1" * 20, "0x" + "e1" * 20
 WALLET, ZERO = "0x" + "a1" * 20, "0x" + "00" * 20
 EVENT_SCHEMA: dict[str, Any] = {
@@ -233,6 +234,8 @@ def aligned_for(events: pl.DataFrame) -> pl.DataFrame:
         "block_number",
         "log_index",
         "block_timestamp",
+        "tx_hash",
+        notional_usd=pl.col("amount0").abs().cast(pl.Float64) / 1e6,
         t0_us=pl.col("block_timestamp").dt.epoch("us"),
         p_cex_0=pl.Series(p),
         p_cex_12=pl.Series(p),
@@ -453,6 +456,62 @@ def world_inputs() -> LpInputs:
         minute_klines=minute,
         lp_labels=pl.DataFrame(
             schema={c: pl.String for c in ("address", "name", "category", "source_url", "notes")}
+        ),
+        blocks=pl.DataFrame(
+            {
+                "block_number": blocks,
+                "miner": [MINER] * len(blocks),
+                "base_fee_per_gas": [10**9] * len(blocks),
+            }
+        ),
+        block_revenue=pl.DataFrame(
+            {
+                "block_number": blocks,
+                "miner": [MINER] * len(blocks),
+                "priority_wei": [10**15] * len(blocks),
+                "direct_wei": [0] * len(blocks),
+                "last_from": [MINER] * len(blocks),
+                "last_value_wei": [5 * 10**14] * len(blocks),
+            },
+            schema={
+                "block_number": pl.Int64,
+                "miner": pl.String,
+                "priority_wei": pl.Int128,
+                "direct_wei": pl.Int128,
+                "last_from": pl.String,
+                "last_value_wei": pl.Int128,
+            },
+        ),
+        tx_direct=pl.DataFrame(schema={"tx_hash": pl.String, "direct_wei": pl.Int128}),
+        tx_other_logs=pl.DataFrame({"tx_hash": window["tx_hash"].unique().to_list()}).with_columns(
+            other_logs=pl.lit(0, dtype=pl.Int64), logs=pl.lit(1, dtype=pl.Int64)
+        ),
+        relays=pl.DataFrame(
+            {
+                "block_number": [7],
+                "relay": ["https://r"],
+                "found": [True],
+                "value_wei": [5 * 10**14],
+                "proposer_fee_recipient": ["0x"],
+                "builder_pubkey": ["0x"],
+            },
+            schema={
+                "block_number": pl.Int64,
+                "relay": pl.String,
+                "found": pl.Boolean,
+                "value_wei": pl.Int128,
+                "proposer_fee_recipient": pl.String,
+                "builder_pubkey": pl.String,
+            },
+        ),
+        bot_transfers=pl.DataFrame(
+            schema={
+                "block_number": pl.Int64,
+                "tx_hash": pl.String,
+                "from_address": pl.String,
+                "to_address": pl.String,
+                "value_wei": pl.Int128,
+            }
         ),
         window_end_us=t_hi,
     )

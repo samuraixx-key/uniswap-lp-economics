@@ -8,11 +8,19 @@ from typing import Any
 
 import polars as pl
 
-from uniswap_lp_economics import align, config, report, validate
+from uniswap_lp_economics import align, config, flows, report, validate
 from uniswap_lp_economics.build import load_snapshot_meta
-from uniswap_lp_economics.data import binance, chain_state, history
+from uniswap_lp_economics.data import (
+    binance,
+    builders,
+    chain_state,
+    history,
+    relays,
+    transfers,
+)
+from uniswap_lp_economics.data import blocks as bq_blocks
 from uniswap_lp_economics.io import read_exact, write_exact, write_text_atomic
-from uniswap_lp_economics.lp import figures, lifetime, pnl, theory
+from uniswap_lp_economics.lp import destination, figures, lifetime, pnl, theory
 from uniswap_lp_economics.lp.checks import (
     check_l1,
     check_l2,
@@ -21,6 +29,11 @@ from uniswap_lp_economics.lp.checks import (
     check_l5,
     check_l6,
     check_l7,
+    check_r1_relays,
+    check_r2_traces_vs_alchemy,
+    check_r3_lp_types,
+    check_r4_transferred,
+    check_r5_null_12s,
 )
 from uniswap_lp_economics.lp.engine import contexts_from_aligned, replay_window
 from uniswap_lp_economics.lp.ledger import Ledger
@@ -35,6 +48,7 @@ LP_FIGURES = {
     "regimes": "9_lvr_by_volatility_regime.png",
     "groups": "10_lp_pnl_by_group.png",
     "lifetime": "11_lifetime_beat_holding.png",
+    "destination": "12_lvr_destination.png",
 }
 GROUPINGS = (
     ("lp_type", pnl.LP_TYPES),
@@ -67,6 +81,12 @@ class LpInputs:
     owner_code: pl.DataFrame
     minute_klines: pl.DataFrame
     lp_labels: pl.DataFrame
+    blocks: pl.DataFrame
+    block_revenue: pl.DataFrame
+    tx_direct: pl.DataFrame
+    tx_other_logs: pl.DataFrame
+    relays: pl.DataFrame
+    bot_transfers: pl.DataFrame
     window_end_us: int = 0
 
 
@@ -82,6 +102,9 @@ def load_lp_inputs(raw: Path, interim: Path, processed: Path, lp_labels_csv: Pat
     holds a pool event); the history frames carry no receipts."""
     cs = raw / chain_state.CHAIN_DIR
     pool_history, npm_history = history.load_history(raw)
+    block_revenue, tx_direct, tx_other_logs = builders.load_builders(raw)
+    swaps = read_exact(_need(interim / "swaps.parquet", "build"))
+    top_bots = flows.top_bots(flows.label_swaps(swaps, flows.load_labels(config.LABELS_CSV)))
     return LpInputs(
         events=read_exact(_need(interim / "events.parquet", "build")),
         ticks=read_exact(_need(raw / "tickbook_snapshot.parquet", "fetch-snapshot")),
@@ -99,6 +122,12 @@ def load_lp_inputs(raw: Path, interim: Path, processed: Path, lp_labels_csv: Pat
         owner_code=pl.read_parquet(_need(cs / chain_state.OWNER_CODE, "fetch-chain-state")),
         minute_klines=binance.load_minute_klines(raw),
         lp_labels=pnl.load_lp_labels(lp_labels_csv),
+        blocks=pl.read_parquet(_need(raw / bq_blocks.BLOCKS_FILE, "fetch-blocks")),
+        block_revenue=block_revenue,
+        tx_direct=tx_direct,
+        tx_other_logs=tx_other_logs,
+        relays=read_exact(_need(raw / relays.RELAY_FILE, "fetch-relays")),  # wei: Int128
+        bot_transfers=transfers.load_bot_transfers(raw, top_bots),
         window_end_us=align.window_end_us(),
     )
 
@@ -282,13 +311,28 @@ def lp_analysis(
         "lifetime": life_overall,
         "checks": {r.name: r.summary for r in results},
     }
+    # Where LVR goes (spec section 7), and the reported checks R1-R5: neither gates the run.
+    split = destination.block_split(inp.block_revenue)
+    costs = destination.searcher_costs(
+        inp.aligned, inp.events, inp.blocks, inp.tx_direct, inp.tx_other_logs, split
+    )
+    dest = destination.destination(steps, inp.aligned, costs)
+    reported = [
+        check_r1_relays(inp.relays, split),
+        check_r2_traces_vs_alchemy(inp.tx_direct, inp.bot_transfers, inp.blocks),
+        check_r3_lp_types(positions),
+        check_r4_transferred(data.positions, positions["position_id"].to_list()),
+        check_r5_null_12s(run.null_12s_steps, steps),
+    ]
+    summary["lp"]["destination"] = dest
+    summary["lp"]["destination_limitation"] = destination.LIMITATION_TEXT
     blocks_theory = int_1s.group_by("block_number").agg(
         pl.col("r2").sum(), pl.col("lvr_theory").sum()
     )
 
     # Everything is computed: write the checks, then the data and results, summary.json last.
     validate.write_report(
-        results, results_dir, provenance, stem="lp_checks", title="LP analysis checks"
+        results + reported, results_dir, provenance, stem="lp_checks", title="LP analysis checks"
     )
     processed_dir.mkdir(parents=True, exist_ok=True)
     write_exact(steps, processed_dir / "swap_steps.parquet")
@@ -327,12 +371,20 @@ def lp_analysis(
             ("By lifetime", life_bucket),
         ],
     )
+    report.write_markdown(
+        out,
+        "lvr_destination",
+        "Where LVR goes",
+        [("Totals", report.metrics_table(dest))],
+        notes=[destination.LIMITATION_TEXT],
+    )
     figs = out / "figures"
     figures.fees_vs_lvr_daily(daily, figs / LP_FIGURES["daily"])
     figures.measured_vs_theory(daily, figs / LP_FIGURES["theory"])
     figures.regime_chart(regime_summary, figs / LP_FIGURES["regimes"])
     figures.group_chart(groups, figs / LP_FIGURES["groups"])
     figures.lifetime_chart(life_width, life_bucket, figs / LP_FIGURES["lifetime"])
+    figures.destination_waterfall(dest, figs / LP_FIGURES["destination"])
     report.write_summary(summary, out)
     return status
 
