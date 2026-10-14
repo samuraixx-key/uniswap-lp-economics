@@ -1,7 +1,7 @@
 {
   "status": "PASS",
-  "generated_utc": "2026-10-14T16:13:44+00:00",
-  "git_commit": "7bf0d96-dirty",
+  "generated_utc": "2026-10-14T16:16:09+00:00",
+  "git_commit": "c0296ee",
   "input_sha256_16": {
     "interim/cex_ethusdc.parquet": "2bb21f2bb6ca55b8",
     "interim/cex_ethusdt_1s.parquet": "02a5ea793a51eea0",
@@ -81,13 +81,13 @@
       "name": "A5 label coverage (reported)",
       "passed": true,
       "summary": {
-        "other_contract_notional_share": 0.10897229175784204,
+        "other_contract_notional_share": 0.10897229175784208,
         "by_label": {
-          "searcher": 0.747554137005692,
-          "uniswap_router": 0.11604430840941152,
-          "other_contract": 0.10897229175784204,
-          "aggregator": 0.022448011851733847,
-          "intent_settlement": 0.004981250975320495
+          "searcher": 0.7475541370056926,
+          "uniswap_router": 0.11604430840941164,
+          "other_contract": 0.10897229175784208,
+          "aggregator": 0.022448011851733837,
+          "intent_settlement": 0.004981250975320494
         }
       },
       "mismatches": [
