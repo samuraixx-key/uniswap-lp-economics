@@ -348,6 +348,13 @@ def file_hash(path: Path) -> str:
     return digest.hexdigest()[:16]
 
 
+def git_commit() -> str:
+    out = subprocess.run(
+        ["git", "describe", "--always", "--dirty"], capture_output=True, text=True, cwd=config.ROOT
+    ).stdout.strip()
+    return out or "unknown"
+
+
 def input_hashes(raw: Path, interim: Path) -> dict[str, str]:
     """First 16 hex chars of sha256 for every file validation reads, keyed by data-relative path."""
     files = [
@@ -399,12 +406,9 @@ def run_validation() -> str:
         check_c5(raw_logs, events, trades, raw / "binance"),
         check_c6(swaps, trades),
     ]
-    commit = subprocess.run(
-        ["git", "describe", "--always", "--dirty"], capture_output=True, text=True, cwd=config.ROOT
-    ).stdout.strip()
     extra = {
         "generated_utc": datetime.now(UTC).isoformat(timespec="seconds"),
-        "git_commit": commit or "unknown",
+        "git_commit": git_commit(),
         "window": f"[{config.WINDOW_START}, {config.WINDOW_END})",
         "snapshot_block": meta["block"],
         "snapshot_fee_protocol": meta["fee_protocol"],

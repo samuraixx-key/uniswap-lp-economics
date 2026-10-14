@@ -6,6 +6,7 @@ from datetime import UTC, date, datetime
 
 import polars as pl
 
+from uniswap_lp_economics import analyze as analysis
 from uniswap_lp_economics import build, config, flows, snapshot, validate
 from uniswap_lp_economics.data import bigquery, binance, transfers
 from uniswap_lp_economics.data import blocks as bq_blocks
@@ -143,6 +144,7 @@ def main() -> None:
     sub.add_parser("fetch-transfers", help="download top-bot internal ETH transfers (Alchemy)")
     sub.add_parser("build", help="decode raw data into interim tables")
     sub.add_parser("validate", help="run checks C1-C6 and write data_validation/validation_report")
+    sub.add_parser("analyze", help="run checks A1-A6 and write results/ (tables, charts, summary)")
     sub.add_parser("all", help="fetch anything missing, build, then validate")
 
     args = parser.parse_args()
@@ -171,6 +173,12 @@ def main() -> None:
         try:
             status = validate.run_validation()
         except FileNotFoundError as e:
+            raise SystemExit(str(e)) from e
+        raise SystemExit(0 if status == "PASS" else 1)
+    elif args.command == "analyze":
+        try:
+            status = analysis.run_analysis()
+        except (FileNotFoundError, RuntimeError) as e:
             raise SystemExit(str(e)) from e
         raise SystemExit(0 if status == "PASS" else 1)
     elif args.command == "all":
