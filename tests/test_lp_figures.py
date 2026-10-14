@@ -31,3 +31,18 @@ def test_daily_chart_with_data(tmp_path: Path) -> None:
     figures.fees_vs_lvr_daily(daily, tmp_path / "a.png")
     figures.measured_vs_theory(daily, tmp_path / "b.png")
     assert (tmp_path / "a.png").stat().st_size > 0
+
+
+def test_group_chart_survives_bounds_on_the_wrong_side(tmp_path: Path) -> None:
+    # A bootstrap interval of a ratio of sums need not contain the point estimate.
+    groups = pl.DataFrame(
+        {
+            "grouping": ["lp_type", "width_bucket"],
+            "group": ["jit", "<50"],
+            "bp_per_day": [5.0, -2.0],
+            "ci_lo_bp": [6.0, -1.0],
+            "ci_hi_bp": [9.0, -3.0],
+        }
+    )
+    figures.group_chart(groups, tmp_path / "d.png")
+    assert (tmp_path / "d.png").stat().st_size > 0

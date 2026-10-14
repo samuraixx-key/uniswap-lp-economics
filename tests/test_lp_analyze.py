@@ -1,13 +1,22 @@
 import json
 from pathlib import Path
+from typing import Any
 
 import polars as pl
 import pytest
-from lpworld import T0, US, world_inputs
+from lpworld import T0, US, WALLET, D, J, L, T, world_inputs
 
 from uniswap_lp_economics.lp import analyze as lp
+from uniswap_lp_economics.lp.analyze import LpInputs
 from uniswap_lp_economics.lp.checks import check_l6
-from uniswap_lp_economics.lp.pnl import HOUR_US, Edge, liquidity_path, position_spans
+from uniswap_lp_economics.lp.pnl import (
+    HOUR_US,
+    Edge,
+    liquidity_path,
+    position_amounts,
+    position_spans,
+    usd,
+)
 
 
 def test_lp_analysis_end_to_end(tmp_path: Path) -> None:
@@ -41,6 +50,7 @@ def test_lp_analysis_end_to_end(tmp_path: Path) -> None:
     assert any("L6" in name for name in summary["lp"]["checks"])
     positions = pl.read_csv(results / "positions.csv")
     assert set(positions["lp_type"].to_list()) == {"jit", "nft_wallet", "direct_other"}
+    _assert_world_numbers(inp, summary["lp"], positions)
     for name in (
         "swap_steps.parquet",
         "positions.parquet",
@@ -49,6 +59,49 @@ def test_lp_analysis_end_to_end(tmp_path: Path) -> None:
         "lp_blocks.parquet",
     ):
         assert (processed / name).exists(), name
+
+
+def _assert_world_numbers(inp: LpInputs, summary: dict[str, Any], positions: pl.DataFrame) -> None:
+    """Expected values from the world's own constants (lpworld), not from the run's output."""
+    fee_rate = 500 / 1_000_000
+    swaps_usdc = [10**9, 2 * 10**9, 10**9, 10**9]  # the four swaps; no protocol fee in the world
+    flash0, flash1 = 1_000_000, 10**15  # paid by the flash at block 8
+    pool0 = sum(round(x * fee_rate) for x in swaps_usdc) + flash0
+    l6 = next(v for k, v in summary["checks"].items() if k.startswith("L6"))
+    assert l6["pool_lp_fees_raw"] == [pool0, flash1]
+    p_flash = inp.aligned.filter(pl.col("block_number") == 7)["p_cex_0"][0]  # last swap before it
+    expected_fees = pool0 / 1e6 + flash1 / 1e18 * p_flash
+    assert summary["lp_fees_usd"] == pytest.approx(expected_fees, rel=1e-12)
+
+    # Gas: 100,000 gas at 1 gwei, at the Binance price of the block, per position its tx touched.
+    price = dict(inp.blocks_state.select("block_number", "p_cex").iter_rows())
+    unit = 100_000 * 10**9 / 1e18
+    gas = positions.select("position_id", "gas_usd").to_dicts()
+    by_id = {r["position_id"]: r["gas_usd"] for r in gas}
+    nft, jit = "nft:1", f"direct:{J}:{T - 10}:{T + 10}:0"
+    direct = f"direct:{D}:{T - 10}:{T + 10}:0"
+    assert by_id[nft] == pytest.approx(unit * (price[6] + price[10]))  # mint tx, burn+collect tx
+    assert by_id[jit] == pytest.approx(unit * price[9])
+    assert by_id[direct] == 0.0  # D changed nothing in the window
+
+    # The identities pnl.window_pnl defines.
+    for r in positions.iter_rows(named=True):
+        assert r["pnl_rebal_usd"] == pytest.approx(r["fee_usd"] - r["lvr_0"] - r["gas_usd"])
+        assert r["pnl_rebal_12_usd"] == pytest.approx(r["fee_usd"] - r["lvr_12"] - r["gas_usd"])
+    assert positions["fee_usd"].sum() <= summary["lp_fees_usd"] + 1e-9  # floors never overpay
+
+    # D was open before the window: its time-weighted value comes from the hourly grid, not
+    # from the first-deposit fallback (its value at the window start).
+    first = inp.blocks_state.sort("block_number").row(0, named=True)
+    fallback = usd(
+        *position_amounts(L, T - 10, T + 10, int(inp.meta["sqrt_price_x96"])), first["p_cex"]
+    )
+    d_twv = positions.filter(pl.col("position_id") == direct)["twv_usd"][0]
+    assert d_twv != pytest.approx(fallback, rel=1e-9)
+    assert d_twv > 0
+    assert summary["share_positions_beat_hold_window"] is not None
+    assert summary["lifetime"]["share_beat_hold"] is not None
+    assert WALLET in positions["lp"].to_list()
 
 
 def test_failed_gate_writes_no_lp_results(tmp_path: Path) -> None:
@@ -120,6 +173,15 @@ def test_days_without_theory_stop_the_run(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="no theoretical LVR"):
         lp.lp_analysis(inp, results, processed, {"git_commit": "test"}, end_us=one_day)
     assert not (results / "lp_pnl.md").exists() and not processed.exists()
+    assert not (results / "lp_checks.md").exists()  # nothing is written before every number is
+
+
+def test_missing_summary_stops_before_any_write(tmp_path: Path) -> None:
+    inp = world_inputs()
+    results, processed = tmp_path / "results", tmp_path / "processed"
+    with pytest.raises(FileNotFoundError, match="ulpe analyze"):
+        lp.lp_analysis(inp, results, processed, {"git_commit": "test"}, end_us=inp.window_end_us)
+    assert not (results / "lp_checks.md").exists() and not processed.exists()
 
 
 def test_hourly_grid_uses_utc_hour_starts() -> None:
@@ -180,3 +242,53 @@ def test_spans_and_liquidity_path_follow_event_order() -> None:
     assert spans["t_exit_us"].to_list() == [900, 200]  # open at end / last removal
     path = liquidity_path(accounts, flows, start).filter(pl.col("position_id") == "b")
     assert path["liquidity"].to_list() == [0, 4, 0, 7]  # same-timestamp changes in event order
+
+
+def test_l6_shortfall_beyond_the_tolerance_fails() -> None:
+    steps = pl.DataFrame(
+        {
+            "zero_for_one": [True, True],
+            "lp_fee": [10, 10],
+            "accrued": [True, True],
+            "lvr_0": [1.0, 2.0],
+        },
+        schema={
+            "zero_for_one": pl.Boolean,
+            "lp_fee": pl.Int128,
+            "accrued": pl.Boolean,
+            "lvr_0": pl.Float64,
+        },
+    )
+    aligned = pl.DataFrame(
+        {
+            "block_number": [1, 2],
+            "log_index": [0, 0],
+            "markout_usd_0": [0.5, 1.5],
+            "p_cex_0": [2000.0, 2000.0],
+        }
+    )
+    swap_fees = pl.DataFrame(
+        {
+            "block_number": [1, 2],
+            "log_index": [0, 0],
+            "fee_token": ["USDC", "USDC"],
+            "fee_raw": [500_000, 500_000],
+        },
+        schema={
+            "block_number": pl.Int64,
+            "log_index": pl.Int64,
+            "fee_token": pl.String,
+            "fee_raw": pl.Int128,
+        },
+    )
+
+    def accounts(fees0: int) -> pl.DataFrame:
+        return pl.DataFrame(
+            {"fees_raw0": [fees0], "fees_raw1": [0], "lvr_0": [3.0]},
+            schema={"fees_raw0": pl.Int128, "fees_raw1": pl.Int128, "lvr_0": pl.Float64},
+        )
+
+    # tolerance = 2 accrued steps + 0 flows + 2 x 1 account = 4 raw units below the pool's 20
+    assert check_l6(steps, accounts(16), aligned, swap_fees, 0).passed
+    assert not check_l6(steps, accounts(15), aligned, swap_fees, 0).passed
+    assert check_l6(steps, accounts(15), aligned, swap_fees, 1).passed  # a window flow adds one

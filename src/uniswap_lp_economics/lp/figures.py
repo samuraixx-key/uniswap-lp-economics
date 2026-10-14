@@ -71,8 +71,8 @@ def group_chart(groups: pl.DataFrame, path: Path) -> None:
         g = groups.filter(pl.col("grouping") == grouping) if groups.height else groups
         if g.height:
             y = np.array(floats(g["bp_per_day"]))
-            lo = y - np.array(floats(g["ci_lo_bp"]))
-            hi = np.array(floats(g["ci_hi_bp"])) - y
+            lo = np.maximum(y - np.array(floats(g["ci_lo_bp"])), 0)
+            hi = np.maximum(np.array(floats(g["ci_hi_bp"])) - y, 0)
             ax.bar(g["group"].to_list(), y, yerr=[lo, hi], color="tab:green", capsize=3)
             ax.tick_params(axis="x", rotation=30)
         else:

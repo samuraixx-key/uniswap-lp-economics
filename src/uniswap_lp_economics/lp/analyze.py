@@ -150,13 +150,16 @@ def lp_analysis(
         check_l6(run.steps, accounts, inp.aligned, inp.swap_fees, flows_window.height),
         check_l7(inp.events, inp.pool_history.filter(pl.col("block_number") > snap), data),
     ]
-    status = validate.write_report(
-        results, results_dir, provenance, stem="lp_checks", title="LP analysis checks"
-    )
+    status = "PASS" if all(r.passed for r in results) else "FAIL"
     for r in results:
         print(f"{'PASS' if r.passed else 'FAIL'}  {r.name}: {r.summary}")
     if status != "PASS":
+        validate.write_report(
+            results, results_dir, provenance, stem="lp_checks", title="LP analysis checks"
+        )
         return status
+    # From here on nothing is written until every number is computed, so a late error cannot
+    # leave this run's checks file beside the previous run's results.
 
     bs = inp.blocks_state.sort("block_number")
     prices = {b: (t, p) for b, t, p in bs.select("block_number", "ts_us", "p_cex").iter_rows()}
@@ -233,13 +236,14 @@ def lp_analysis(
     life_overall, life_width, life_bucket = lifetime.lifetime_summary(life)
 
     steps = run.steps
-    searcher = steps.filter(pl.col("flow_label") == "searcher")
+    accrued = steps.filter(pl.col("accrued"))  # steps with no liquidity in range earn no one
+    searcher = accrued.filter(pl.col("flow_label") == "searcher")
     shortfalls = data.collect_shortfalls
     totals: dict[str, Any] = {
-        "lp_fees_usd": float(steps["fee_usd"].sum()),
+        "lp_fees_usd": float(accrued["fee_usd"].sum()),
         "protocol_fees_usd": float(inp.aligned["protocol_fee_usd"].sum()),
-        "lvr_0_usd": float(steps["lvr_0"].sum()),
-        "lvr_12_usd": float(steps["lvr_12"].sum()),
+        "lvr_0_usd": float(accrued["lvr_0"].sum()),
+        "lvr_12_usd": float(accrued["lvr_12"].sum()),
         "lvr_0_searcher_usd": float(searcher["lvr_0"].sum()),
         "lp_fees_searcher_usd": float(searcher["fee_usd"].sum()),
         "theory_1s_usd": float(daily["theory_1s"].sum()),
@@ -266,15 +270,32 @@ def lp_analysis(
     }
     totals["fees_minus_lvr_usd"] = totals["lp_fees_usd"] - totals["lvr_0_usd"]
 
+    # Plan Ruling 10: keep what `ulpe analyze` wrote, replace only the "lp" key. Read it now, so
+    # a missing or unreadable summary stops the run before anything is written.
+    summary_path = _need(results_dir / "summary.json", "analyze")
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    summary["lp"] = {
+        **provenance,
+        **totals,
+        "regimes": regime_summary.to_dicts(),
+        "groups": groups.to_dicts(),
+        "lifetime": life_overall,
+        "checks": {r.name: r.summary for r in results},
+    }
+    blocks_theory = int_1s.group_by("block_number").agg(
+        pl.col("r2").sum(), pl.col("lvr_theory").sum()
+    )
+
+    # Everything is computed: write the checks, then the data and results, summary.json last.
+    validate.write_report(
+        results, results_dir, provenance, stem="lp_checks", title="LP analysis checks"
+    )
     processed_dir.mkdir(parents=True, exist_ok=True)
     write_exact(steps, processed_dir / "swap_steps.parquet")
     write_exact(positions, processed_dir / "positions.parquet")
     write_exact(data.flows, processed_dir / "position_flows.parquet")
     write_exact(days, processed_dir / "position_days.parquet")
-    write_exact(
-        int_1s.group_by("block_number").agg(pl.col("r2").sum(), pl.col("lvr_theory").sum()),
-        processed_dir / "lp_blocks.parquet",
-    )
+    write_exact(blocks_theory, processed_dir / "lp_blocks.parquet")
 
     out = results_dir
     report.write_markdown(
@@ -312,24 +333,13 @@ def lp_analysis(
     figures.regime_chart(regime_summary, figs / LP_FIGURES["regimes"])
     figures.group_chart(groups, figs / LP_FIGURES["groups"])
     figures.lifetime_chart(life_width, life_bucket, figs / LP_FIGURES["lifetime"])
-
-    # Plan Ruling 10: keep what `ulpe analyze` wrote, replace only the "lp" key.
-    summary_path = out / "summary.json"
-    summary = json.loads(summary_path.read_text(encoding="utf-8")) if summary_path.exists() else {}
-    summary["lp"] = {
-        **provenance,
-        **totals,
-        "regimes": regime_summary.to_dicts(),
-        "groups": groups.to_dicts(),
-        "lifetime": life_overall,
-        "checks": {r.name: r.summary for r in results},
-    }
     report.write_summary(summary, out)
     return status
 
 
 def run_lp() -> str:
     validate.require_validated()
+    _need(config.RESULTS_DIR / "summary.json", "analyze")  # fail before the long replay
     inp = load_lp_inputs(
         config.RAW_DIR, config.INTERIM_DIR, config.PROCESSED_DIR, config.LP_LABELS_CSV
     )
