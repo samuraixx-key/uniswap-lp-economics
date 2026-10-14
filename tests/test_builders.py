@@ -96,11 +96,12 @@ class FakeClient:
         self.dry: list[str] = []
         self.paid: list[tuple[str, int | None]] = []
         self.fail = fail
+        self.scanned = 2_000_000_000
 
     def query(self, query: str, job_config: bigquery.QueryJobConfig) -> FakeJob:
         if job_config.dry_run:
             self.dry.append(query)
-            return FakeJob(scanned=2_000_000_000)
+            return FakeJob(scanned=self.scanned)
         if self.fail is not None:
             raise self.fail
         self.paid.append((query, job_config.maximum_bytes_billed))
@@ -158,3 +159,44 @@ def test_fetch_builders_turns_a_billing_error_into_help(
     monkeypatch.setattr(builders.bigquery, "Client", lambda project: fake)
     with pytest.raises(SystemExit, match="billing"):
         builders.fetch_builders(tmp_path, START, END)
+
+
+def test_trace_payments_exclude_the_fee_recipients_own_transactions() -> None:
+    for q in (
+        builders.build_block_revenue_query(START, END),
+        builders.build_tx_direct_query(START, END),
+    ):
+        assert "JOIN t ON t.`hash` = x.transaction_hash" in q
+        assert "t.from_address != b.miner" in q and "x.to_address = b.miner" in q
+        assert "x.call_type NOT IN ('delegatecall', 'callcode', 'staticcall')" in q
+        assert "x.call_type IS NULL" in q
+    assert "`hash`, block_number" in builders.build_block_revenue_query(START, END)
+    assert "SELECT `hash`, from_address" in builders.build_tx_direct_query(START, END)
+
+
+def test_other_logs_target_falls_back_to_the_created_contract() -> None:
+    q = builders.build_tx_other_logs_query(START, END)
+    assert "COALESCE(to_address, receipt_contract_address) AS target" in q
+    assert "l.address != t.target" in q
+
+
+def test_an_oversized_estimate_stops_before_any_paid_job(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake = FakeClient()
+    fake.scanned = (builders.MAX_GB_BILLED + 1) * 10**9
+    monkeypatch.setattr(builders.bigquery, "Client", lambda project: fake)
+    with pytest.raises(SystemExit, match="cap"):
+        builders.fetch_builders(tmp_path, START, END)
+    assert fake.paid == []
+    assert not list((tmp_path / builders.BUILDERS_DIR).glob("*.parquet"))
+
+
+def test_dry_run_reports_an_oversized_estimate_without_stopping(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    fake = FakeClient()
+    fake.scanned = (builders.MAX_GB_BILLED + 1) * 10**9
+    monkeypatch.setattr(builders.bigquery, "Client", lambda project: fake)
+    builders.fetch_builders(tmp_path, START, END, dry_run=True)
+    assert len(fake.dry) == 3 and "WARNING" in capsys.readouterr().out

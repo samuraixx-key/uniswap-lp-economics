@@ -2,8 +2,10 @@ from pathlib import Path
 
 import httpx
 import polars as pl
+import pytest
 
 from uniswap_lp_economics.data import relays
+from uniswap_lp_economics.io import read_exact
 
 R1, R2 = "https://relay-one.example", "https://relay-two.example"
 
@@ -72,6 +74,47 @@ def test_resume_keeps_found_rows_with_exact_wei(tmp_path: Path) -> None:
     )
     path = relays.fetch_relay_sample(tmp_path, 1, 100, n=3, client=client, relay_urls=(R1,))
     again = relays.fetch_relay_sample(tmp_path, 1, 100, n=4, client=client, relay_urls=(R1,))
-    df = relays.read_exact(again)
+    df = read_exact(again)
     assert again == path and df.height == 4 and set(df["value_wei"].to_list()) == {big}
     assert df["proposer_fee_recipient"][0] == "0xab" and df.schema["value_wei"] == pl.Int128
+
+
+def test_invalid_json_on_a_200_is_retried() -> None:
+    payload = [{"value": "9", "proposer_fee_recipient": "0xab", "builder_pubkey": "0x1"}]
+    client = httpx.Client(
+        transport=transport(
+            {R1: [httpx.Response(200, content=b"not json"), httpx.Response(200, json=payload)]}
+        )
+    )
+    row = relays.query_block(client, 7, (R1,), backoff_s=0)
+    assert row["found"] and row["value_wei"] == 9
+
+
+def test_no_sleep_after_the_last_failed_attempt(monkeypatch: pytest.MonkeyPatch) -> None:
+    sleeps: list[float] = []
+    monkeypatch.setattr(relays.time, "sleep", sleeps.append)
+    calls: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        return httpx.Response(503)
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    row = relays.query_block(client, 7, (R1,), backoff_s=1.0)
+    assert not row["found"] and len(calls) == 3
+    assert sleeps == [1.0, 2.0]  # between attempts only
+
+
+def test_an_error_mid_sample_keeps_the_blocks_already_queried(tmp_path: Path) -> None:
+    calls: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        if len(calls) == 3:
+            raise RuntimeError("boom")
+        return httpx.Response(200, json=[])
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    with pytest.raises(RuntimeError):
+        relays.fetch_relay_sample(tmp_path, 1, 100, n=5, client=client, relay_urls=(R1,))
+    assert read_exact(tmp_path / relays.RELAY_FILE).height == 2

@@ -22,6 +22,14 @@ TX_OTHER_LOGS = "pool_tx_other_logs.parquet"
 MAX_GB_BILLED = 700
 
 
+# A trace pays the fee recipient when it is a successful value transfer to it, from a
+# transaction the fee recipient did not send (its own transactions, e.g. one unwrapping WETH,
+# are excluded, spec 7) and not a delegate/static call (those carry no value of their own).
+_TRACE_PAYMENT = """x.status = 1 AND x.value > 0
+  AND x.to_address = b.miner AND t.from_address != b.miner
+  AND (x.call_type IS NULL OR x.call_type NOT IN ('delegatecall', 'callcode', 'staticcall'))"""
+
+
 def build_block_revenue_query(start: date, end: date) -> str:
     """Per block: priority fees (fee recipient's own transactions excluded), successful trace
     payments to the fee recipient, and the block's last transaction (the proposer payment)."""
@@ -31,7 +39,7 @@ WITH b AS (
   WHERE {_window("timestamp", start, end)}
 ),
 t AS (
-  SELECT block_number, transaction_index, from_address, value, receipt_gas_used,
+  SELECT `hash`, block_number, transaction_index, from_address, value, receipt_gas_used,
          receipt_effective_gas_price
   FROM `{DATASET}.transactions` WHERE {_window("block_timestamp", start, end)}
 ),
@@ -46,9 +54,10 @@ pr AS (
 ),
 tr AS (
   SELECT x.block_number, SUM(x.value) AS direct_wei
-  FROM `{DATASET}.traces` x JOIN b ON b.number = x.block_number
-  WHERE {_window("x.block_timestamp", start, end)} AND x.status = 1 AND x.value > 0
-    AND x.to_address = b.miner AND x.from_address != b.miner
+  FROM `{DATASET}.traces` x
+  JOIN b ON b.number = x.block_number
+  JOIN t ON t.`hash` = x.transaction_hash
+  WHERE {_window("x.block_timestamp", start, end)} AND {_TRACE_PAYMENT}
   GROUP BY x.block_number
 ),
 last AS (
@@ -75,30 +84,34 @@ def _pool_txs(start: date, end: date) -> str:
 
 
 def build_tx_direct_query(start: date, end: date) -> str:
-    """Per transaction touching our pool: successful trace payments to the block's fee recipient."""
+    """Per transaction touching our pool: successful trace payments to the block's fee recipient
+    (same rule as the per-block table, so the two reconcile)."""
     return f"""
 WITH {_pool_txs(start, end)},
-b AS (SELECT number, miner FROM `{DATASET}.blocks` WHERE {_window("timestamp", start, end)})
+b AS (SELECT number, miner FROM `{DATASET}.blocks` WHERE {_window("timestamp", start, end)}),
+t AS (SELECT `hash`, from_address FROM `{DATASET}.transactions`
+      WHERE {_window("block_timestamp", start, end)})
 SELECT x.transaction_hash AS tx_hash, CAST(SUM(x.value) AS STRING) AS direct_wei
 FROM `{DATASET}.traces` x
 JOIN pool_txs p ON p.transaction_hash = x.transaction_hash
 JOIN b ON b.number = x.block_number
-WHERE {_window("x.block_timestamp", start, end)} AND x.status = 1 AND x.value > 0
-  AND x.to_address = b.miner
+JOIN t ON t.`hash` = x.transaction_hash
+WHERE {_window("x.block_timestamp", start, end)} AND {_TRACE_PAYMENT}
 GROUP BY x.transaction_hash
 """
 
 
 def build_tx_other_logs_query(start: date, end: date) -> str:
     """Per transaction touching our pool: logs from anything other than our pool, USDC, WETH
-    or the transaction's target (non-zero: the transaction also traded elsewhere)."""
+    or the transaction's target (the created contract for a creation); non-zero means the
+    transaction also traded elsewhere."""
     allowed = ", ".join(f"'{a}'" for a in (POOL_ADDRESS, USDC_ADDRESS, WETH_ADDRESS))
     return f"""
 WITH {_pool_txs(start, end)},
-t AS (SELECT `hash`, to_address FROM `{DATASET}.transactions`
-      WHERE {_window("block_timestamp", start, end)})
+t AS (SELECT `hash`, COALESCE(to_address, receipt_contract_address) AS target
+      FROM `{DATASET}.transactions` WHERE {_window("block_timestamp", start, end)})
 SELECT l.transaction_hash AS tx_hash,
-       COUNTIF(l.address NOT IN ({allowed}) AND l.address != t.to_address) AS other_logs,
+       COUNTIF(l.address NOT IN ({allowed}) AND l.address != t.target) AS other_logs,
        COUNT(*) AS logs
 FROM `{DATASET}.logs` l
 JOIN pool_txs p ON p.transaction_hash = l.transaction_hash
@@ -123,7 +136,13 @@ def wei_columns(df: pl.DataFrame, cols: list[str]) -> pl.DataFrame:
 def _run(client: bigquery.Client, query: str, dry_run: bool) -> pl.DataFrame | None:
     # A dry-run job is free: it only reports the bytes the paid query would scan.
     dry = client.query(query, job_config=bigquery.QueryJobConfig(dry_run=True))
-    print(f"  scans {(dry.total_bytes_processed or 0) / 1e9:.1f} GB")
+    gb = (dry.total_bytes_processed or 0) / 1e9
+    print(f"  scans {gb:.1f} GB")
+    if gb > MAX_GB_BILLED:
+        message = f"this query would scan {gb:.0f} GB, over the {MAX_GB_BILLED} GB cap"
+        if not dry_run:
+            raise SystemExit(f"{message}; nothing was billed")
+        print(f"  WARNING: {message}; the paid run would refuse it")
     if dry_run:
         return None
     cfg = bigquery.QueryJobConfig(maximum_bytes_billed=int(MAX_GB_BILLED * 1e9))

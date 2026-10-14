@@ -33,18 +33,22 @@ def sample_blocks(first: int, last: int, n: int, seed: int = 42) -> list[int]:
 
 
 def _get(client: httpx.Client, url: str, block: int, backoff_s: float) -> list[Any]:
-    """The relay's payload list for a block; [] when absent, refused or still failing."""
+    """The relay's payload list for a block; [] when absent, refused or still failing.
+
+    Network errors, 429, 5xx and a 200 whose body is not JSON are retried with backoff (no
+    sleep after the last attempt); other statuses mean the relay has no answer."""
     for attempt in range(_RETRIES):
         try:
             r = client.get(url, params={"block_number": block}, timeout=30)
-        except httpx.RequestError:
-            r = None
-        if r is not None and r.status_code == 200:
-            body = r.json()
-            return body if isinstance(body, list) else []
-        if r is not None and r.status_code != 429 and r.status_code < 500:
-            return []
-        time.sleep(backoff_s * 2**attempt)
+            if r.status_code == 200:
+                body = r.json()
+                return body if isinstance(body, list) else []
+            if r.status_code != 429 and r.status_code < 500:
+                return []
+        except (httpx.RequestError, ValueError):  # ValueError: invalid JSON
+            pass
+        if attempt < _RETRIES - 1:
+            time.sleep(backoff_s * 2**attempt)
     return []
 
 
@@ -97,7 +101,9 @@ def fetch_relay_sample(
                 write_exact(pl.concat([done, pl.DataFrame(rows, schema=RELAY_SCHEMA)]), out)
                 print(f"  {i + 1}/{len(todo)} blocks")
     finally:
+        # Also on an error or interrupt: keep every block queried so far.
+        if rows or not out.exists():
+            write_exact(pl.concat([done, pl.DataFrame(rows, schema=RELAY_SCHEMA)]), out)
         if own:
             http.close()
-    write_exact(pl.concat([done, pl.DataFrame(rows, schema=RELAY_SCHEMA)]), out)
     return out
