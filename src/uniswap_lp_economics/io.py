@@ -32,5 +32,5 @@ def read_exact(path: Path | list[Path]) -> pl.DataFrame:
 def write_text_atomic(path: Path, text: str) -> None:
     """Write text via a .part file then a rename, so a crash never leaves a half-written target."""
     part = path.with_name(path.name + ".part")
-    part.write_text(text)
+    part.write_text(text, encoding="utf-8", newline="\n")  # same bytes on every platform
     part.replace(path)

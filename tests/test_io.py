@@ -67,3 +67,12 @@ def test_write_text_atomic_replaces_and_leaves_no_part(tmp_path: Path) -> None:
     write_text_atomic(path, "new")
     assert path.read_text() == "new"
     assert list(tmp_path.iterdir()) == [path]
+
+
+def test_write_text_atomic_writes_utf8_with_lf_newlines(tmp_path: Path) -> None:
+    path = tmp_path / "m.md"
+    text = "→ ≥ μ é\nsecond line\n"  # arrow, >=, mu, e-acute
+    write_text_atomic(path, text)
+    assert path.read_bytes() == text.encode("utf-8")
+    assert b"\r" not in path.read_bytes()
+    assert list(tmp_path.iterdir()) == [path]
