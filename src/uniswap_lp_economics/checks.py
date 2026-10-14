@@ -15,6 +15,7 @@ from uniswap_lp_economics.v3swap import check_swap_event, swap_check_ok
 from uniswap_lp_economics.validate import MAX_LISTED, CheckResult, write_report
 
 A3_TOL_USD = 1e-6
+BLOCK_SLOT_US = 12 * US
 
 
 def check_a1(events: pl.DataFrame, book: TickBook, fee_protocol: int) -> CheckResult:
@@ -65,9 +66,14 @@ def check_a1(events: pl.DataFrame, book: TickBook, fee_protocol: int) -> CheckRe
 
 
 def check_a2(
-    series: pl.DataFrame, blocks: pl.DataFrame, events: pl.DataFrame, first_block: int
+    series: pl.DataFrame,
+    blocks: pl.DataFrame,
+    events: pl.DataFrame,
+    first_block: int,
+    window_end_us: int,
 ) -> CheckResult:
-    """Block series complete and consistent (plan Ruling 3)."""
+    """Block series complete and consistent (plan Ruling 3), and the block table reaches the end
+    of the window and covers every event (sub-project 3, P3)."""
     last = int(blocks["block_number"].max()) if blocks.height else first_block - 1  # type: ignore[arg-type]
     expected = set(range(first_block, last + 1))
     present = set(series["block_number"].to_list())
@@ -96,6 +102,14 @@ def check_a2(
     )
     changed = pl.any_horizontal([pl.col(c) != pl.col(f"end_{c}") for c in state])
     bad_idle = s.filter((pl.col("n_events") == 0) & changed).height
+    last_ts_us = (
+        int(blocks["block_timestamp"].dt.epoch("us").max())  # type: ignore[arg-type]
+        if blocks.height
+        else 0
+    )
+    reaches_end = blocks.height > 0 and last_ts_us >= window_end_us - BLOCK_SLOT_US
+    last_event = events["block_number"].max() if events.height else None
+    covers_events = last_event is None or (blocks.height > 0 and last >= int(last_event))  # type: ignore[arg-type]
     passed = (
         series.height > 0
         and first_ok
@@ -104,6 +118,8 @@ def check_a2(
         and bad_continuity == 0
         and bad_end == 0
         and bad_idle == 0
+        and reaches_end
+        and covers_events
     )
     return CheckResult(
         "A2 block series complete and consistent",
@@ -117,6 +133,8 @@ def check_a2(
             "start_differs_from_previous_end": bad_continuity,
             "end_differs_from_last_swap": bad_end,
             "idle_blocks_changed": bad_idle,
+            "last_block_within_one_slot_of_window_end": reaches_end,
+            "blocks_cover_last_event": covers_events,
         },
     )
 

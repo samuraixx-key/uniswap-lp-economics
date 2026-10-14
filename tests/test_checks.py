@@ -1,4 +1,5 @@
 import json
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -92,7 +93,15 @@ def series(rows: list[tuple[int, int, int, int]]) -> pl.DataFrame:
     )
 
 
-BLOCKS = pl.DataFrame({"block_number": [10, 11, 12]})
+T0 = datetime(2026, 7, 1, tzinfo=UTC)
+BLOCKS = pl.DataFrame(
+    {
+        "block_number": [10, 11, 12],
+        "block_timestamp": [T0 + timedelta(seconds=12 * i) for i in range(3)],
+    },
+    schema={"block_number": pl.Int64, "block_timestamp": pl.Datetime("us", "UTC")},
+)
+END_OK = int((T0 + timedelta(seconds=24)).timestamp()) * US + 1  # just after the last block
 EVENTS = pl.DataFrame(
     [{"block_number": 11, "log_index": 0, "event": "swap", "sqrt_price_x96": 7}],
     schema={
@@ -106,15 +115,34 @@ EVENTS = pl.DataFrame(
 
 def test_a2_complete_and_consistent() -> None:
     good = series([(10, 5, 5, 0), (11, 5, 7, 1), (12, 7, 7, 0)])
-    assert check_a2(good, BLOCKS, EVENTS, 10).passed
-    assert not check_a2(good.filter(pl.col("block_number") != 11), BLOCKS, EVENTS, 10).passed
+    assert check_a2(good, BLOCKS, EVENTS, 10, END_OK).passed
     assert not check_a2(
-        series([(10, 5, 5, 0), (11, 5, 8, 1), (12, 8, 8, 0)]), BLOCKS, EVENTS, 10
+        good.filter(pl.col("block_number") != 11), BLOCKS, EVENTS, 10, END_OK
     ).passed
     assert not check_a2(
-        series([(10, 5, 6, 0), (11, 6, 7, 1), (12, 7, 7, 0)]), BLOCKS, EVENTS, 10
+        series([(10, 5, 5, 0), (11, 5, 8, 1), (12, 8, 8, 0)]), BLOCKS, EVENTS, 10, END_OK
     ).passed
-    assert not check_a2(good, BLOCKS, EVENTS, 9).passed  # block table starts too late
+    assert not check_a2(
+        series([(10, 5, 6, 0), (11, 6, 7, 1), (12, 7, 7, 0)]), BLOCKS, EVENTS, 10, END_OK
+    ).passed
+    assert not check_a2(good, BLOCKS, EVENTS, 9, END_OK).passed  # block table starts too late
+
+
+def test_a2_fails_when_blocks_stop_before_the_window_end() -> None:
+    good = series([(10, 5, 5, 0), (11, 5, 7, 1), (12, 7, 7, 0)])
+    ok = check_a2(good, BLOCKS, EVENTS, 10, END_OK)
+    assert ok.summary["last_block_within_one_slot_of_window_end"] is True
+    late = check_a2(good, BLOCKS, EVENTS, 10, END_OK + 12 * US)
+    assert not late.passed
+    assert late.summary["last_block_within_one_slot_of_window_end"] is False
+
+
+def test_a2_fails_when_events_go_past_the_last_block() -> None:
+    good = series([(10, 5, 5, 0), (11, 5, 7, 1), (12, 7, 7, 0)])
+    late_event = EVENTS.with_columns(block_number=pl.lit(13, dtype=pl.Int64))
+    r = check_a2(good, BLOCKS, late_event, 10, END_OK)
+    assert not r.passed
+    assert r.summary["blocks_cover_last_event"] is False
 
 
 def test_a3_identity() -> None:

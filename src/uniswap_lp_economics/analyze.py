@@ -119,8 +119,10 @@ def analyze(
     processed_dir: Path,
     provenance: dict[str, Any],
     end_us: int | None = None,
+    blocks_end_us: int | None = None,
 ) -> str:
     end_us = align.window_end_us() if end_us is None else end_us
+    window_end = align.window_end_us() if blocks_end_us is None else blocks_end_us
     labelled = flows.label_swaps(inp.swaps, inp.labels)
     ref = align.reference_table(inp.trades)
     aligned = build_aligned(labelled, ref, end_us, inp)
@@ -135,7 +137,7 @@ def analyze(
     )
     results = [
         checks.check_a1(inp.events, TickBook.from_snapshot(inp.ticks, inp.meta), fee_protocol),
-        checks.check_a2(series, inp.blocks, inp.events, int(inp.meta["block"]) + 1),
+        checks.check_a2(series, inp.blocks, inp.events, int(inp.meta["block"]) + 1, window_end),
         checks.check_a3(aligned),
         checks.check_a4(aligned, int(ref["ts_us"].min()), end_us),  # type: ignore[arg-type]
         checks.check_a5(labelled),
@@ -283,6 +285,10 @@ def _write_results(
             "top_bots": inp.bots,
             "markouts_all": tables.filter(pl.col("grouping") == "all").to_dicts(),
             "markouts_by_label": by_label.to_dicts(),
+            "markouts_robustness_0s": robustness.filter(pl.col("horizon_s") == 0).to_dicts(),
+            "markouts_by_label_x_size_0s": tables.filter(
+                (pl.col("grouping") == "flow_label_x_size") & (pl.col("horizon_s") == 0)
+            ).to_dicts(),
             "basis": basis,
             "episodes": {f"{k:g}bp": s.to_dicts() for k, s in summaries.items()},
             "episode_counts": {f"{k:g}bp": e.height for k, e in episodes.items()},

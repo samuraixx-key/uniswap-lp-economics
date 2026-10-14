@@ -88,7 +88,14 @@ def fixture_inputs() -> tuple[analysis.Inputs, int]:
 def test_analyze_fixture_end_to_end(tmp_path: Path) -> None:
     inp, end_us = fixture_inputs()
     results, processed = tmp_path / "results", tmp_path / "processed"
-    status = analysis.analyze(inp, results, processed, {"git_commit": "test"}, end_us=end_us)
+    status = analysis.analyze(
+        inp,
+        results,
+        processed,
+        {"git_commit": "test"},
+        end_us=end_us,
+        blocks_end_us=int(inp.blocks["block_timestamp"].dt.epoch("us").max()) + 1,
+    )
     assert status == "PASS", (results / "analysis_checks.md").read_text(encoding="utf-8")
     for name in (
         "summary.json",
@@ -118,6 +125,9 @@ def test_analyze_fixture_end_to_end(tmp_path: Path) -> None:
         assert "upper bound" in (results / name).read_text(encoding="utf-8")
     assert (processed / "aligned.parquet").exists()
     assert (processed / "blocks_state.parquet").exists()
+    assert summary["markouts_robustness_0s"]
+    assert {r["horizon_s"] for r in summary["markouts_robustness_0s"]} == {0}
+    assert all(r["grouping"] == "flow_label_x_size" for r in summary["markouts_by_label_x_size_0s"])
 
 
 def test_failed_gated_check_writes_no_results(tmp_path: Path) -> None:
@@ -130,7 +140,14 @@ def test_failed_gated_check_writes_no_results(tmp_path: Path) -> None:
         price=pl.when(pl.col("ts_us") < cutoff).then(pl.col("price"))
     )
     results, processed = tmp_path / "results", tmp_path / "processed"
-    status = analysis.analyze(inp, results, processed, {"git_commit": "test"}, end_us=end_us)
+    status = analysis.analyze(
+        inp,
+        results,
+        processed,
+        {"git_commit": "test"},
+        end_us=end_us,
+        blocks_end_us=int(inp.blocks["block_timestamp"].dt.epoch("us").max()) + 1,
+    )
     assert status == "FAIL"
     checks_md = (results / "analysis_checks.md").read_text(encoding="utf-8")
     assert "| A4 Binance reference coverage | FAIL |" in checks_md
