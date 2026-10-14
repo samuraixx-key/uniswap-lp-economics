@@ -111,13 +111,13 @@ ORDER BY block_number, log_index
 
 
 def stage1_action(table_exists: bool, dry_run: bool, confirm_cost: bool) -> str:
-    if table_exists:
-        return "skip"
+    """What fetch_history may do. Every billable query needs --confirm-cost (stage 2 too), and a
+    dry run never bills, whatever the table state. "skip" means: stage 1 exists, run stage 2."""
     if dry_run:
         return "dry_run"
     if not confirm_cost:
         return "refuse"
-    return "run"
+    return "skip" if table_exists else "run"
 
 
 def is_billing_error(exc: Exception) -> bool:
@@ -141,7 +141,13 @@ def fetch_history(
         exists = False
     query = build_stage1_query(start, end)
     action = stage1_action(exists, dry_run, confirm_cost)
-    if action != "skip":
+    if exists:
+        print(
+            f"stage-1 table {tid} exists; stage 2 would query it "
+            f"(capped at {STAGE2_MAX_GB_BILLED} GB billed)"
+        )
+    else:
+        # A dry-run job is free: it only reports the bytes the paid query would scan.
         dry = client.query(query, job_config=bigquery.QueryJobConfig(dry_run=True))
         tb = (dry.total_bytes_processed or 0) / 1e12
         print(f"stage 1 ({start} -> {end}) scans {tb:.2f} TB; it is billed to the project")
@@ -149,7 +155,7 @@ def fetch_history(
         return
     if action == "refuse":
         raise SystemExit(
-            "stage 1 is a paid query; after confirming the cost, run "
+            "this is a paid BigQuery query; after confirming the cost, run "
             "`ulpe fetch-history --confirm-cost`"
         )
     try:
