@@ -248,8 +248,11 @@ def test_collect_protocol_and_other_are_no_ops_for_fee_state() -> None:
         {"block_number": 2, "log_index": 1, "event": "collect_protocol"},
         {"block_number": 2, "log_index": 2, "event": "other"},
     ]
+    without = fresh()
+    replay_window(window_events(), without, CONTEXTS)
     st, rec = fresh(), Recorder()
     run = replay_window(_with_extra_events(extra), st, CONTEXTS, ledger=rec)
     assert run.steps.height == 2
     kinds = [c[1][0] for c in rec.calls if c[0] == "pool"]
-    assert kinds == ["mint", "collect_protocol", "other", "burn"]
+    assert kinds == ["mint", "burn"]  # no ledger hook for them
+    assert st.acc.global0 == without.acc.global0 and st.book.liquidity == without.book.liquidity

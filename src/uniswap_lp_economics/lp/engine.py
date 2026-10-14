@@ -239,9 +239,11 @@ def replay_window(
             if ledger is not None:
                 ledger.on_pool_event(row, state)
             state.burn(_need(row, "tick_lower"), _need(row, "tick_upper"), _need(row, "amount"))
-        elif row.event in ("collect", "collect_protocol", "other"):
+        elif row.event == "collect":
             if ledger is not None:
                 ledger.on_pool_event(row, state)
+        elif row.event in ("collect_protocol", "other"):
+            pass  # no effect on fee state, and not position events: no ledger hook
         elif row.event == "flash":
             if last_p0 is None:
                 if not contexts:
