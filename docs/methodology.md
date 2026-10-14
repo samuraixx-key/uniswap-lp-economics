@@ -78,15 +78,17 @@ They include the swap fee, which V3 charges on the input token.
 ```
 trader_markout_usd(h) = −( amount_usdc + amount_eth × P_cex(t0 + h) )
 trader_markout_bp(h)  = trader_markout_usd(h) / notional_usd × 10⁴
-protocol_fee_usd      = fee_usd × fee_protocol_share
+protocol_fee_usd      = Σ_steps (fee_step // 4) in the input token, valued at P_cex(t0)
 lp_markout_usd(h)     = −trader_markout_usd(h) − protocol_fee_usd
 ```
 
 - A **positive trader markout** means the swap won against the pool at that horizon: what it
   received was worth more at Binance's price than what it paid, after the fee.
-- `fee_usd` is the fee in the input token, `ceil(amount_in × 500 / 10⁶)` raw units; USDC is
-  taken at face value, WETH at the pre-swap pool price. `fee_protocol_share` is 1/4 throughout the
-  window (`feeProtocol` = 68 = `0x44`, read from chain in sub-project 1).
+- `protocol_fee_usd` is the protocol's exact cut of the swap fee, in the input token. Each swap is
+  re-run step by step through the V3 swap loop (`lp/swapfees.py`; check L1, "Changes in sub-project 3": every
+  swap reproduces bit-exactly). The protocol takes `fee_step // 4` raw units of each step's fee,
+  as the contract does (`feeProtocol` = 68 = `0x44` throughout the window, read from chain in
+  sub-project 1). USDC is taken at face value, WETH at `P_cex(t0)`.
 - The LP markout is the mirror image, net of the protocol's share of the fee, so
   trader + LP + protocol fee = 0 for every swap (check A3).
 - **What the 0 s markout contains.** It includes the 0.05% fee and the swap's own price impact, so
@@ -428,3 +430,17 @@ end, and the block series covers the last event. Re-running sub-project 2 with t
 
 So the old sort already left same-microsecond trades in trade-ID order in this data. The new rule
 makes that guaranteed rather than incidental.
+
+Sub-project 3 also replaced the approximate protocol fee with the exact one (section 3). Before,
+`protocol_fee_usd` was `ceil(amount_in × 500 / 10⁶) × 1/4`, with WETH valued at the pre-swap pool
+price. Now every swap is re-simulated step by step: 534,377 swaps, all reproduced bit-exactly
+(check L1: 496,936 as exact input, 25,846 as exact output, 11,595 to the logged price). The
+protocol takes `fee // 4` of each step's fee, and WETH is valued at `P_cex(t0)`. The protocol fee
+only enters the LP markout, which no published table reports, so again no reported number changed.
+
+| metric | before | after |
+|---|---|---|
+| swaps whose raw fee differs from the approximation | — | 26,338 (by a few raw units each) |
+| total protocol fee, USD | 881,671.39 | 881,290.13 |
+| A3 largest residual, USD | 2.2e-11 | 7.0e-12 |
+| any number in `results/` | — | unchanged (largest relative difference 7e-15) |

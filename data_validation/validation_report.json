@@ -1,7 +1,7 @@
 {
   "status": "PASS",
-  "generated_utc": "2026-10-14T16:13:37+00:00",
-  "git_commit": "7bf0d96",
+  "generated_utc": "2026-10-14T16:25:22+00:00",
+  "git_commit": "e69f749",
   "window": "[2026-07-01, 2026-10-01)",
   "snapshot_block": 25433938,
   "snapshot_fee_protocol": 68,
@@ -22,7 +22,7 @@
     "interim/cex_ethusdc.parquet": "2bb21f2bb6ca55b8",
     "interim/cex_ethusdt_1s.parquet": "02a5ea793a51eea0",
     "interim/events.parquet": "fcb1cfcb7c07a6e7",
-    "interim/swaps.parquet": "eb31e774d75fb9d3"
+    "interim/swaps.parquet": "b5a3ddae03e7f7d2"
   },
   "checks": [
     {
