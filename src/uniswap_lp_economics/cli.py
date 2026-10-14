@@ -8,7 +8,7 @@ import polars as pl
 
 from uniswap_lp_economics import analyze as analysis
 from uniswap_lp_economics import build, config, flows, snapshot, validate
-from uniswap_lp_economics.data import bigquery, binance, chain_state, transfers
+from uniswap_lp_economics.data import bigquery, binance, chain_state, history, transfers
 from uniswap_lp_economics.data import blocks as bq_blocks
 from uniswap_lp_economics.io import read_exact, write_exact, write_text_atomic
 from uniswap_lp_economics.rpc import RpcClient
@@ -160,6 +160,12 @@ def main() -> None:
     blocks_cmd.add_argument("--dry-run", action="store_true", help="only report bytes scanned")
     sub.add_parser("fetch-transfers", help="download top-bot internal ETH transfers (Alchemy)")
     sub.add_parser("fetch-chain-state", help="read pool fee and position state (RPC)")
+    hist = sub.add_parser(
+        "fetch-history",
+        help="pool and position-manager history since 2021 (one paid BigQuery query)",
+    )
+    hist.add_argument("--dry-run", action="store_true", help="only report bytes scanned")
+    hist.add_argument("--confirm-cost", action="store_true", help="allow the paid stage-1 query")
     sub.add_parser("build", help="decode raw data into interim tables")
     sub.add_parser("validate", help="run checks C1-C6 and write data_validation/validation_report")
     sub.add_parser("analyze", help="run checks A1-A6 and write results/ (tables, charts, summary)")
@@ -184,6 +190,10 @@ def main() -> None:
         fetch_transfers()
     elif args.command == "fetch-chain-state":
         fetch_chain_state()
+    elif args.command == "fetch-history":
+        history.fetch_history(
+            config.RAW_DIR, config.POOL_CREATED, config.WINDOW_END, args.confirm_cost, args.dry_run
+        )
     elif args.command == "build":
         try:
             build.build_all(config.RAW_DIR, config.INTERIM_DIR)
