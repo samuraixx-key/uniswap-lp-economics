@@ -129,6 +129,24 @@ def test_a3_identity() -> None:
     assert not check_a3(df.with_columns(protocol_fee_usd=pl.lit(0.5)), (0,)).passed
 
 
+def test_a3_fails_when_a_residual_cannot_be_evaluated() -> None:
+    base: dict[str, Any] = {
+        "markout_usd_0": [9.0, -1.0],
+        "lp_markout_usd_0": [-9.25, 0.75],
+        "protocol_fee_usd": [0.25, 0.25],
+    }
+    null_lp = check_a3(pl.DataFrame({**base, "lp_markout_usd_0": [-9.25, None]}), (0,))
+    assert not null_lp.passed
+    assert null_lp.summary["values_checked"] == 1 and null_lp.summary["unevaluated"] == 1
+    nan_fee = check_a3(pl.DataFrame({**base, "protocol_fee_usd": [0.25, float("nan")]}), (0,))
+    assert not nan_fee.passed
+    assert nan_fee.summary["values_checked"] == 1 and nan_fee.summary["unevaluated"] == 1
+    # a row with no markout at all (missing reference) is not an unevaluated residual
+    no_ref = pl.DataFrame({**base, "markout_usd_0": [9.0, None], "lp_markout_usd_0": [-9.25, None]})
+    ok = check_a3(no_ref, (0,))
+    assert ok.passed and ok.summary["unevaluated"] == 0 and ok.summary["values_checked"] == 1
+
+
 def test_a4_nulls_only_past_the_data_end() -> None:
     end = 100 * US
     df = pl.DataFrame(

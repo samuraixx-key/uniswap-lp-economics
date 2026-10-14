@@ -122,21 +122,33 @@ def check_a2(
 
 
 def check_a3(aligned: pl.DataFrame, horizons: tuple[int, ...] = HORIZONS_S) -> CheckResult:
-    worst, values = 0.0, 0
+    """Trader + LP + protocol fee = 0 on every row that has a markout.
+
+    A row with a markout whose residual is null or NaN (a missing LP markout or fee) is counted as
+    `unevaluated` and fails the check; it never passes quietly.
+    """
+    worst, values, unevaluated = 0.0, 0, 0
     for h in horizons:
-        resid = (
-            pl.col(f"markout_usd_{h}") + pl.col(f"lp_markout_usd_{h}") + pl.col("protocol_fee_usd")
-        ).abs()
-        m, cnt = aligned.select(
-            resid.max().alias("worst"),
-            pl.col(f"markout_usd_{h}").is_not_null().sum().alias("values"),
+        markout = pl.col(f"markout_usd_{h}")
+        resid = (markout + pl.col(f"lp_markout_usd_{h}") + pl.col("protocol_fee_usd")).abs()
+        evaluated = (resid.is_not_null() & ~resid.is_nan()).fill_null(False)
+        m, cnt, missing = aligned.select(
+            resid.filter(evaluated).max().alias("worst"),
+            evaluated.sum().alias("values"),
+            (markout.is_not_null() & ~evaluated).sum().alias("unevaluated"),
         ).row(0)
         worst = max(worst, float(m or 0.0))
         values += int(cnt)
+        unevaluated += int(missing)
     return CheckResult(
         "A3 trader + LP + protocol fee = 0",
-        worst < A3_TOL_USD and values > 0,
-        {"values_checked": values, "max_abs_residual_usd": worst, "tolerance_usd": A3_TOL_USD},
+        worst < A3_TOL_USD and values > 0 and unevaluated == 0,
+        {
+            "values_checked": values,
+            "unevaluated": unevaluated,
+            "max_abs_residual_usd": worst,
+            "tolerance_usd": A3_TOL_USD,
+        },
     )
 
 
