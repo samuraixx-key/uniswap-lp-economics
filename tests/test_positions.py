@@ -144,6 +144,44 @@ def test_direct_key_reuse_starts_a_new_position() -> None:
     assert data.positions.filter(pl.col("position_id") == first)["close_block"].item() == 2
 
 
+def test_burn_without_collect_before_a_remint_flags_both_episodes() -> None:
+    pool = pl.DataFrame(
+        [
+            p(1, 0, "mint", DIRECT, L, 5, 6),
+            p(2, 0, "burn", DIRECT, L, 5, 6),  # principal stays owed
+            p(4, 0, "mint", DIRECT, 2 * L, 9, 9),
+            p(5, 0, "collect", DIRECT, 0, 7, 8),  # collects the first episode's owed
+        ],
+        schema=POOL_SCHEMA,
+    )
+    data = build_positions(pool, pl.DataFrame(schema=NPM_SCHEMA))
+    first, second = data.positions.sort("position_id").iter_rows(named=True)
+    assert (first["carry_out"], first["carry_in"]) == (True, False)
+    assert (second["carry_out"], second["carry_in"]) == (False, True)
+
+
+def test_fully_collected_episode_before_a_remint_flags_nothing() -> None:
+    pool = pl.DataFrame(
+        [
+            p(1, 0, "mint", DIRECT, L, 5, 6),
+            p(2, 0, "burn", DIRECT, L, 5, 6),
+            p(3, 0, "collect", DIRECT, 0, 7, 8),  # principal plus fees
+            p(4, 0, "mint", DIRECT, 2 * L, 9, 9),
+        ],
+        schema=POOL_SCHEMA,
+    )
+    data = build_positions(pool, pl.DataFrame(schema=NPM_SCHEMA))
+    assert data.positions["carry_out"].to_list() == [False, False]
+    assert data.positions["carry_in"].to_list() == [False, False]
+
+
+def test_nft_positions_are_never_carry_flagged() -> None:
+    pool, npm = nft_life()
+    data = build_positions(pool, npm)
+    assert data.positions["carry_out"].to_list() == [False]
+    assert data.positions["carry_in"].to_list() == [False]
+
+
 def test_zero_collect_on_a_never_minted_direct_key_is_a_noop() -> None:
     pool = pl.DataFrame(
         [

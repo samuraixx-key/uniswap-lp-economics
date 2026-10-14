@@ -33,7 +33,9 @@ LIFE_SCHEMA: dict[str, Any] = {
     "pnl_hold_life_usd": pl.Float64,
     "return_life": pl.Float64,
     "beat_hold": pl.Boolean,
+    "carry_flag": pl.Boolean,
 }
+MAX_PRICE_AGE_S = 3600.0
 
 
 def life_bucket(seconds: float) -> str:
@@ -57,13 +59,27 @@ def lifetime_table(
     acc = {r["position_id"]: r for r in accounts.iter_rows(named=True)}
     fl = flows.filter(pl.col("position_id").is_in(active_ids)).sort("block_number", "log_index")
     deposits = fl.filter(pl.col("event").is_in(["mint", "increase"]))
-    pre = reference_at(deposits["ts_us"], minute_ref, window_start_us)["price"].to_list()
-    dep_price = [
-        p if t < window_start_us else prices.get(b, (0, None))[1]
-        for t, b, p in zip(
-            deposits["ts_us"].to_list(), deposits["block_number"].to_list(), pre, strict=True
-        )
-    ]
+    ref = reference_at(deposits["ts_us"], minute_ref, window_start_us)
+    dep_price: list[float] = []
+    for pid, t, b, p, age in zip(
+        deposits["position_id"].to_list(),
+        deposits["ts_us"].to_list(),
+        deposits["block_number"].to_list(),
+        ref["price"].to_list(),
+        ref["age_s"].to_list(),
+        strict=True,
+    ):
+        if t >= window_start_us:
+            if b not in prices:
+                raise ValueError(f"{pid}: no price for its deposit at block {b}")
+            dep_price.append(prices[b][1])
+        elif p is None or age > MAX_PRICE_AGE_S:
+            raise ValueError(
+                f"{pid}: no 1-minute close within {MAX_PRICE_AGE_S:.0f} s of its deposit at "
+                f"{t} us (missing month file or data gap?); run `ulpe fetch-price-history`"
+            )
+        else:
+            dep_price.append(p)
     deposits = deposits.with_columns(price=pl.Series(dep_price, dtype=pl.Float64))
     by_pos: dict[str, list[dict[str, Any]]] = {}
     for row in fl.iter_rows(named=True):
@@ -77,11 +93,7 @@ def lifetime_table(
         lo, hi = p["tick_lower"], p["tick_upper"]
         d0 = sum(x["amount0"] for x in dep_by.get(pid, []))
         d1 = sum(x["amount1"] for x in dep_by.get(pid, []))
-        dep_usd = sum(
-            usd(x["amount0"], x["amount1"], x["price"])
-            for x in dep_by.get(pid, [])
-            if x["price"] is not None
-        )
+        dep_usd = sum(usd(x["amount0"], x["amount1"], x["price"]) for x in dep_by.get(pid, []))
         c0 = sum(x["amount0"] for x in fs if x["event"] == "collect")
         c1 = sum(x["amount1"] for x in fs if x["event"] == "collect")
         o0 = a["owed_end0"] + a["pending_end0"]
@@ -90,7 +102,12 @@ def lifetime_table(
             e0, e1 = position_amounts(a["liquidity_end"], lo, hi, end.sqrt_price_x96)
             exit_ts, p_exit = end.ts_us, end.p_cex
         else:
-            last = [x for x in fs if x["liquidity_delta"] < 0][-1]
+            removals = [x for x in fs if x["liquidity_delta"] < 0]
+            if not removals:
+                raise ValueError(f"{pid} ends with no liquidity but has no removal")
+            last = removals[-1]
+            if last["block_number"] not in prices:
+                raise ValueError(f"{pid}: no price for its exit at block {last['block_number']}")
             e0 = e1 = 0
             exit_ts, p_exit = last["ts_us"], prices[last["block_number"]][1]
         pnl = usd(c0 + o0 + e0 - d0, c1 + o1 + e1 - d1, p_exit)
@@ -107,14 +124,24 @@ def lifetime_table(
                 "pnl_hold_life_usd": pnl,
                 "return_life": pnl / dep_usd if dep_usd > 0 else None,
                 "beat_hold": pnl > 0,
+                "carry_flag": bool(p.get("carry_in")) or bool(p.get("carry_out")),
             }
         )
     return pl.DataFrame(rows, schema=LIFE_SCHEMA)
 
 
 def lifetime_summary(life: pl.DataFrame) -> tuple[dict[str, Any], pl.DataFrame, pl.DataFrame]:
+    """Overall, by width bucket and by lifetime bucket.
+
+    Direct positions whose owed tokens were handed from one episode of the key to the next
+    (`carry_flag`) are left out of every return statistic: the hand-over moves principal and fees
+    between the two episodes, so their individual returns are wrong. `positions` in the overall
+    dict counts all rows; the tables and shares count only the kept ones.
+    """
+    kept = life.filter(~pl.col("carry_flag"))
+
     def table(by: str, order: tuple[str, ...]) -> pl.DataFrame:
-        t = life.group_by(by).agg(
+        t = kept.group_by(by).agg(
             positions=pl.len(),
             share_beat_hold=pl.col("beat_hold").mean(),
             median_return=pl.col("return_life").median(),
@@ -124,7 +151,8 @@ def lifetime_summary(life: pl.DataFrame) -> tuple[dict[str, Any], pl.DataFrame, 
 
     overall = {
         "positions": life.height,
-        "share_beat_hold": float(life["beat_hold"].mean()) if life.height else None,  # type: ignore[arg-type]
-        "median_return": life["return_life"].median() if life.height else None,
+        "n_excluded_carry": life.height - kept.height,
+        "share_beat_hold": float(kept["beat_hold"].mean()) if kept.height else None,  # type: ignore[arg-type]
+        "median_return": kept["return_life"].median() if kept.height else None,
     }
     return overall, table("width_bucket", WIDTH_BUCKETS), table("life_bucket", LIFE_BUCKETS)

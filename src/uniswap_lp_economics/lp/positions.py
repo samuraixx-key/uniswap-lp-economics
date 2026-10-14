@@ -42,6 +42,10 @@ POSITION_SCHEMA: dict[str, Any] = {
     "first_ts_us": pl.Int64,
     "close_block": pl.Int64,
     "close_ts_us": pl.Int64,
+    # Direct keys only: the pool's owed tokens were handed from one episode of the key to the next
+    # (the earlier one burned principal it never collected before the key was minted again).
+    "carry_out": pl.Boolean,
+    "carry_in": pl.Boolean,
 }
 
 
@@ -60,6 +64,12 @@ class _Position:
     close_block: int | None = None
     close_log: int | None = None
     close_ts_us: int | None = None
+    burned0: int = 0
+    burned1: int = 0
+    collected0: int = 0
+    collected1: int = 0
+    carry_out: bool = False
+    carry_in: bool = False
 
 
 @dataclass
@@ -147,6 +157,12 @@ def build_positions(
         return None
 
     def flow(pos: _Position, r: dict[str, Any], event: str, delta: int, pool_log: int) -> None:
+        if event == "burn":
+            pos.burned0 += r["amount0"] or 0
+            pos.burned1 += r["amount1"] or 0
+        elif event == "collect":
+            pos.collected0 += r["amount0"] or 0
+            pos.collected1 += r["amount1"] or 0
         flows.append(
             {
                 "position_id": pos.position_id,
@@ -182,6 +198,7 @@ def build_positions(
             if pos is None or pos.liquidity == 0:
                 k = episodes.get(key, 0)
                 episodes[key] = k + 1
+                earlier = pos
                 pos = _Position(
                     f"direct:{key[0]}:{key[1]}:{key[2]}:{k}",
                     "direct",
@@ -192,6 +209,10 @@ def build_positions(
                     r["block_number"],
                     r["ts_us"],
                 )
+                if earlier is not None and (
+                    earlier.burned0 > earlier.collected0 or earlier.burned1 > earlier.collected1
+                ):
+                    earlier.carry_out = pos.carry_in = True
                 positions[pos.position_id] = pos
                 direct_current[key] = pos
             pos.liquidity += r["amount"]
@@ -324,6 +345,8 @@ def build_positions(
                 "first_ts_us": pos.first_ts_us,
                 "close_block": pos.close_block,
                 "close_ts_us": pos.close_ts_us,
+                "carry_out": pos.carry_out,
+                "carry_in": pos.carry_in,
             }
         )
     return LedgerData(
