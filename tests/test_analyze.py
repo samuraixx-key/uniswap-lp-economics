@@ -46,7 +46,14 @@ def fixture_inputs() -> tuple[analysis.Inputs, int]:
     trades = (
         seconds.join_asof(pool.sort("ts_us"), on="ts_us", strategy="backward")
         .with_columns(price=pl.col("px").fill_null(strategy="backward") * 1.0003)
-        .select("ts_us", "price", qty=pl.lit(1.0), is_buyer_maker=pl.lit(True))
+        .with_row_index("agg_trade_id")
+        .select(
+            pl.col("agg_trade_id").cast(pl.Int64),
+            "ts_us",
+            "price",
+            qty=pl.lit(1.0),
+            is_buyer_maker=pl.lit(True),
+        )
     )
     klines = trades.select("ts_us", close="price")
 

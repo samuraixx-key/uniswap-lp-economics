@@ -15,11 +15,12 @@ def window_end_us() -> int:
 
 
 def reference_table(trades: pl.DataFrame) -> pl.DataFrame:
-    """ETHUSDC trades as a (ts_us, price) reference; the last trade of a microsecond wins."""
+    """ETHUSDC trades as a (ts_us, price) reference. Among trades sharing a microsecond, the one
+    with the highest Binance aggregated-trade ID (the latest) is the price in force."""
     return (
-        trades.select("ts_us", "price")
-        .sort("ts_us", maintain_order=True)
+        trades.sort("ts_us", "agg_trade_id")
         .unique(subset="ts_us", keep="last", maintain_order=True)
+        .select("ts_us", "price")
     )
 
 

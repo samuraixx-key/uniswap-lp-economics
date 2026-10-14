@@ -26,10 +26,18 @@ def test_reference_null_at_or_after_data_end() -> None:
     assert r["age_s"].to_list()[1:] == [None, None]
 
 
-def test_reference_table_keeps_last_trade_of_a_microsecond() -> None:
-    trades = pl.DataFrame({"ts_us": [5, 5, 3], "price": [1.0, 2.0, 0.5], "qty": [1.0, 1.0, 1.0]})
-    ref = reference_table(trades)
-    assert ref.rows() == [(3, 0.5), (5, 2.0)]
+def test_reference_table_keeps_the_highest_trade_id_of_a_microsecond() -> None:
+    trades = pl.DataFrame(
+        {
+            "agg_trade_id": [11, 10, 9],
+            "ts_us": [5, 5, 3],
+            "price": [2.0, 1.0, 0.5],
+            "qty": [1.0, 1.0, 1.0],
+        }
+    )
+    assert reference_table(trades).rows() == [(3, 0.5), (5, 2.0)]
+    # Row order must not matter: the ID decides.
+    assert reference_table(trades.reverse()).rows() == [(3, 0.5), (5, 2.0)]
 
 
 def test_kline_reference_uses_bar_end() -> None:

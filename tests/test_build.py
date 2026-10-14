@@ -6,7 +6,13 @@ import polars as pl
 import pyarrow.parquet as pq
 import pytest
 
-from uniswap_lp_economics.build import build_all, build_swaps, decode_logs, load_raw_logs
+from uniswap_lp_economics.build import (
+    build_all,
+    build_cex,
+    build_swaps,
+    decode_logs,
+    load_raw_logs,
+)
 from uniswap_lp_economics.events import SET_FEE_PROTOCOL_TOPIC, SWAP_TOPIC
 from uniswap_lp_economics.v3math import eth_price_to_sqrt_price_x96
 
@@ -120,3 +126,20 @@ def test_build_all_writes_exact_ints_readable_outside_polars(tmp_path: Path) -> 
         assert str(schema.field(col).type) == "decimal128(38, 0)"
     swaps = pq.read_table(interim / "swaps.parquet").to_pydict()
     assert [int(x) for x in swaps["fee_amount_raw"]] == [10**6, 1]
+
+
+def test_build_cex_sorts_ties_by_trade_id(tmp_path: Path) -> None:
+    raw = tmp_path / "raw"
+    (raw / "binance").mkdir(parents=True)
+    files = {
+        "ETHUSDC-aggTrades-2026-07.zip": (
+            "8,2501.0,0.1,1,1,1751328000123000,True,True\n"
+            "7,2500.0,0.1,1,1,1751328000123000,True,True\n"
+        ),
+        "ETHUSDT-1s-2026-07.zip": "1751328000000,1,2,0.5,1.5,10,1751328000999,15,3,5,7,0\n",
+    }
+    for name, text in files.items():
+        with zipfile.ZipFile(raw / "binance" / name, "w") as z:
+            z.writestr("a.csv", text)
+    trades, _ = build_cex(raw)
+    assert trades["agg_trade_id"].to_list() == [7, 8]

@@ -4,6 +4,7 @@ import zipfile
 from pathlib import Path
 
 import httpx
+import polars as pl
 import pytest
 
 from uniswap_lp_economics.data.binance import (
@@ -130,3 +131,11 @@ def test_download_verified_bad_checksum_leaves_nothing(tmp_path: Path) -> None:
     with pytest.raises(ChecksumError):
         download_verified("https://x.invalid/f.zip", tmp_path / "f.zip", client)
     assert list(tmp_path.iterdir()) == []
+
+
+def test_parse_agg_trades_keeps_the_aggregated_trade_id(tmp_path: Path) -> None:
+    make_zip(tmp_path / "a.zip", "a.csv", "42,2500.5,0.1,1,1,1751328000123000,True,True\n")
+    df = parse_agg_trades(tmp_path / "a.zip")
+    assert df.columns[0] == "agg_trade_id"
+    assert df["agg_trade_id"].to_list() == [42]
+    assert df["agg_trade_id"].dtype == pl.Int64

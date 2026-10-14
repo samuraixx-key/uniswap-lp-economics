@@ -108,6 +108,7 @@ def parse_agg_trades(zip_path: Path) -> pl.DataFrame:
             f"e.g. {bad['is_buyer_maker'][0]!r}"
         )
     return df.select(
+        agg_trade_id=pl.col("agg_trade_id").cast(pl.Int64),
         ts_us=_to_us("ts"),
         price=pl.col("price").cast(pl.Float64),
         qty=pl.col("qty").cast(pl.Float64),

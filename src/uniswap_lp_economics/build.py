@@ -120,7 +120,7 @@ def build_cex(raw_dir: Path) -> tuple[pl.DataFrame, pl.DataFrame]:
         raise FileNotFoundError(
             f"Binance files missing in {raw_dir / 'binance'}; run `ulpe fetch-cex` first"
         )
-    trades = pl.concat([parse_agg_trades(p) for p in agg]).sort("ts_us")
+    trades = pl.concat([parse_agg_trades(p) for p in agg]).sort("ts_us", "agg_trade_id")
     klines = pl.concat([parse_klines_close(p) for p in kl]).sort("ts_us")
     return trades, klines
 
