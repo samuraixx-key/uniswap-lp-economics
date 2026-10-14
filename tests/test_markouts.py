@@ -132,3 +132,22 @@ def test_markout_tables_stack_every_grouping() -> None:
 def test_exclude_stale() -> None:
     df = frame([{"cex_age_s_0": 0.5}, {"cex_age_s_0": 6.0}, {"cex_age_s_0": None}])
     assert exclude_stale(df).height == 1
+
+
+def test_size_buckets_follow_bucket_order_and_group_columns_lead() -> None:
+    rows = [
+        {"amount_usdc": -1.0, "notional_usd": 1.0, "flow_label": label, "size_bucket": bucket}
+        for label in ("uniswap_router", "searcher")
+        for bucket in (">=100k", "<1k", "10k-100k", "1k-10k")
+    ]
+    df = add_markouts(frame(rows), H)
+    by_size = markout_table(df, ["size_bucket"], (0,))
+    assert by_size["size_bucket"].to_list() == ["<1k", "1k-10k", "10k-100k", ">=100k"]
+    crossed = markout_table(df, ["flow_label", "size_bucket"], (0,))
+    assert crossed.select("flow_label", "size_bucket").rows() == [
+        (label, bucket)
+        for label in ("searcher", "uniswap_router")
+        for bucket in ("<1k", "1k-10k", "10k-100k", ">=100k")
+    ]
+    t = markout_tables(df, H)
+    assert t.columns[:4] == ["grouping", "flow_label", "size_bucket", "horizon_s"]

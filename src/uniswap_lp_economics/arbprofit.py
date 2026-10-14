@@ -112,17 +112,25 @@ def bot_profit_table(aligned: pl.DataFrame) -> pl.DataFrame:
         kept_usd=pl.col("gross_usd") - pl.col("gas_burned_usd") - builder,
         builder_usd=builder,
         builder_share_of_gross=pl.when(pl.col("gross_usd") > 0).then(builder / pl.col("gross_usd")),
+        share_txs_with_coinbase=pl.when(pl.col("txs") > 0).then(
+            pl.col("txs_with_coinbase") / pl.col("txs")
+        ),
     )
 
 
 def waterfall(series: pl.DataFrame, aligned: pl.DataFrame) -> dict[str, float]:
-    """available (all blocks) -> captured by searchers -> top-bot single-pool gross -> kept."""
+    """available (all blocks) -> captured by searchers -> top-bot single-pool gross -> kept.
+
+    Gross is the 0 s markout. Because kept is a small difference of large totals, its sign depends
+    on the horizon, so the same costs are also netted against the 12 s markout (`*_12s_usd`).
+    """
 
     def total(df: pl.DataFrame, col: str) -> float:
         return float(df[col].sum())
 
     single = aligned.filter(pl.col("is_top_bot") & (pl.col("tx_scope") == SINGLE_POOL))
     gross = total(single, "markout_usd_0")
+    gross_12s = total(single, "markout_usd_12")
     burned = total(single, "gas_burned_usd")
     priority = total(single, "priority_fee_usd")
     coinbase = total(single, "coinbase_usd")
@@ -137,5 +145,7 @@ def waterfall(series: pl.DataFrame, aligned: pl.DataFrame) -> dict[str, float]:
         "priority_fee_usd": priority,
         "coinbase_usd": coinbase,
         "kept_usd": gross - burned - priority - coinbase,
+        "top_bot_single_pool_gross_12s_usd": gross_12s,
+        "kept_12s_usd": gross_12s - burned - priority - coinbase,
     }
     return result

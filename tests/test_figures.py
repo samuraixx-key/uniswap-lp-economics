@@ -56,6 +56,12 @@ def test_figures_write_pngs(tmp_path: Path) -> None:
         assert p.stat().st_size > 1000, p
 
 
+def test_duration_ticks_stay_within_the_data() -> None:
+    assert figures.duration_ticks(12.0, 120.0) == [12, 24, 60, 120]
+    assert figures.duration_ticks(24.0, 7200.0) == [24, 60, 120, 300, 600, 1800]
+    assert figures.duration_ticks(13.0, 20.0) == []
+
+
 def test_figures_handle_empty_inputs(tmp_path: Path) -> None:
     paths = _draw_all(
         tmp_path,

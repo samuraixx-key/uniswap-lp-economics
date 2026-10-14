@@ -183,6 +183,17 @@ def test_require_validated_detects_missing_interim_file(tmp_path: Path) -> None:
         require_validated(report_dir, data)
 
 
+def test_report_heads_passed_details_and_failed_mismatches(tmp_path: Path) -> None:
+    write_report(
+        [CheckResult("A5", True, {}, [{"a": 1}]), CheckResult("C2", False, {}, [{"x": 1}])],
+        tmp_path,
+        {},
+    )
+    md = (tmp_path / "validation_report.md").read_text(encoding="utf-8")
+    assert "## A5: details" in md and "A5: first mismatches" not in md
+    assert "## C2: first mismatches" in md
+
+
 def test_require_validated_rejects_report_without_hashes(tmp_path: Path) -> None:
     write_report([CheckResult("C1", True, {}, [])], tmp_path, {})
     with pytest.raises(RuntimeError, match="no interim file hashes"):

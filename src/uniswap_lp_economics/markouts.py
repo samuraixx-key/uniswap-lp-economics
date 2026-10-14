@@ -12,6 +12,7 @@ import polars as pl
 from numpy.typing import NDArray
 
 from uniswap_lp_economics.config import HORIZONS_S
+from uniswap_lp_economics.flows import SIZE_BUCKETS
 
 N_BOOT = 1000
 SEED = 42
@@ -69,6 +70,16 @@ def day_bootstrap_ci(
     return float(lo), float(hi)
 
 
+def _group_order(group_cols: list[str], key: tuple[Any, ...]) -> tuple[tuple[int, str], ...]:
+    """Sort key: size buckets in bucket order (smallest first), other columns alphabetically."""
+    return tuple(
+        (SIZE_BUCKETS.index(v) if v in SIZE_BUCKETS else len(SIZE_BUCKETS), "")
+        if col == "size_bucket"
+        else (0, str(v))
+        for col, v in zip(group_cols, key, strict=True)
+    )
+
+
 def markout_table(
     aligned: pl.DataFrame,
     group_cols: list[str],
@@ -95,7 +106,7 @@ def markout_table(
             if group_cols
             else {(): valid}
         )
-        for key in sorted(groups, key=lambda k: tuple(str(x) for x in k)):
+        for key in sorted(groups, key=lambda k: _group_order(group_cols, k)):
             g = groups[key]
             daily = g.group_by("day").agg(pl.col(m).sum(), pl.col("notional_usd").sum())
             by_day = {d: (mk, nt) for d, mk, nt in daily.iter_rows()}
@@ -138,7 +149,8 @@ def markout_tables(aligned: pl.DataFrame, horizons: tuple[int, ...] = HORIZONS_S
         for name, cols in GROUPINGS.items()
     ]
     stacked = pl.concat(frames, how="diagonal")
-    return stacked.select("grouping", pl.exclude("grouping"))
+    group_cols = list(dict.fromkeys(c for cols in GROUPINGS.values() for c in cols))
+    return stacked.select("grouping", *group_cols, pl.exclude("grouping", *group_cols))
 
 
 def exclude_stale(aligned: pl.DataFrame, max_age_s: float = STALE_S) -> pl.DataFrame:

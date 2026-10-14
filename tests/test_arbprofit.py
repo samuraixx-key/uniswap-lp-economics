@@ -28,6 +28,7 @@ SCHEMA: dict[str, Any] = {
     "receipt_gas_used": pl.Int64,
     "receipt_effective_gas_price": pl.Int64,
     "markout_usd_0": pl.Float64,
+    "markout_usd_12": pl.Float64,
 }
 BLOCKS = pl.DataFrame(
     {"block_number": [1, 2], "miner": [MINER, MINER], "base_fee_per_gas": [20 * GWEI, 20 * GWEI]}
@@ -45,10 +46,10 @@ def transfers(rows: list[tuple[int, str, str, str, int]]) -> pl.DataFrame:
 def costed() -> pl.DataFrame:
     a = aligned(
         [
-            (1, "0xt1", BOT, "searcher", 100.0, 2000.0, 100_000, 30 * GWEI, 3.0),
-            (1, "0xt1", BOT, "searcher", 300.0, 2000.0, 100_000, 30 * GWEI, 9.0),
-            (2, "0xt2", BOT, "searcher", 50.0, 2000.0, 100_000, 30 * GWEI, 5.0),
-            (2, "0xt3", ROUTER, "uniswap_router", 10.0, 2000.0, 100_000, 30 * GWEI, -1.0),
+            (1, "0xt1", BOT, "searcher", 100.0, 2000.0, 100_000, 30 * GWEI, 3.0, 4.0),
+            (1, "0xt1", BOT, "searcher", 300.0, 2000.0, 100_000, 30 * GWEI, 9.0, 10.0),
+            (2, "0xt2", BOT, "searcher", 50.0, 2000.0, 100_000, 30 * GWEI, 5.0, 6.0),
+            (2, "0xt3", ROUTER, "uniswap_router", 10.0, 2000.0, 100_000, 30 * GWEI, -1.0, -2.0),
         ]
     )
     t = transfers(
@@ -80,8 +81,8 @@ def test_scope_and_coinbase_only_for_top_bots() -> None:
 def test_zero_notional_tx_splits_equally() -> None:
     a = aligned(
         [
-            (1, "0xt9", USER, "other_contract", 0.0, 2000.0, 100_000, 20 * GWEI, 0.0),
-            (1, "0xt9", USER, "other_contract", 0.0, 2000.0, 100_000, 20 * GWEI, 0.0),
+            (1, "0xt9", USER, "other_contract", 0.0, 2000.0, 100_000, 20 * GWEI, 0.0, 0.0),
+            (1, "0xt9", USER, "other_contract", 0.0, 2000.0, 100_000, 20 * GWEI, 0.0, 0.0),
         ]
     )
     c = add_costs(
@@ -104,15 +105,20 @@ def test_bot_profit_table_and_waterfall() -> None:
     assert bot["builder_usd"] == pytest.approx(22.0)
     assert bot["multi_pool_swaps"] == 1 and bot["multi_pool_gross_usd"] == pytest.approx(5.0)
     assert bot["txs_with_coinbase"] == 1
+    assert bot["share_txs_with_coinbase"] == pytest.approx(1.0)
     series = pl.DataFrame({"available_usd": [30.0, 10.0], "available_usd_cex1bp": [20.0, 5.0]})
     w = waterfall(series, c)
     assert w["available_usd"] == pytest.approx(40.0)
     assert w["captured_searchers_usd"] == pytest.approx(17.0)
     assert w["top_bot_single_pool_gross_usd"] == pytest.approx(12.0)
     assert w["kept_usd"] == pytest.approx(-14.0)
+    # Same costs against the 12 s markout: gross 4 + 10 = 14.
+    assert w["top_bot_single_pool_gross_12s_usd"] == pytest.approx(14.0)
+    assert w["kept_12s_usd"] == pytest.approx(14.0 - 4.0 - 2.0 - 20.0)
 
 
 def test_bot_profit_table_without_bots() -> None:
     t = bot_profit_table(costed().with_columns(is_top_bot=pl.lit(False)))
     assert t["sender"].to_list() == ["TOTAL"]
     assert t["gross_usd"].item() == 0.0
+    assert t["share_txs_with_coinbase"].item() is None  # no transactions: undefined, not 0

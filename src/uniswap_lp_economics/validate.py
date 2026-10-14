@@ -302,7 +302,7 @@ def write_report(
         if r.mismatches:
             lines += [
                 "",
-                f"## {r.name}: first mismatches",
+                f"## {r.name}: {'details' if r.passed else 'first mismatches'}",
                 "",
                 "```",
                 *map(str, r.mismatches),

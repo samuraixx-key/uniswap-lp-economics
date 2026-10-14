@@ -12,6 +12,7 @@ import numpy as np  # noqa: E402
 import polars as pl  # noqa: E402
 from matplotlib.axes import Axes  # noqa: E402
 from matplotlib.figure import Figure  # noqa: E402
+from matplotlib.ticker import FixedLocator, NullFormatter, ScalarFormatter  # noqa: E402
 
 from uniswap_lp_economics.config import HORIZONS_S  # noqa: E402
 
@@ -25,6 +26,7 @@ WATERFALL_STEPS = [
     ("coinbase_usd", "- coinbase\npayment"),
     ("kept_usd", "kept\n(upper bound)"),
 ]
+DURATION_TICKS_S = (12, 24, 60, 120, 300, 600, 1800)
 
 
 def _save(fig: Figure, path: Path) -> None:
@@ -78,6 +80,11 @@ def basis_histogram(series: pl.DataFrame, path: Path, band_bp: float) -> None:
     _save(fig, path)
 
 
+def duration_ticks(lo: float, hi: float) -> list[int]:
+    """Major ticks for the log duration axis: the round durations inside [lo, hi]."""
+    return [t for t in DURATION_TICKS_S if lo <= t <= hi]
+
+
 def episode_chart(episodes: pl.DataFrame, summary: pl.DataFrame, path: Path) -> None:
     """Chart 3: how long gap episodes last, and who closes them."""
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
@@ -85,6 +92,10 @@ def episode_chart(episodes: pl.DataFrame, summary: pl.DataFrame, path: Path) -> 
     if len(d):
         ax1.step(d, 1.0 - np.arange(1, len(d) + 1) / len(d), where="post")
         ax1.set_xscale("log")
+        # Explicit round-second ticks: the default log labels overlap on this short range.
+        ax1.xaxis.set_major_locator(FixedLocator(duration_ticks(float(d[0]), float(d[-1]))))
+        ax1.xaxis.set_major_formatter(ScalarFormatter())
+        ax1.xaxis.set_minor_formatter(NullFormatter())
     else:
         _no_data(ax1)
     ax1.set_xlabel("episode duration (s)")

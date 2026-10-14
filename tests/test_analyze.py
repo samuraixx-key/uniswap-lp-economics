@@ -103,10 +103,34 @@ def test_analyze_fixture_end_to_end(tmp_path: Path) -> None:
     assert summary["swaps"] == inp.swaps.height
     assert summary["git_commit"] == "test"
     assert "upper bound" in summary["limitation"]
+    keys_12s = ("top_bot_single_pool_gross_12s_usd", "kept_12s_usd", "kept_over_top_bot_gross_12s")
+    assert set(keys_12s) <= summary["arbitrage"].keys()
+    assert all(k in (results / "arbitrage.md").read_text(encoding="utf-8") for k in keys_12s)
     for name in ("arbitrage.md", "bot_profit.md"):
         assert "upper bound" in (results / name).read_text(encoding="utf-8")
     assert (processed / "aligned.parquet").exists()
     assert (processed / "blocks_state.parquet").exists()
+
+
+def test_failed_gated_check_writes_no_results(tmp_path: Path) -> None:
+    inp, end_us = fixture_inputs()
+    # A hole in the Binance data: trades after the first hour carry no price, so swaps there get
+    # a null reference inside the data range and A4 fails. (Truncating the trades would not do:
+    # the as-of lookup would then return the last, stale price instead of a null.)
+    cutoff = int(inp.trades["ts_us"].min()) + 3600 * US  # type: ignore[arg-type]
+    inp.trades = inp.trades.with_columns(
+        price=pl.when(pl.col("ts_us") < cutoff).then(pl.col("price"))
+    )
+    results, processed = tmp_path / "results", tmp_path / "processed"
+    status = analysis.analyze(inp, results, processed, {"git_commit": "test"}, end_us=end_us)
+    assert status == "FAIL"
+    checks_md = (results / "analysis_checks.md").read_text(encoding="utf-8")
+    assert "| A4 Binance reference coverage | FAIL |" in checks_md
+    assert not (results / "summary.json").exists()
+    assert not (results / "markouts.csv").exists()
+    assert not (results / "figures").exists()
+    assert not (processed / "aligned.parquet").exists()
+    assert not (processed / "blocks_state.parquet").exists()
 
 
 def test_load_inputs_names_the_missing_fetch(tmp_path: Path) -> None:

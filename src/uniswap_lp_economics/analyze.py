@@ -252,6 +252,11 @@ def _write_results(
             if w["top_bot_single_pool_gross_usd"]
             else None
         ),
+        "kept_over_top_bot_gross_12s": (
+            w["kept_12s_usd"] / w["top_bot_single_pool_gross_12s_usd"]
+            if w["top_bot_single_pool_gross_12s_usd"]
+            else None
+        ),
     }
     daily = discovery.available_vs_captured(series, aligned)
     report.write_markdown(
