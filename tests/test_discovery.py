@@ -1,4 +1,5 @@
 import math
+import warnings
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -214,6 +215,25 @@ def test_ar1_half_life() -> None:
     assert r["half_life_blocks"] == pytest.approx(1.0, abs=0.1)
     assert r["median_block_s"] == pytest.approx(12.0)
     assert r["half_life_s"] == pytest.approx(12.0, abs=1.2)
+
+
+@pytest.mark.parametrize("level", [0.0, 3.0])
+def test_ar1_half_life_constant_series(level: float) -> None:
+    series = pl.DataFrame(
+        {
+            "block_number": np.arange(50),
+            "ts_us": np.arange(50) * 12 * US,
+            "basis_bp": np.full(50, level),
+        }
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        r = ar1_half_life(series)
+    assert r["phi"] is None
+    assert r["intercept"] is None
+    assert r["half_life_blocks"] is None
+    assert r["half_life_s"] is None
+    assert r["median_block_s"] == pytest.approx(12.0)
 
 
 def test_available_vs_captured_by_day() -> None:

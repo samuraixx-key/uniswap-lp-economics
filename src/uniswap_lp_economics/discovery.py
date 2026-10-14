@@ -273,7 +273,7 @@ def ar1_half_life(series: pl.DataFrame) -> dict[str, float | None]:
     x, y = b[:-1], b[1:]
     mask = np.isfinite(x) & np.isfinite(y)
     block_s = float(np.median(np.diff(s["ts_us"].to_numpy()))) / 1e6 if s.height > 1 else None
-    if mask.sum() < 3:
+    if mask.sum() < 3 or np.ptp(x[mask]) == 0:  # too short, or no spread to regress on
         return {
             "phi": None,
             "intercept": None,
