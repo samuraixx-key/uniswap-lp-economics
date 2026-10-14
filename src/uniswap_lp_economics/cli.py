@@ -8,7 +8,7 @@ import polars as pl
 
 from uniswap_lp_economics import analyze as analysis
 from uniswap_lp_economics import build, config, flows, snapshot, validate
-from uniswap_lp_economics.data import bigquery, binance, transfers
+from uniswap_lp_economics.data import bigquery, binance, chain_state, transfers
 from uniswap_lp_economics.data import blocks as bq_blocks
 from uniswap_lp_economics.io import read_exact, write_exact, write_text_atomic
 from uniswap_lp_economics.rpc import RpcClient
@@ -124,6 +124,23 @@ def fetch_transfers() -> None:
     transfers.fetch_bot_transfers(_rpc(), config.RAW_DIR, bots, lo, hi)
 
 
+def fetch_chain_state() -> None:
+    """D2-D4 (spec 3.1). Fee state now; position state once the history exists (Task 15)."""
+    client = _rpc()
+    meta = build.load_snapshot_meta(config.RAW_DIR)
+    folder = config.RAW_DIR / chain_state.CHAIN_DIR
+    if (folder / chain_state.SNAPSHOT_FEES).exists():
+        print("snapshot fee state already downloaded, skipping")
+    else:
+        ticks = read_exact(config.RAW_DIR / "tickbook_snapshot.parquet")["tick"].to_list()
+        chain_state.fetch_snapshot_fees(client, config.RAW_DIR, int(meta["block"]), ticks)
+    if (folder / chain_state.SAMPLE_FEES).exists():
+        print("sample fee state already downloaded, skipping")
+    else:
+        sample_ticks = read_exact(config.RAW_DIR / "onchain_sample_ticks.parquet")
+        chain_state.fetch_sample_fees(client, config.RAW_DIR, sample_ticks.select("block", "tick"))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="ulpe", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -142,6 +159,7 @@ def main() -> None:
     )
     blocks_cmd.add_argument("--dry-run", action="store_true", help="only report bytes scanned")
     sub.add_parser("fetch-transfers", help="download top-bot internal ETH transfers (Alchemy)")
+    sub.add_parser("fetch-chain-state", help="read pool fee and position state (RPC)")
     sub.add_parser("build", help="decode raw data into interim tables")
     sub.add_parser("validate", help="run checks C1-C6 and write data_validation/validation_report")
     sub.add_parser("analyze", help="run checks A1-A6 and write results/ (tables, charts, summary)")
@@ -164,6 +182,8 @@ def main() -> None:
         fetch_blocks(args.dry_run)
     elif args.command == "fetch-transfers":
         fetch_transfers()
+    elif args.command == "fetch-chain-state":
+        fetch_chain_state()
     elif args.command == "build":
         try:
             build.build_all(config.RAW_DIR, config.INTERIM_DIR)
