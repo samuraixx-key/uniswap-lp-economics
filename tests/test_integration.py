@@ -6,6 +6,7 @@ from pathlib import Path
 import polars as pl
 
 from uniswap_lp_economics.io import read_exact
+from uniswap_lp_economics.lp.swapfees import build_swap_fees
 from uniswap_lp_economics.replay import iter_block_starts, iter_swaps_with_pre_state, required
 from uniswap_lp_economics.tickbook import TickBook
 from uniswap_lp_economics.v3swap import check_swap_event, swap_check_ok
@@ -55,3 +56,10 @@ def test_v3swap_reproduces_fixture_swaps() -> None:
         assert swap_check_ok(c), (row.block_number, row.log_index, c)
     assert checked > 300
     assert exact > 300
+
+
+def test_every_real_fixture_swap_reproduces_bit_exactly() -> None:
+    meta, book, events = _fixture()
+    fees = build_swap_fees(events, book, int(meta["fee_protocol"]))
+    assert fees.height == events.filter(pl.col("event") == "swap").height
+    assert fees["mode"].null_count() == 0, fees.filter(pl.col("mode").is_null())

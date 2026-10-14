@@ -13,6 +13,7 @@ from uniswap_lp_economics.v3math import (
 from uniswap_lp_economics.v3math import get_sqrt_ratio_at_tick as sqrt_at
 from uniswap_lp_economics.v3swap import (
     ArbResult,
+    Reproduction,
     SwapCheck,
     SwapRun,
     arb_to_price,
@@ -22,6 +23,7 @@ from uniswap_lp_economics.v3swap import (
     get_amount1_delta,
     next_initialized_tick_within_one_word,
     next_sqrt_price_from_output,
+    reproduce_swap,
     swap,
     swap_check_ok,
     swap_exact_input,
@@ -335,3 +337,52 @@ def test_swap_steps_add_up_and_record_the_crossed_tick() -> None:
 def test_swap_rejects_zero_amount() -> None:
     with pytest.raises(ValueError, match="non-zero"):
         swap(two_range_book(), True, 0)
+
+
+def logged(r: SwapRun, zero_for_one: bool) -> tuple[int, int, int]:
+    """(amount0, amount1, sqrt) as the pool would log the run."""
+    if zero_for_one:
+        return r.amount_in, -r.amount_out, r.sqrt_price_x96
+    return -r.amount_out, r.amount_in, r.sqrt_price_x96
+
+
+def test_reproduce_exact_input_swap() -> None:
+    b = two_range_book()
+    a0, a1, s = logged(swap(b, True, 10**14), True)
+    rep = reproduce_swap(b, a0, a1, s)
+    assert rep is not None and rep.mode == "exact_input" and rep.zero_for_one
+    assert rep.run is not None and rep.run.sqrt_price_x96 == s
+
+
+def test_reproduce_finds_exact_output_swaps_that_exact_input_misses() -> None:
+    b = two_range_book()
+    found = 0
+    for want in range(1_000, 400_000, 397):
+        a0, a1, s = logged(swap(b, False, -want), False)
+        if reproduce_swap(b, a0, a1, s, modes=("exact_input",)) is not None:
+            continue
+        rep = reproduce_swap(b, a0, a1, s)
+        assert rep is not None and rep.mode == "exact_output", want
+        found += 1
+    assert found > 0  # the search must hit at least one rounding case
+
+
+def test_reproduce_to_price_mode() -> None:
+    b = two_range_book()
+    limit = sqrt_at(-5)
+    a0, a1, s = logged(swap(b, True, 2**128, limit), True)
+    rep = reproduce_swap(b, a0, a1, s, modes=("to_price",))
+    assert rep is not None and rep.mode == "to_price" and s == limit
+
+
+def test_reproduce_returns_none_for_an_impossible_swap() -> None:
+    b = two_range_book()
+    a0, a1, s = logged(swap(b, True, 10**15), True)
+    assert reproduce_swap(b, a0, a1 - 1_000, s) is None
+
+
+def test_reproduce_no_input_swap() -> None:
+    b = two_range_book()
+    rep = reproduce_swap(b, 0, 0, b.sqrt_price_x96)
+    assert rep == Reproduction("no_input", False, None)
+    assert reproduce_swap(b, 0, 0, b.sqrt_price_x96 + 1) is None

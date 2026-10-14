@@ -5,6 +5,7 @@ pool's swap loop. Python ints are unbounded, so Solidity's uint256 overflow bran
 explicitly where they change the result. Nothing here mutates the TickBook.
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from uniswap_lp_economics.config import DECIMALS0, DECIMALS1, FEE_PIPS, TICK_SPACING
@@ -27,6 +28,7 @@ A1_SQRT_REL_TOL = 1e-9
 A1_OUT_ABS_TOL = 2
 A1_OUT_REL_TOL = 1e-9
 A1_OUT_INPUT_UNITS = 2
+_HUGE = 2**128  # more than the pool could ever pay out; the price limit stops the swap
 
 
 def mul_div(a: int, b: int, d: int) -> int:
@@ -344,7 +346,59 @@ def swap_check_ok(c: SwapCheck) -> bool:
     return c.sqrt_rel_err < A1_SQRT_REL_TOL and c.out_abs_err <= out_tol
 
 
-_HUGE = 2**128  # more than the pool could ever pay out; the price limit stops the swap
+REPRODUCTION_MODES = ("exact_input", "exact_output", "to_price")
+
+
+@dataclass(frozen=True)
+class Reproduction:
+    mode: str  # one of REPRODUCTION_MODES, or "no_input" (then run is None)
+    zero_for_one: bool
+    run: SwapRun | None
+
+
+def reproduce_swap(
+    book: TickBook,
+    amount0: int,
+    amount1: int,
+    sqrt_price_x96: int,
+    fee_pips: int = FEE_PIPS,
+    modes: tuple[str, ...] = REPRODUCTION_MODES,
+) -> Reproduction | None:
+    """Re-run a logged swap from `book` (its pre-swap state) in the first mode that reproduces its
+    logged amounts and final price bit-exactly (spec section 5); None when no mode does.
+
+    exact_input: the logged input as an exact input. exact_output: the logged output as an exact
+    output. to_price: an unlimited exact input stopped by the logged final price as the limit
+    (swaps that hit their price limit).
+    """
+    if amount0 > 0:
+        zero_for_one, amount_in, amount_out = True, amount0, -amount1
+    elif amount1 > 0:
+        zero_for_one, amount_in, amount_out = False, amount1, -amount0
+    else:
+        if sqrt_price_x96 == book.sqrt_price_x96:
+            return Reproduction("no_input", False, None)
+        return None
+
+    attempts: dict[str, Callable[[], SwapRun]] = {
+        "exact_input": lambda: swap(book, zero_for_one, amount_in, fee_pips=fee_pips),
+        "exact_output": lambda: swap(book, zero_for_one, -amount_out, fee_pips=fee_pips),
+        "to_price": lambda: swap(book, zero_for_one, _HUGE, sqrt_price_x96, fee_pips),
+    }
+    for mode in modes:
+        if mode == "exact_output" and amount_out <= 0:
+            continue
+        try:
+            r = attempts[mode]()
+        except ValueError:
+            continue
+        if (
+            r.amount_in == amount_in
+            and r.amount_out == amount_out
+            and r.sqrt_price_x96 == sqrt_price_x96
+        ):
+            return Reproduction(mode, zero_for_one, r)
+    return None
 
 
 @dataclass(frozen=True)
