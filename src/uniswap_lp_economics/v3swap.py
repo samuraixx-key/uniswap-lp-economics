@@ -1,4 +1,4 @@
-"""Exact-integer Uniswap V3 swap simulation over a TickBook (exact input only).
+"""Exact-integer Uniswap V3 swap simulation over a TickBook (exact input and exact output).
 
 Ports SqrtPriceMath, SwapMath.computeSwapStep, TickBitmap.nextInitializedTickWithinOneWord and the
 pool's swap loop. Python ints are unbounded, so Solidity's uint256 overflow branches are reproduced
@@ -79,35 +79,77 @@ def next_sqrt_price_from_input(
     return sqrt_price + (amount_in << 96) // liquidity  # getNextSqrtPriceFromAmount1RoundingDown
 
 
+def next_sqrt_price_from_output(
+    sqrt_price: int, liquidity: int, amount_out: int, zero_for_one: bool
+) -> int:
+    """SqrtPriceMath.getNextSqrtPriceFromOutput."""
+    if liquidity <= 0:
+        raise ValueError("liquidity must be positive")
+    if amount_out == 0:
+        return sqrt_price
+    if zero_for_one:  # getNextSqrtPriceFromAmount1RoundingDown(add = false)
+        quotient = div_rounding_up(amount_out << 96, liquidity)
+        if sqrt_price <= quotient:
+            raise ValueError("output exceeds what the pool holds in this range")
+        return sqrt_price - quotient
+    # getNextSqrtPriceFromAmount0RoundingUp(add = false)
+    numerator1 = liquidity << 96
+    product = amount_out * sqrt_price
+    if product >= _U256 or numerator1 <= product:
+        raise ValueError("output exceeds what the pool holds in this range")
+    return mul_div_rounding_up(numerator1, sqrt_price, numerator1 - product)
+
+
 def compute_swap_step(
     sqrt_current: int, sqrt_target: int, liquidity: int, amount_remaining: int, fee_pips: int
 ) -> tuple[int, int, int, int]:
-    """SwapMath.computeSwapStep for exact input: (sqrt_next, amount_in, amount_out, fee)."""
+    """SwapMath.computeSwapStep: (sqrt_next, amount_in, amount_out, fee).
+
+    `amount_remaining > 0` is an exact input, `< 0` an exact output (as in V3).
+    """
     zero_for_one = sqrt_current >= sqrt_target
-    remaining_less_fee = mul_div(amount_remaining, _PIPS - fee_pips, _PIPS)
-    if zero_for_one:
-        amount_in = get_amount0_delta(sqrt_target, sqrt_current, liquidity, True)
+    exact_in = amount_remaining >= 0
+    amount_in = amount_out = 0
+    if exact_in:
+        remaining_less_fee = mul_div(amount_remaining, _PIPS - fee_pips, _PIPS)
+        if zero_for_one:
+            amount_in = get_amount0_delta(sqrt_target, sqrt_current, liquidity, True)
+        else:
+            amount_in = get_amount1_delta(sqrt_current, sqrt_target, liquidity, True)
+        if remaining_less_fee >= amount_in:
+            sqrt_next = sqrt_target
+        else:
+            sqrt_next = next_sqrt_price_from_input(
+                sqrt_current, liquidity, remaining_less_fee, zero_for_one
+            )
     else:
-        amount_in = get_amount1_delta(sqrt_current, sqrt_target, liquidity, True)
-    if remaining_less_fee >= amount_in:
-        sqrt_next = sqrt_target
-    else:
-        sqrt_next = next_sqrt_price_from_input(
-            sqrt_current, liquidity, remaining_less_fee, zero_for_one
-        )
+        if zero_for_one:
+            amount_out = get_amount1_delta(sqrt_target, sqrt_current, liquidity, False)
+        else:
+            amount_out = get_amount0_delta(sqrt_current, sqrt_target, liquidity, False)
+        if -amount_remaining >= amount_out:
+            sqrt_next = sqrt_target
+        else:
+            sqrt_next = next_sqrt_price_from_output(
+                sqrt_current, liquidity, -amount_remaining, zero_for_one
+            )
     reached = sqrt_next == sqrt_target
     if zero_for_one:
-        if not reached:
+        if not (reached and exact_in):
             amount_in = get_amount0_delta(sqrt_next, sqrt_current, liquidity, True)
-        amount_out = get_amount1_delta(sqrt_next, sqrt_current, liquidity, False)
+        if not (reached and not exact_in):
+            amount_out = get_amount1_delta(sqrt_next, sqrt_current, liquidity, False)
     else:
-        if not reached:
+        if not (reached and exact_in):
             amount_in = get_amount1_delta(sqrt_current, sqrt_next, liquidity, True)
-        amount_out = get_amount0_delta(sqrt_current, sqrt_next, liquidity, False)
-    if reached:
-        fee = mul_div_rounding_up(amount_in, fee_pips, _PIPS - fee_pips)
-    else:
+        if not (reached and not exact_in):
+            amount_out = get_amount0_delta(sqrt_current, sqrt_next, liquidity, False)
+    if not exact_in and amount_out > -amount_remaining:  # cap at the requested output
+        amount_out = -amount_remaining
+    if exact_in and not reached:
         fee = amount_remaining - amount_in
+    else:
+        fee = mul_div_rounding_up(amount_in, fee_pips, _PIPS - fee_pips)
     return sqrt_next, amount_in, amount_out, fee
 
 
@@ -140,17 +182,43 @@ class SwapResult:
     liquidity: int
 
 
-def swap_exact_input(
+@dataclass(frozen=True)
+class SwapStep:
+    sqrt_start: int
+    sqrt_end: int
+    liquidity: int  # active liquidity during the step
+    amount_in: int  # input token, fee excluded
+    amount_out: int
+    fee: int  # input-token fee of this step (protocol cut included)
+    crossed_tick: int | None  # initialized tick crossed at the end of the step
+
+
+@dataclass(frozen=True)
+class SwapRun:
+    amount_in: int  # input token consumed, fees included
+    amount_out: int
+    fee: int
+    sqrt_price_x96: int
+    tick: int
+    liquidity: int
+    steps: tuple[SwapStep, ...]
+
+
+def swap(
     book: TickBook,
     zero_for_one: bool,
-    amount_in: int,
+    amount_specified: int,
     sqrt_price_limit_x96: int | None = None,
     fee_pips: int = FEE_PIPS,
     tick_spacing: int = TICK_SPACING,
-) -> SwapResult:
-    """UniswapV3Pool.swap for an exact input, from the book's current state (not mutated)."""
-    if amount_in <= 0:
-        raise ValueError(f"amount_in must be positive, got {amount_in}")
+) -> SwapRun:
+    """UniswapV3Pool.swap from the book's current state (not mutated).
+
+    `amount_specified > 0` is an exact input, `< 0` an exact output, as in V3.
+    """
+    if amount_specified == 0:
+        raise ValueError("amount_specified must be non-zero")
+    exact_in = amount_specified > 0
     sqrt_price, tick, liquidity = book.sqrt_price_x96, book.tick, book.liquidity
     if sqrt_price_limit_x96 is None:
         limit = MIN_SQRT_RATIO + 1 if zero_for_one else MAX_SQRT_RATIO - 1
@@ -163,9 +231,11 @@ def swap_exact_input(
     if not valid:
         raise ValueError("sqrt_price_limit_x96 is on the wrong side of the current price (SPL)")
 
-    remaining, out, fees = amount_in, 0, 0
+    remaining = amount_specified
+    total_in = total_out = fees = 0
+    steps: list[SwapStep] = []
     while remaining != 0 and sqrt_price != limit:
-        start = sqrt_price
+        start, step_liquidity = sqrt_price, liquidity
         tick_next, initialized = next_initialized_tick_within_one_word(
             book, tick, zero_for_one, tick_spacing
         )
@@ -178,19 +248,43 @@ def swap_exact_input(
         sqrt_price, step_in, step_out, step_fee = compute_swap_step(
             sqrt_price, target, liquidity, remaining, fee_pips
         )
-        remaining -= step_in + step_fee
-        out += step_out
+        if exact_in:
+            remaining -= step_in + step_fee
+        else:
+            remaining += step_out
+        total_in += step_in + step_fee
+        total_out += step_out
         fees += step_fee
+        crossed: int | None = None
         if sqrt_price == sqrt_at_next:
             if initialized:
                 net = book.liquidity_net[tick_next]
                 liquidity += -net if zero_for_one else net
                 if liquidity < 0:
                     raise ValueError(f"liquidity went negative crossing tick {tick_next}")
+                crossed = tick_next
             tick = tick_next - 1 if zero_for_one else tick_next
         elif sqrt_price != start:
             tick = get_tick_at_sqrt_ratio(sqrt_price)
-    return SwapResult(amount_in - remaining, out, fees, sqrt_price, tick, liquidity)
+        steps.append(
+            SwapStep(start, sqrt_price, step_liquidity, step_in, step_out, step_fee, crossed)
+        )
+    return SwapRun(total_in, total_out, fees, sqrt_price, tick, liquidity, tuple(steps))
+
+
+def swap_exact_input(
+    book: TickBook,
+    zero_for_one: bool,
+    amount_in: int,
+    sqrt_price_limit_x96: int | None = None,
+    fee_pips: int = FEE_PIPS,
+    tick_spacing: int = TICK_SPACING,
+) -> SwapResult:
+    """UniswapV3Pool.swap for an exact input, from the book's current state (not mutated)."""
+    if amount_in <= 0:
+        raise ValueError(f"amount_in must be positive, got {amount_in}")
+    r = swap(book, zero_for_one, amount_in, sqrt_price_limit_x96, fee_pips, tick_spacing)
+    return SwapResult(r.amount_in, r.amount_out, r.fee, r.sqrt_price_x96, r.tick, r.liquidity)
 
 
 @dataclass(frozen=True)

@@ -1,3 +1,4 @@
+import math
 import random
 
 import pytest
@@ -13,12 +14,15 @@ from uniswap_lp_economics.v3math import get_sqrt_ratio_at_tick as sqrt_at
 from uniswap_lp_economics.v3swap import (
     ArbResult,
     SwapCheck,
+    SwapRun,
     arb_to_price,
     check_swap_event,
     compute_swap_step,
     get_amount0_delta,
     get_amount1_delta,
     next_initialized_tick_within_one_word,
+    next_sqrt_price_from_output,
+    swap,
     swap_check_ok,
     swap_exact_input,
 )
@@ -219,3 +223,115 @@ def test_cex_fee_reduces_profit() -> None:
     b = arb_book(2000.0)
     with_fee = arb_to_price(b, 2010.0, cex_fee_bp=1.0).profit_usd
     assert 0 < with_fee < arb_to_price(b, 2010.0).profit_usd
+
+
+def encode_price_sqrt(reserve1: int, reserve0: int) -> int:
+    """v3-core's encodePriceSqrt: floor(sqrt(reserve1 / reserve0) * 2^96)."""
+    return math.isqrt((reserve1 << 192) // reserve0)
+
+
+E18 = 10**18
+SQRT_P = 20282409603651670423947251286016
+
+
+@pytest.mark.parametrize(
+    ("price", "target", "liquidity", "amount", "fee", "expected"),
+    [
+        # exact amount in that gets capped at price target in one for zero
+        (
+            encode_price_sqrt(1, 1),
+            encode_price_sqrt(101, 100),
+            2 * E18,
+            E18,
+            600,
+            (encode_price_sqrt(101, 100), 9975124224178055, 9925619580021728, 5988667735148),
+        ),
+        # exact amount out that gets capped at price target in one for zero
+        (
+            encode_price_sqrt(1, 1),
+            encode_price_sqrt(101, 100),
+            2 * E18,
+            -E18,
+            600,
+            (encode_price_sqrt(101, 100), 9975124224178055, 9925619580021728, 5988667735148),
+        ),
+        # amount out is capped at the desired amount out
+        (
+            417332158212080721273783715441582,
+            1452870262520218020823638996,
+            159344665391607089467575320103,
+            -1,
+            1,
+            (417332158212080721273783715441581, 1, 1, 1),
+        ),
+        # target price of 1 uses partial input amount
+        (
+            2,
+            1,
+            1,
+            3915081100057732413702495386755767,
+            1,
+            (1, 39614081257132168796771975168, 0, 39614120871253040049813),
+        ),
+        # entire input amount taken as fee
+        (2413, 79887613182836312, 1985041575832132834610021537970, 10, 1872, (2413, 0, 0, 10)),
+        # intermediate insufficient liquidity, exact output, price moving up
+        (SQRT_P, SQRT_P * 11 // 10, 1024, -4, 3000, (SQRT_P * 11 // 10, 26215, 0, 79)),
+        # intermediate insufficient liquidity, exact output, price moving down
+        (SQRT_P, SQRT_P * 9 // 10, 1024, -263000, 3000, (SQRT_P * 9 // 10, 1, 26214, 1)),
+    ],
+)
+def test_compute_swap_step_v3_core_vectors(
+    price: int, target: int, liquidity: int, amount: int, fee: int, expected: tuple[int, ...]
+) -> None:
+    assert compute_swap_step(price, target, liquidity, amount, fee) == expected
+
+
+def test_exact_input_fully_spent_v3_core_vector() -> None:
+    target = encode_price_sqrt(1000, 100)
+    sqrt_next, amount_in, amount_out, fee = compute_swap_step(
+        encode_price_sqrt(1, 1), target, 2 * E18, E18, 600
+    )
+    assert (amount_in, fee, amount_out) == (999400000000000000, 600000000000000, 666399946655997866)
+    assert sqrt_next < target
+
+
+def test_exact_output_fully_received_v3_core_vector() -> None:
+    target = encode_price_sqrt(10000, 100)
+    sqrt_next, amount_in, amount_out, fee = compute_swap_step(
+        encode_price_sqrt(1, 1), target, 2 * E18, -E18, 600
+    )
+    assert (amount_in, fee, amount_out) == (2 * E18, 1200720432259356, E18)
+    assert sqrt_next < target
+
+
+def test_next_sqrt_price_from_output_rejects_more_than_the_pool_holds() -> None:
+    with pytest.raises(ValueError):
+        next_sqrt_price_from_output(Q96, 1, 2**200, zero_for_one=True)
+
+
+def test_exact_output_swap_pays_exactly_the_requested_output() -> None:
+    b = two_range_book()
+    want = 10**15  # raw token0 out, buying it with token1
+    r = swap(b, zero_for_one=False, amount_specified=-want)
+    assert r.amount_out == want
+    again = swap(b, zero_for_one=False, amount_specified=r.amount_in)
+    assert again.amount_out >= want  # the same input as exact input buys at least as much
+
+
+def test_swap_steps_add_up_and_record_the_crossed_tick() -> None:
+    b = two_range_book()
+    to_10 = get_amount1_delta(sqrt_at(0), sqrt_at(10), L, True)
+    r = swap(b, zero_for_one=False, amount_specified=to_10 + to_10 // 4)
+    assert isinstance(r, SwapRun)
+    assert sum(s.amount_in + s.fee for s in r.steps) == r.amount_in
+    assert sum(s.amount_out for s in r.steps) == r.amount_out
+    assert sum(s.fee for s in r.steps) == r.fee
+    assert [s.crossed_tick for s in r.steps if s.crossed_tick is not None] == [10]
+    assert r.steps[0].liquidity == L and r.steps[-1].liquidity == 2 * L
+    assert r.steps[0].sqrt_start == sqrt_at(0) and r.steps[-1].sqrt_end == r.sqrt_price_x96
+
+
+def test_swap_rejects_zero_amount() -> None:
+    with pytest.raises(ValueError, match="non-zero"):
+        swap(two_range_book(), True, 0)
