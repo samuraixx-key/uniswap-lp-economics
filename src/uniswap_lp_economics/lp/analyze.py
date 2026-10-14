@@ -56,6 +56,11 @@ GROUPINGS = (
     ("holding", pnl.HOLD_BUCKETS),
     ("cohort", pnl.COHORTS),
 )
+DESTINATION_NOTE = (
+    "Every figure here counts every searcher step, including steps with no liquidity in range; "
+    "the accrued-only `*_searcher_usd` totals in lp_pnl.md and summary.json do not. Shares are "
+    "of LVR on searcher steps."
+)
 PNL_NOTE = (
     "P&L against rebalancing = fees - LVR (0 s) - LP gas; against holding = everything the LP got "
     "out minus everything put in, at the exit price. bp_per_day = P&L / (hourly time-weighted "
@@ -319,12 +324,13 @@ def lp_analysis(
     dest = destination.destination(steps, inp.aligned, costs)
     reported = [
         check_r1_relays(inp.relays, split),
-        check_r2_traces_vs_alchemy(inp.tx_direct, inp.bot_transfers, inp.blocks),
+        check_r2_traces_vs_alchemy(inp.tx_direct, inp.bot_transfers, inp.blocks, inp.tx_other_logs),
         check_r3_lp_types(positions),
         check_r4_transferred(data.positions, positions["position_id"].to_list()),
         check_r5_null_12s(run.null_12s_steps, steps),
     ]
     summary["lp"]["destination"] = dest
+    summary["lp"]["checks"].update({r.name: r.summary for r in reported})
     summary["lp"]["destination_limitation"] = destination.LIMITATION_TEXT
     blocks_theory = int_1s.group_by("block_number").agg(
         pl.col("r2").sum(), pl.col("lvr_theory").sum()
@@ -376,7 +382,7 @@ def lp_analysis(
         "lvr_destination",
         "Where LVR goes",
         [("Totals", report.metrics_table(dest))],
-        notes=[destination.LIMITATION_TEXT],
+        notes=[DESTINATION_NOTE, destination.LIMITATION_TEXT],
     )
     figs = out / "figures"
     figures.fees_vs_lvr_daily(daily, figs / LP_FIGURES["daily"])

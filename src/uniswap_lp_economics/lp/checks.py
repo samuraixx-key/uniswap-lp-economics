@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any
 
 import polars as pl
 
+from uniswap_lp_economics.arbprofit import coinbase_payments
 from uniswap_lp_economics.io import hex_u256
 from uniswap_lp_economics.lp.positions import LedgerData
 from uniswap_lp_economics.validate import MAX_LISTED, CheckResult
@@ -310,14 +311,13 @@ def check_l6(
 
 
 def check_r1_relays(relays: pl.DataFrame, split: pl.DataFrame) -> CheckResult:
-    found = relays.filter(pl.col("found")).join(
-        split.select("block_number", "payment_wei"), on="block_number", how="inner"
-    )
-    diff = (found["value_wei"] - found["payment_wei"]).abs()
-    exact = int((diff <= 1).sum()) if found.height else 0
+    found = relays.filter(pl.col("found"))
+    both = found.join(split.select("block_number", "payment_wei"), on="block_number", how="inner")
+    diff = (both["value_wei"] - both["payment_wei"]).abs()
+    exact = int((diff <= 1).sum()) if both.height else 0
     within = (
-        int((diff.cast(pl.Float64) <= 0.01 * found["value_wei"].cast(pl.Float64)).sum())
-        if found.height
+        int((diff.cast(pl.Float64) <= 0.01 * both["value_wei"].cast(pl.Float64)).sum())
+        if both.height
         else 0
     )
     return CheckResult(
@@ -325,7 +325,8 @@ def check_r1_relays(relays: pl.DataFrame, split: pl.DataFrame) -> CheckResult:
         True,
         {
             "sampled": relays.height,
-            "found_on_a_relay": found.height,
+            "found_on_a_relay": found.height,  # before the join with our per-block split
+            "compared_with_on_chain": both.height,
             "match_within_1_wei": exact,
             "match_within_1pct": within,
         },
@@ -333,11 +334,17 @@ def check_r1_relays(relays: pl.DataFrame, split: pl.DataFrame) -> CheckResult:
 
 
 def check_r2_traces_vs_alchemy(
-    tx_direct: pl.DataFrame, bot_transfers: pl.DataFrame, blocks: pl.DataFrame
+    tx_direct: pl.DataFrame,
+    bot_transfers: pl.DataFrame,
+    blocks: pl.DataFrame,
+    pool_txs: pl.DataFrame,
 ) -> CheckResult:
-    from uniswap_lp_economics.arbprofit import coinbase_payments
-
-    alchemy = coinbase_payments(bot_transfers, blocks)
+    """Top-bot payments to the fee recipient (Alchemy) vs the trace-based direct payments, on
+    the same population: `tx_direct` only covers transactions touching our pool, while the
+    Alchemy transfers cover every transaction of the bots, so they are cut to `pool_txs`."""
+    alchemy = coinbase_payments(bot_transfers, blocks).join(
+        pool_txs.select("tx_hash").unique(), on="tx_hash", how="semi"
+    )
     both = alchemy.join(tx_direct, on="tx_hash", how="left")
     same = (
         int((both["coinbase_wei"] == both["direct_wei"].fill_null(0)).sum()) if both.height else 0
@@ -345,7 +352,7 @@ def check_r2_traces_vs_alchemy(
     return CheckResult(
         "R2 traces vs Alchemy builder payments, top bots (reported)",
         True,
-        {"alchemy_txs_with_payment": alchemy.height, "same_amount_in_traces": same},
+        {"alchemy_pool_txs_with_payment": alchemy.height, "same_amount_in_traces": same},
     )
 
 

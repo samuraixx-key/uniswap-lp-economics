@@ -99,36 +99,44 @@ def lifetime_chart(by_width: pl.DataFrame, by_life: pl.DataFrame, path: Path) ->
     save_figure(fig, path)
 
 
+# (value key, label, kind, share key). Pool LVR first, then LVR on other flows (which is not
+# searcher LVR) comes off it; the rest is the chain of the LVR on searcher swaps.
 DESTINATION_STEPS = [
-    ("lvr_searcher_usd", "LVR on\nsearcher swaps", "total"),
-    ("lp_fees_searcher_usd", "- LP fees", "down"),
-    ("protocol_fees_searcher_usd", "- protocol\nfees", "down"),
-    ("multi_pool_gross_usd", "- multi-pool\n(no split)", "down"),
-    ("gas_burned_usd", "- gas\nburned", "down"),
-    ("builder_margin_usd", "- builder\nmargin", "down"),
-    ("proposer_usd", "- proposer", "down"),
-    ("searcher_kept_usd", "searcher kept\n(upper bound)", "total"),
+    ("pool_lvr_0_usd", "pool LVR\n(0 s)", "total", None),
+    ("lvr_on_other_flows_usd", "- other flows\n(no searcher)", "down", None),
+    ("lvr_on_searcher_swaps_usd", "searcher\nLVR", "total", None),
+    ("fees_on_searcher_swaps_usd", "- LP fees", "down", "share_fees"),
+    ("protocol_fees_on_searcher_swaps_usd", "- protocol\nfees", "down", "share_protocol_fees"),
+    ("multi_pool_gross_usd", "- multi-pool\n(no split)", "down", "share_multi_pool"),
+    ("gas_burned_usd", "- gas\nburned", "down", "share_gas_burned"),
+    ("builder_margin_usd", "- builder\nmargin", "down", "share_builder_margin"),
+    ("proposer_usd", "- proposer", "down", "share_proposer"),
+    ("searcher_kept_usd", "searcher kept\n(upper bound)", "total", "share_searcher_kept"),
 ]
 
 
 def destination_waterfall(d: dict[str, float], path: Path) -> None:
-    """Chart 12: where LVR goes, as a floating waterfall."""
-    fig, ax = plt.subplots(figsize=(12, 5))
+    """Chart 12: where LVR goes, as a floating waterfall (shares are of searcher-step LVR)."""
+    fig, ax = plt.subplots(figsize=(14, 5))
     if not d:
         no_data(ax)
     else:
         level = 0.0
-        for i, (key, _label, kind) in enumerate(DESTINATION_STEPS):
+        for i, (key, _label, kind, share_key) in enumerate(DESTINATION_STEPS):
             v = d.get(key, 0.0) / 1e3
+            before = level
             if kind == "total":
                 ax.bar(i, v, color="tab:blue")
                 level = v
             else:
-                ax.bar(i, -v, bottom=level, color="tab:red")
+                ax.bar(i, -v, bottom=level, color="tab:grey" if i == 1 else "tab:red")
                 level -= v
+            text = f"{v:,.1f}"
+            if share_key is not None and share_key in d:
+                text += f"\n{d[share_key]:.1%}"
             ax.annotate(
-                f"{v:,.1f}",
-                (i, max(level, v if kind == "total" else level)),
+                text,
+                (i, max(before, level)),
                 ha="center",
                 va="bottom",
                 fontsize=8,

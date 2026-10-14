@@ -56,12 +56,17 @@ def test_lp_analysis_end_to_end(tmp_path: Path) -> None:
     assert all(f"R{i}" in checks_text for i in range(1, 6))
     dest = summary["lp"]["destination"]
     # Chain (0 s): LVR on searcher steps = LP fees + protocol fees + searchers' gross markout.
-    assert dest["lvr_searcher_usd"] == pytest.approx(
-        dest["lp_fees_searcher_usd"]
-        + dest["protocol_fees_searcher_usd"]
+    assert dest["lvr_on_searcher_swaps_usd"] == pytest.approx(
+        dest["fees_on_searcher_swaps_usd"]
+        + dest["protocol_fees_on_searcher_swaps_usd"]
         + dest["searcher_gross_usd"]
     )
-    assert dest["lvr_other_flows_usd"] == 0.0 and dest["multi_pool_gross_usd"] == 0.0
+    shares = [v for k, v in dest.items() if k.startswith("share_") and "pool" not in k]
+    assert sum(shares) == pytest.approx(1.0)  # the chain accounts for all searcher-step LVR
+    assert dest["pool_lvr_0_usd"] == pytest.approx(dest["lvr_on_searcher_swaps_usd"])
+    assert dest["n_swaps_no_other_logs_row"] == dest["n_swaps_null_costs"] == 0
+    assert any(k.startswith("R2") for k in summary["lp"]["checks"])
+    assert dest["lvr_on_other_flows_usd"] == 0.0 and dest["multi_pool_gross_usd"] == 0.0
     # 100,000 gas at 1 gwei base fee, 0 priority: burned = 1e-4 ETH per swap, none paid on top.
     assert dest["gas_burned_usd"] == pytest.approx(
         sum(1e-4 * p for p in inp.aligned["p_cex_0"].to_list())

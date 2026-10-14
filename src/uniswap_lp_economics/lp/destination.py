@@ -80,19 +80,29 @@ def searcher_costs(
 
 
 def destination(steps: pl.DataFrame, aligned: pl.DataFrame, costs: pl.DataFrame) -> dict[str, Any]:
-    """Totals along the chain. Only steps labelled "searcher" count: flash-fee records carry the
-    label "flash" (LVR 0) and are part of the other flows."""
+    """Pool LVR (0 s) -> LVR on searcher steps -> where it goes, in USD and as shares of the LVR
+    on searcher steps. Only steps labelled "searcher" count: flash-fee records carry the label
+    "flash" (LVR 0) and belong to the other flows. Every searcher step counts here, also those
+    with no liquidity in range (the summary's accrued-only `*_searcher_usd` keys do not).
+
+    Chain: LVR on searcher steps = LP fees + protocol fees + searcher gross; gross = multi-pool
+    gross + single-pool gross; single-pool gross = gas burned + builder margin + proposer + kept.
+    The seven `share_*` values therefore sum to 1 when the first identity holds. The `n_*` counts
+    say how many swaps were handled by a fallback in `searcher_costs`."""
     searcher = pl.col("flow_label") == "searcher"
     single = costs.filter(pl.col("scope") == SINGLE)
 
     def total(df: pl.DataFrame, col: str) -> float:
         return float(df[col].sum()) if df.height else 0.0
 
-    return {
-        "lvr_searcher_usd": total(steps.filter(searcher), "lvr_0"),
-        "lvr_other_flows_usd": total(steps.filter(~searcher), "lvr_0"),
-        "lp_fees_searcher_usd": total(steps.filter(searcher), "fee_usd"),
-        "protocol_fees_searcher_usd": total(aligned.filter(searcher), "protocol_fee_usd"),
+    lvr_searcher = total(steps.filter(searcher), "lvr_0")
+    lvr_other = total(steps.filter(~searcher), "lvr_0")
+    pool_lvr = lvr_searcher + lvr_other
+    parts = {
+        "lvr_on_searcher_swaps_usd": lvr_searcher,
+        "lvr_on_other_flows_usd": lvr_other,
+        "fees_on_searcher_swaps_usd": total(steps.filter(searcher), "fee_usd"),
+        "protocol_fees_on_searcher_swaps_usd": total(aligned.filter(searcher), "protocol_fee_usd"),
         "searcher_gross_usd": total(costs, "gross_usd"),
         "multi_pool_gross_usd": total(costs.filter(pl.col("scope") == MULTI), "gross_usd"),
         "single_pool_gross_usd": total(single, "gross_usd"),
@@ -100,4 +110,30 @@ def destination(steps: pl.DataFrame, aligned: pl.DataFrame, costs: pl.DataFrame)
         "builder_margin_usd": total(single, "builder_margin_usd"),
         "proposer_usd": total(single, "proposer_usd"),
         "searcher_kept_usd": total(single, "kept_usd"),
+    }
+
+    def share(value: float) -> float:
+        return value / lvr_searcher if lvr_searcher else 0.0
+
+    shares = {
+        "share_fees": parts["fees_on_searcher_swaps_usd"],
+        "share_protocol_fees": parts["protocol_fees_on_searcher_swaps_usd"],
+        "share_multi_pool": parts["multi_pool_gross_usd"],
+        "share_gas_burned": parts["gas_burned_usd"],
+        "share_builder_margin": parts["builder_margin_usd"],
+        "share_proposer": parts["proposer_usd"],
+        "share_searcher_kept": parts["searcher_kept_usd"],
+    }
+    return {
+        "pool_lvr_0_usd": pool_lvr,
+        "share_searcher_of_pool_lvr": lvr_searcher / pool_lvr if pool_lvr else 0.0,
+        **parts,
+        **{k: share(v) for k, v in shares.items()},
+        # Fallbacks in searcher_costs, counted instead of hidden (spec section 7).
+        "n_searcher_swaps": costs.height,
+        "n_swaps_no_other_logs_row": int(costs["other_logs"].is_null().sum()),
+        "n_swaps_block_not_in_split": int(costs["proposer_share"].is_null().sum()),
+        "n_swaps_null_costs": int(
+            (costs["burned_usd"].is_null() | costs["builder_paid_usd"].is_null()).sum()
+        ),
     }
