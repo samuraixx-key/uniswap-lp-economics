@@ -7,7 +7,7 @@ from pathlib import Path
 from matplotlib.figure import Figure
 
 from uniswap_lp_economics import config
-from uniswap_lp_economics.viz import bots, fees_vs_lvr, what_is_lvr, who_pays
+from uniswap_lp_economics.viz import bots, fees_vs_lvr, hero, what_is_lvr, who_pays
 from uniswap_lp_economics.viz import discovery as viz_discovery
 from uniswap_lp_economics.viz import jit_block as viz_jit_block
 from uniswap_lp_economics.viz import markouts as viz_markouts
@@ -19,6 +19,7 @@ ExtraFn = Callable[[Results, Path], list[Path]]
 
 # (file stem, figure function), in README order; each chapter task appends its entries.
 FIGURES: list[tuple[str, FigureFn]] = [
+    ("00_hero", hero.hero),
     ("01_what_is_lvr", what_is_lvr.concept),
     ("02_stale_pool_episode", what_is_lvr.episode),
     ("03_pool_follows_binance", viz_discovery.pool_follows_binance),
@@ -32,7 +33,7 @@ FIGURES: list[tuple[str, FigureFn]] = [
     ("11_jit_block", viz_jit_block.jit_block),
     ("12_lifetime", who_pays.lifetime),
 ]
-EXTRAS: list[ExtraFn] = [what_is_lvr.episode_gif]
+EXTRAS: list[ExtraFn] = [what_is_lvr.episode_gif, hero.social_card]
 FIGURE_SUFFIXES = {".svg", ".png", ".gif"}
 PREVIEW_DPI = 110
 
