@@ -1185,8 +1185,8 @@
   ],
   "limitation": "Builder payments are detected only as direct ETH transfers from the bot contract to the block's fee recipient within the same transaction. Payments routed elsewhere (another contract, a separate transaction in the bundle, off-chain agreements) are missed, so the reported net profit is an **upper bound** on what the bots keep. Binance-side trading fees, inventory and hedging costs are not observed.",
   "lp": {
-    "generated_utc": "2026-10-15T14:48:49+00:00",
-    "git_commit": "6c546d9",
+    "generated_utc": "2026-10-15T14:59:39+00:00",
+    "git_commit": "622f1da",
     "lp_fees_usd": 2644187.170867051,
     "protocol_fees_usd": 881290.1311692027,
     "lvr_0_usd": 3703796.759283188,
@@ -1402,7 +1402,7 @@
         "positions": 2131,
         "fees_usd": 574490.9940378921,
         "lvr_0_usd": 773089.5727441848,
-        "gas_usd": 1747.134759097508,
+        "gas_usd": 1747.1347590975079,
         "direct_usd": 0.0102587738304865,
         "pnl_rebal_usd": -200345.72372416395,
         "pnl_hold_usd": -3493525.816792321,
@@ -1473,7 +1473,7 @@
         "share_beat_hold": 0.3180169286577993,
         "bp_per_day": -7.571843881047216,
         "ci_lo_bp": -9.599546460077095,
-        "ci_hi_bp": -3.8665400354408925,
+        "ci_hi_bp": -3.8665400354408916,
         "bp_per_day_hold": -4.227591697086023
       },
       {
@@ -1558,8 +1558,9 @@
       "jit_txs_with_own_swaps": 265,
       "own_swaps": 298,
       "own_swap_markout_usd_0": -14295.61087764496,
-      "gas_usd_in_txs_with_own_swaps": 9805.666276459202,
-      "direct_usd_in_txs_with_own_swaps": 10353.707646051791
+      "gas_usd_in_txs_with_own_swaps": 8711.69882966535,
+      "direct_usd_in_txs_with_own_swaps": 10305.305024478943,
+      "direct_usd_jit": 10353.707646051791
     },
     "daily": {
       "days": 92,
@@ -1629,7 +1630,7 @@
         "life_bucket": "7-30d",
         "positions": 837,
         "share_beat_hold": 0.4647550776583035,
-        "median_return": -0.001326201248681486
+        "median_return": -0.0013262012486814868
       },
       {
         "life_bucket": "30-180d",
@@ -1649,9 +1650,9 @@
         "swaps": 534377,
         "unreproduced": 0,
         "by_mode": {
-          "exact_input": 496936,
           "exact_output": 25846,
-          "to_price": 11595
+          "to_price": 11595,
+          "exact_input": 496936
         },
         "engine_unmatched": 0
       },
@@ -1733,22 +1734,22 @@
           {
             "lp_type": "jit",
             "positions": 844,
-            "fee_usd": 4752.915576564617
+            "fee_usd": 4752.91557656462
           },
           {
             "lp_type": "lp_vault",
             "positions": 111,
-            "fee_usd": 12151.36826076103
+            "fee_usd": 12151.368260761034
           },
           {
             "lp_type": "nft_wallet",
             "positions": 5788,
-            "fee_usd": 2572025.8377652224
+            "fee_usd": 2572025.8377652243
           },
           {
             "lp_type": "nft_contract",
             "positions": 734,
-            "fee_usd": 38156.218421986516
+            "fee_usd": 38156.21842198651
           },
           {
             "lp_type": "direct_other",

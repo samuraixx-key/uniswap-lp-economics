@@ -1,7 +1,7 @@
 {
   "status": "PASS",
-  "generated_utc": "2026-10-15T14:48:49+00:00",
-  "git_commit": "6c546d9",
+  "generated_utc": "2026-10-15T14:59:39+00:00",
+  "git_commit": "622f1da",
   "checks": [
     {
       "name": "L1 every swap reproduced bit-exactly",
@@ -11,9 +11,9 @@
         "swaps": 534377,
         "unreproduced": 0,
         "by_mode": {
-          "exact_input": 496936,
           "exact_output": 25846,
-          "to_price": 11595
+          "to_price": 11595,
+          "exact_input": 496936
         },
         "engine_unmatched": 0
       },
@@ -149,22 +149,22 @@
           {
             "lp_type": "jit",
             "positions": 844,
-            "fee_usd": 4752.915576564617
+            "fee_usd": 4752.91557656462
           },
           {
             "lp_type": "lp_vault",
             "positions": 111,
-            "fee_usd": 12151.36826076103
+            "fee_usd": 12151.368260761034
           },
           {
             "lp_type": "nft_wallet",
             "positions": 5788,
-            "fee_usd": 2572025.8377652224
+            "fee_usd": 2572025.8377652243
           },
           {
             "lp_type": "nft_contract",
             "positions": 734,
-            "fee_usd": 38156.218421986516
+            "fee_usd": 38156.21842198651
           },
           {
             "lp_type": "direct_other",
