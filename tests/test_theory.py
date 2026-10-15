@@ -7,7 +7,9 @@ import pytest
 from uniswap_lp_economics.lp.theory import (
     GAMMA,
     LAMBDA,
+    daily_summary,
     daily_theory,
+    day_bootstrap_sum,
     interval_theory,
     measured_daily,
     p_trade,
@@ -105,27 +107,68 @@ def test_daily_theory_and_regimes() -> None:
     tagged, summary = regimes(d)
     assert tagged["regime"].to_list() == ["low"] * 3 + ["mid"] * 3 + ["high"] * 3
     assert summary["regime"].to_list() == ["low", "mid", "high"]
+    measured = d.with_columns(fees_usd=pl.lit(5.0), protocol_fee_usd=pl.lit(2.0), lvr_0=pl.lit(6.0))
+    low = regimes(measured)[1].row(0, named=True)
+    assert low["fees_minus_lvr_usd"] == pytest.approx(3 * (5.0 - 6.0))
+    assert low["protocol_fee_usd"] == pytest.approx(6.0)
+    assert low["total_fees_minus_lvr_usd"] == pytest.approx(3 * (5.0 + 2.0 - 6.0))
 
 
 def test_measured_daily_splits_searcher_flow() -> None:
     t = int(datetime(2026, 7, 1, tzinfo=UTC).timestamp()) * US
     steps = pl.DataFrame(
         {
-            "ts_us": [t, t, t + 86400 * US],
-            "flow_label": ["searcher", "x", "x"],
-            "fee_usd": [1.0, 2.0, 3.0],
-            "lvr_0": [4.0, -1.0, 0.5],
-            "lvr_12": [4.0, -1.0, 0.5],
+            "ts_us": [t, t, t + 86400 * US, t],
+            "flow_label": ["searcher", "x", "x", "searcher"],
+            "fee_usd": [1.0, 2.0, 3.0, 0.0],
+            "lvr_0": [4.0, -1.0, 0.5, 100.0],
+            "lvr_12": [4.0, -1.0, 0.5, 100.0],
+            "accrued": [True, True, True, False],  # no liquidity in range: earns no one
         }
     )
     aligned = pl.DataFrame(
-        {"block_timestamp": [datetime(2026, 7, 1, tzinfo=UTC)], "protocol_fee_usd": [0.25]}
+        {
+            "block_timestamp": [datetime(2026, 7, 1, tzinfo=UTC)] * 2,
+            "protocol_fee_usd": [0.25, 0.5],
+            "flow_label": ["x", "searcher"],
+        }
     )
     m = measured_daily(steps, aligned)
     first = m.row(0, named=True)
     assert (first["fees_usd"], first["lvr_0"], first["lvr_0_searcher"]) == (3.0, 3.0, 4.0)
-    assert first["fees_searcher"] == 1.0 and first["protocol_fee_usd"] == 0.25
+    assert first["fees_searcher"] == 1.0 and first["protocol_fee_usd"] == 0.75
+    assert first["protocol_fees_searcher"] == 0.5
     assert m.row(1, named=True)["protocol_fee_usd"] == 0.0
+    assert m.row(1, named=True)["protocol_fees_searcher"] == 0.0
+
+
+def test_day_bootstrap_sum_resamples_whole_days() -> None:
+    values = [1.0, -3.0, 2.0, 0.5]
+    lo, hi = day_bootstrap_sum(values)
+    assert (lo, hi) == day_bootstrap_sum(values)  # seed 42
+    assert -12.0 <= lo <= sum(values) <= hi <= 8.0  # 4 x min, 4 x max
+    assert day_bootstrap_sum([2.0, 2.0]) == (4.0, 4.0)
+    assert all(math.isnan(x) for x in day_bootstrap_sum([]))
+
+
+def test_daily_summary_counts_days_and_bootstraps_fees_minus_lvr() -> None:
+    daily = pl.DataFrame(
+        {
+            "fees_usd": [5.0, 1.0, 3.0],
+            "protocol_fee_usd": [1.0, 1.0, 1.0],
+            "lvr_0": [4.0, 1.5, 3.5],
+        }
+    )
+    out = daily_summary(daily)
+    assert out["days"] == 3
+    assert out["days_lvr_above_lp_fees"] == 2 and out["days_lvr_above_total_fees"] == 0
+    assert out["total_fees_usd"] == pytest.approx(12.0)
+    assert out["total_fees_minus_lvr_usd"] == pytest.approx(3.0)
+    assert out["fees_minus_lvr_usd"] == pytest.approx(0.0)
+    lp_ci = (out["fees_minus_lvr_ci_lo_usd"], out["fees_minus_lvr_ci_hi_usd"])
+    total_ci = (out["total_fees_minus_lvr_ci_lo_usd"], out["total_fees_minus_lvr_ci_hi_usd"])
+    assert lp_ci == day_bootstrap_sum([1.0, -0.5, -0.5])
+    assert total_ci == day_bootstrap_sum([2.0, 0.5, 0.5])
 
 
 def test_regime_by_group() -> None:
@@ -145,3 +188,4 @@ def test_regime_by_group() -> None:
         0, named=True
     )
     assert low_jit["fees_minus_lvr_usd"] == pytest.approx(0.5)
+    assert t["regime"].to_list() == ["low", "low", "high"]  # regime order, not alphabetical

@@ -1,7 +1,11 @@
 import polars as pl
 import pytest
 
-from uniswap_lp_economics.lp.checks import check_r1_relays, check_r2_traces_vs_alchemy
+from uniswap_lp_economics.lp.checks import (
+    check_r1_relays,
+    check_r2_traces_vs_alchemy,
+    check_r3_lp_types,
+)
 from uniswap_lp_economics.lp.destination import (
     LIMITATION_TEXT,
     block_split,
@@ -374,3 +378,12 @@ def test_destination_reports_a_self_built_sensitivity() -> None:
     )  # only the split between the two moves
     assert s["share_proposer"] == pytest.approx(s["proposer_usd"] / 20.0)
     assert s["share_builder_margin"] == pytest.approx(s["builder_margin_usd"] / 20.0)
+
+
+def test_r3_lists_lp_types_in_a_fixed_order() -> None:
+    positions = pl.DataFrame(
+        {"lp_type": ["nft_wallet", "jit", "lp_vault", "jit"], "fee_usd": [4.0, 1.0, 2.0, 0.5]}
+    )
+    rows = check_r3_lp_types(positions).summary["by_lp_type"]
+    assert [r["lp_type"] for r in rows] == ["jit", "lp_vault", "nft_wallet"]  # pnl.LP_TYPES order
+    assert rows[0] == {"lp_type": "jit", "positions": 2, "fee_usd": 1.5}

@@ -111,19 +111,20 @@ def labelled_swaps() -> pl.DataFrame:
     return flows.label_swaps(read_exact(path), flows.load_labels(config.LABELS_CSV))
 
 
-def refuse_paid_query(what: str, command: str) -> NoReturn:
-    """Stop `ulpe all` before a billable BigQuery query that --confirm-cost did not allow."""
+def refuse_paid_query(what: str, command: str, rerun: str = "all") -> NoReturn:
+    """Stop before a billable BigQuery query that --confirm-cost did not allow. `rerun`: the
+    command to repeat with the flag (`ulpe all`, or the standalone fetch)."""
     raise SystemExit(
         f"{what} missing: `ulpe {command}` runs a billable BigQuery query. Check its size with "
-        f"`ulpe {command} --dry-run`, then run `ulpe all --confirm-cost`"
+        f"`ulpe {command} --dry-run`, then run `ulpe {rerun} --confirm-cost`"
     )
 
 
-def fetch_blocks(dry_run: bool, confirm_cost: bool = True) -> None:
-    """With confirm_cost False (`ulpe all` without the flag), stop instead of querying BigQuery."""
+def fetch_blocks(dry_run: bool, confirm_cost: bool, rerun: str = "all") -> None:
+    """Without confirm_cost (and without dry_run), stop instead of querying BigQuery."""
     have_blocks = (config.RAW_DIR / bq_blocks.BLOCKS_FILE).exists()
     if not (dry_run or have_blocks or confirm_cost):
-        refuse_paid_query("block fee recipients and base fees", "fetch-blocks")
+        refuse_paid_query("block fee recipients and base fees", "fetch-blocks", rerun)
     bots = flows.top_bots(labelled_swaps())
     print(f"top bots: {len(bots)}")
     if dry_run or not have_blocks:
@@ -132,7 +133,7 @@ def fetch_blocks(dry_run: bool, confirm_cost: bool = True) -> None:
         print("blocks already downloaded, skipping")
     if dry_run or not bq_blocks.bot_tx_logs_current(config.RAW_DIR, bots):
         if not (dry_run or confirm_cost):
-            refuse_paid_query("logs in top-bot transactions", "fetch-blocks")
+            refuse_paid_query("logs in top-bot transactions", "fetch-blocks", rerun)
         bq_blocks.fetch_bot_tx_logs(
             config.RAW_DIR, config.WINDOW_START, config.WINDOW_END, bots, dry_run
         )
@@ -307,6 +308,7 @@ def main() -> None:
     fetch.add_argument("--start", type=date.fromisoformat, required=True)
     fetch.add_argument("--end", type=date.fromisoformat, required=True, help="exclusive")
     fetch.add_argument("--dry-run", action="store_true", help="only report bytes scanned")
+    fetch.add_argument("--confirm-cost", action="store_true", help="allow the paid queries")
     sub.add_parser("fetch-snapshot", help="read the full tick book just before the window (RPC)")
     sub.add_parser("fetch-samples", help="read on-chain state at 500 random blocks (RPC)")
     sub.add_parser("fetch-cex", help="download Binance ETHUSDC trades and ETHUSDT 1s klines")
@@ -318,6 +320,7 @@ def main() -> None:
         "fetch-blocks", help="download block miners/base fees and top-bot tx logs (BigQuery)"
     )
     blocks_cmd.add_argument("--dry-run", action="store_true", help="only report bytes scanned")
+    blocks_cmd.add_argument("--confirm-cost", action="store_true", help="allow the paid queries")
     sub.add_parser("fetch-transfers", help="download top-bot internal ETH transfers (Alchemy)")
     sub.add_parser("fetch-chain-state", help="read pool fee and position state (RPC)")
     hist = sub.add_parser(
@@ -350,8 +353,13 @@ def main() -> None:
 
     args = parser.parse_args()
     if args.command == "fetch-logs":
-        for start, end in bigquery.month_windows(args.start, args.end):
-            if not args.dry_run and bigquery.raw_logs_path(start, end).exists():
+        windows = bigquery.month_windows(args.start, args.end)
+        missing = [w for w in windows if not bigquery.raw_logs_path(*w).exists()]
+        if missing and not (args.dry_run or args.confirm_cost):
+            command = f"fetch-logs --start {args.start} --end {args.end}"
+            refuse_paid_query("pool logs", command, rerun=command)
+        for start, end in windows:
+            if not args.dry_run and (start, end) not in missing:
                 print(f"{start} -> {end}: already downloaded, skipping")
                 continue
             bigquery.fetch_pool_logs(start, end, dry_run=args.dry_run)
@@ -364,7 +372,7 @@ def main() -> None:
     elif args.command == "fetch-price-history":
         fetch_price_history()
     elif args.command == "fetch-blocks":
-        fetch_blocks(args.dry_run)
+        fetch_blocks(args.dry_run, args.confirm_cost, rerun="fetch-blocks")
     elif args.command == "fetch-transfers":
         fetch_transfers()
     elif args.command == "fetch-chain-state":

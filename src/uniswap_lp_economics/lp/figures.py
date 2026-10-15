@@ -31,19 +31,23 @@ def fees_vs_lvr_daily(daily: pl.DataFrame, path: Path) -> None:
 
 
 def measured_vs_theory(daily: pl.DataFrame, path: Path) -> None:
-    """Chart 8: measured arbitrage LVR vs theory, with and without the P_trade adjustment."""
+    """Chart 8: measured LVR on searcher swaps vs theoretical LVR, and searchers' gross (after LP
+    and protocol fees) vs the theory's expected arbitrage profit (LVR x P_trade): like with like."""
     fig, ax = plt.subplots(figsize=(10, 5))
     if daily.height:
         x = daily["day"].to_list()
-        ax.plot(x, [v / 1e3 for v in floats(daily["lvr_0_searcher"])], label="measured (searchers)")
-        ax.plot(x, [v / 1e3 for v in floats(daily["theory_1s"])], label="theory: sigma^2/8")
-        ax.plot(x, [v / 1e3 for v in floats(daily["theory_arb"])], label="theory x P_trade")
+        gross = daily["lvr_0_searcher"] - daily["fees_searcher"] - daily["protocol_fees_searcher"]
+        k = 1e3
+        ax.plot(x, [v / k for v in floats(daily["lvr_0_searcher"])], "C0-", label="measured LVR")
+        ax.plot(x, [v / k for v in floats(daily["theory_1s"])], "C0--", label="theory LVR (1 s RV)")
+        ax.plot(x, [v / k for v in floats(gross)], "C1-", label="measured gross after fees")
+        ax.plot(x, [v / k for v in floats(daily["theory_arb"])], "C1--", label="theory x P_trade")
         ax.legend()
         fig.autofmt_xdate()
     else:
         no_data(ax)
     ax.set_ylabel("USD thousands per day")
-    ax.set_title("Measured vs theoretical LVR")
+    ax.set_title("Searcher swaps: measured vs theoretical LVR, before and after fees")
     save_figure(fig, path)
 
 

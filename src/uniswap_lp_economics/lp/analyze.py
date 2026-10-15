@@ -71,11 +71,15 @@ SENSITIVITY_NOTE = (
 JIT_NOTE = (
     "JIT per swap: P&L of the jit positions divided by the swaps each was active for (swaps in "
     "its block between its first liquidity add and its last removal, in log order), summed over "
-    "position-swap pairs; the median is over jit positions with at least one swap."
+    "position-swap pairs; the median is over jit positions with at least one swap. Costs include "
+    "direct payments to the fee recipient in the LP's transactions. Some JIT transactions also "
+    "swap in the pool (jit_own_swaps in summary.json): a payment there may be for the swap, and "
+    "the rebalancing benchmark takes those swaps as free."
 )
 PNL_NOTE = (
-    "P&L against rebalancing = fees - LVR (0 s) - LP gas; against holding = everything the LP got "
-    "out minus everything put in, at the exit price. bp_per_day = P&L / (hourly time-weighted "
+    "P&L against rebalancing = fees - LVR (0 s) - LP gas - direct payments to the fee recipient "
+    "in the LP's transactions; against holding = everything the LP got out minus everything put "
+    "in, at the exit price, less the same costs. bp_per_day = P&L / (hourly time-weighted "
     "position value x days). Intervals: 95% bootstrap over positions (1,000 resamples, seed 42)."
 )
 
@@ -215,6 +219,7 @@ def lp_analysis(
         last["block_number"], last["ts_us"], int(last["end_sqrt_price_x96"]), last["p_cex"]
     )
     gas = pnl.gas_by_position(flows_window, inp.events, prices)
+    direct = pnl.direct_by_position(flows_window, inp.tx_direct, prices)
     grid = hourly_grid(bs, start.ts_us, end.ts_us)
     spans = pnl.position_spans(data.positions, accounts, flows_window, start, end)
     twv = (
@@ -238,6 +243,7 @@ def lp_analysis(
         has_code,
         start,
         end,
+        direct=direct,
     )
     groups = pl.concat(
         [
@@ -264,6 +270,7 @@ def lp_analysis(
             f"intervals): {no_theory['day'].head(5).to_list()}"
         )
     daily, regime_summary = theory.regimes(daily)
+    daily_stats = theory.daily_summary(daily)
     days = ledger.days_frame()
     regime_groups = theory.regime_by_group(days, positions.select("position_id", "lp_type"), daily)
 
@@ -276,6 +283,10 @@ def lp_analysis(
         align.kline_reference_table(inp.minute_klines, bar_s=60),
         start.ts_us,
         end,
+        window_costs={
+            pid: g + d
+            for pid, g, d in positions.select("position_id", "gas_usd", "direct_usd").iter_rows()
+        },
     )
     life_overall, life_width, life_bucket = lifetime.lifetime_summary(life)
 
@@ -296,6 +307,8 @@ def lp_analysis(
         "theory_arb_usd": float(daily["theory_arb"].sum()),
         "theory_arb_fees_usd": float(daily["theory_arb_fees"].sum()),
         "positions_window_active": positions.height,
+        "lp_gas_usd": float(positions["gas_usd"].sum()),
+        "lp_direct_payments_usd": float(positions["direct_usd"].sum()),
         "pnl_rebal_total_usd": float(positions["pnl_rebal_usd"].sum()),
         "pnl_hold_total_usd": float(positions["pnl_hold_usd"].sum()),
         "share_positions_beat_hold_window": float((positions["pnl_hold_usd"] > 0).mean())  # type: ignore[arg-type]
@@ -325,7 +338,11 @@ def lp_analysis(
         "regimes": regime_summary.to_dicts(),
         "groups": groups.to_dicts(),
         "jit_per_swap": jit,
+        "jit_own_swaps": pnl.jit_own_swaps(positions, flows_window, inp.aligned),
+        "daily": daily_stats,
         "lifetime": life_overall,
+        "lifetime_by_width": life_width.to_dicts(),
+        "lifetime_by_life": life_bucket.to_dicts(),
         "checks": {r.name: r.summary for r in results},
     }
     # Where LVR goes (spec section 7), and the reported checks R1-R5: neither gates the run.
@@ -366,6 +383,7 @@ def lp_analysis(
         "LP P&L: fees vs LVR",
         [
             ("Window totals", report.metrics_table(totals)),
+            ("Daily series, with day-bootstrap intervals", report.metrics_table(daily_stats)),
             ("By LP type", groups.filter(pl.col("grouping") == "lp_type")),
             ("JIT per swap", report.metrics_table(jit)),
         ],

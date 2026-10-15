@@ -27,6 +27,7 @@ T0 = datetime(2026, 7, 1, tzinfo=UTC)
 US = 1_000_000
 MINER = "0x" + "fe" * 20
 D, J = "0x" + "d1" * 20, "0x" + "e1" * 20
+JIT_DIRECT_WEI = 2 * 10**15
 WALLET, ZERO = "0x" + "a1" * 20, "0x" + "00" * 20
 EVENT_SCHEMA: dict[str, Any] = {
     "block_number": pl.Int64,
@@ -476,7 +477,7 @@ def world_inputs() -> LpInputs:
                 "block_number": blocks,
                 "miner": [MINER] * len(blocks),
                 "priority_wei": [10**15] * len(blocks),
-                "direct_wei": [0] * len(blocks),
+                "direct_wei": [JIT_DIRECT_WEI if b == 9 else 0 for b in blocks],
                 "last_from": [MINER] * len(blocks),
                 "last_value_wei": [5 * 10**14] * len(blocks),
             },
@@ -489,7 +490,11 @@ def world_inputs() -> LpInputs:
                 "last_value_wei": pl.Int128,
             },
         ),
-        tx_direct=pl.DataFrame(schema={"tx_hash": pl.String, "direct_wei": pl.Int128}),
+        # the JIT transaction (block 9, which also swaps) pays the fee recipient directly
+        tx_direct=pl.DataFrame(
+            {"tx_hash": [f"0x{9:064x}"], "direct_wei": [JIT_DIRECT_WEI]},
+            schema={"tx_hash": pl.String, "direct_wei": pl.Int128},
+        ),
         tx_other_logs=pl.DataFrame({"tx_hash": window["tx_hash"].unique().to_list()}).with_columns(
             other_logs=pl.lit(0, dtype=pl.Int64), logs=pl.lit(1, dtype=pl.Int64)
         ),

@@ -1,8 +1,9 @@
 """Window P&L per position and by group (spec section 6).
 
-Per active position: fees and LVR from the ledger's attribution, LP gas in the window, P&L
-against a rebalancing portfolio (fees - LVR - gas) and against holding (everything the LP got
-out minus everything put in, all at the exit price). Rates are bp of time-weighted position value
+Per active position: fees and LVR from the ledger's attribution, LP gas and direct builder
+payments in the window, P&L against a rebalancing portfolio (fees - LVR - gas - direct payments)
+and against holding (everything the LP got out minus everything put in, all at the exit price,
+less the same costs). Rates are bp of time-weighted position value
 per day; the value is sampled hourly (plan Ruling 5).
 """
 
@@ -133,6 +134,35 @@ def gas_by_position(
     return out
 
 
+def direct_by_position(
+    flows_window: pl.DataFrame, tx_direct: pl.DataFrame, prices: dict[int, tuple[int, float]]
+) -> dict[str, float]:
+    """Direct ETH payments to the block's fee recipient (`pool_tx_direct_payments`) of each window
+    transaction that changed a position, split equally across the positions it touched, at the
+    Binance price of its block. The other half of a builder payment, beside the priority fee that
+    `gas_by_position` already counts. A transaction that also swaps may pay for the swap: the
+    caller reports such transactions (`jit_own_swaps`)."""
+    paid = {
+        tx: int(w)
+        for tx, w in tx_direct.group_by("tx_hash").agg(pl.col("direct_wei").sum()).iter_rows()
+        if w
+    }
+    touched = flows_window.group_by("tx_hash").agg(
+        pl.col("position_id").unique(), pl.col("block_number").first()
+    )
+    out: dict[str, float] = {}
+    for tx, pids, block in touched.iter_rows():
+        wei = paid.get(tx, 0)
+        if not wei:
+            continue
+        if block not in prices:
+            raise ValueError(f"transaction {tx} (block {block}) has no price for its block")
+        share = wei / 1e18 * prices[block][1] / len(pids)
+        for pid in pids:
+            out[pid] = out.get(pid, 0.0) + share
+    return out
+
+
 def time_weighted_value(
     liq_path: pl.DataFrame, spans: pl.DataFrame, grid: pl.DataFrame
 ) -> pl.DataFrame:
@@ -190,6 +220,7 @@ PNL_SCHEMA: dict[str, Any] = {
     "lvr_0": pl.Float64,
     "lvr_12": pl.Float64,
     "gas_usd": pl.Float64,
+    "direct_usd": pl.Float64,
     "pnl_rebal_usd": pl.Float64,
     "pnl_rebal_12_usd": pl.Float64,
     "pnl_hold_usd": pl.Float64,
@@ -210,7 +241,10 @@ def window_pnl(
     has_code: dict[str, bool],
     start: Edge,
     end: Edge,
+    direct: dict[str, float] | None = None,
 ) -> pl.DataFrame:
+    """`gas` and `direct` (direct builder payments): USD per position, both charged to it."""
+    direct = direct or {}
     pos = {r["position_id"]: r for r in positions.iter_rows(named=True)}
     by_pos: dict[str, list[dict[str, Any]]] = {}
     for f in flows_window.sort("block_number", "log_index").iter_rows(named=True):
@@ -256,7 +290,8 @@ def window_pnl(
             e0 = e1 = 0
             exit_block, exit_ts = last["block_number"], last["ts_us"]
             p_exit = prices[exit_block][1]
-        g = gas.get(pid, 0.0)
+        g_gas, g_direct = gas.get(pid, 0.0), direct.get(pid, 0.0)
+        g = g_gas + g_direct
         pnl_hold = (
             usd(wd0 + e0 + a["fees_raw0"] - dep0, wd1 + e1 + a["fees_raw1"] - dep1, p_exit) - g
         )
@@ -301,7 +336,8 @@ def window_pnl(
                 "fee_usd": a["fee_usd"],
                 "lvr_0": a["lvr_0"],
                 "lvr_12": a["lvr_12"],
-                "gas_usd": g,
+                "gas_usd": g_gas,
+                "direct_usd": g_direct,
                 "pnl_rebal_usd": rebal,
                 "pnl_rebal_12_usd": a["fee_usd"] - a["lvr_12"] - g,
                 "pnl_hold_usd": pnl_hold,
@@ -316,6 +352,7 @@ JIT_PER_SWAP = {  # summary key -> positions column
     "fee_usd_per_swap": "fee_usd",
     "lvr_0_usd_per_swap": "lvr_0",
     "gas_usd_per_swap": "gas_usd",
+    "direct_usd_per_swap": "direct_usd",
     "pnl_rebal_usd_per_swap": "pnl_rebal_usd",
     "pnl_hold_usd_per_swap": "pnl_hold_usd",
 }
@@ -368,6 +405,42 @@ def jit_per_swap(
     return out
 
 
+def jit_own_swaps(
+    positions: pl.DataFrame, flows_window: pl.DataFrame, swaps: pl.DataFrame
+) -> dict[str, Any]:
+    """JIT transactions that also swap in the pool: how many, the swaps' 0 s markout (the
+    swapper's, so negative when the JIT operator's own trade lost at Binance's price), and the gas
+    and direct payments charged to JIT positions in them. Such a payment may be for the swap, and
+    the rebalancing benchmark takes the operator's own trades as free. `swaps`: tx_hash and
+    markout_usd_0 of every swap."""
+    jit = positions.filter(pl.col("lp_type") == "jit").select(
+        "position_id", "gas_usd", "direct_usd"
+    )
+    pos_tx = (
+        flows_window.join(jit.select("position_id"), on="position_id", how="semi")
+        .select("position_id", "tx_hash")
+        .unique()
+    )
+    txs = pos_tx.select("tx_hash").unique()
+    own = swaps.join(txs, on="tx_hash", how="semi")
+    mixed = own.select("tx_hash").unique()
+    # gas and direct payments are per position; a position's costs count once if any of its
+    # transactions also swaps (a JIT position lives in one block, almost always one transaction)
+    mixed_pos = jit.join(
+        pos_tx.join(mixed, on="tx_hash", how="semi").select("position_id").unique(),
+        on="position_id",
+        how="semi",
+    )
+    return {
+        "jit_txs": txs.height,
+        "jit_txs_with_own_swaps": mixed.height,
+        "own_swaps": own.height,
+        "own_swap_markout_usd_0": float(own["markout_usd_0"].sum()),
+        "gas_usd_in_txs_with_own_swaps": float(mixed_pos["gas_usd"].sum()),
+        "direct_usd_in_txs_with_own_swaps": float(mixed_pos["direct_usd"].sum()),
+    }
+
+
 def bootstrap_ratio(
     num: NDArray[np.float64], den: NDArray[np.float64], n_boot: int = N_BOOT, seed: int = SEED
 ) -> tuple[float, float]:
@@ -407,6 +480,7 @@ def group_table(pnl: pl.DataFrame, by: str, order: tuple[str, ...]) -> pl.DataFr
                 "fees_usd": float(g["fee_usd"].sum()),
                 "lvr_0_usd": float(g["lvr_0"].sum()),
                 "gas_usd": float(g["gas_usd"].sum()),
+                "direct_usd": float(g["direct_usd"].sum()),
                 "pnl_rebal_usd": rebal,
                 "pnl_hold_usd": hold,
                 "share_beat_hold": float((g["pnl_hold_usd"] > 0).mean()),  # type: ignore[arg-type]

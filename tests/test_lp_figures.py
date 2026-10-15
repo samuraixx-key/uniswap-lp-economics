@@ -27,6 +27,8 @@ def test_daily_chart_with_data(tmp_path: Path) -> None:
             "lvr_0": [0.5, 3.0],
             "lvr_12": [0.4, 2.5],
             "lvr_0_searcher": [0.4, 2.0],
+            "fees_searcher": [0.1, 0.5],
+            "protocol_fees_searcher": [0.03, 0.2],
             "theory_1s": [0.6, 2.2],
             "theory_arb": [0.3, 1.1],
         }

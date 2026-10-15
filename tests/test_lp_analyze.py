@@ -4,7 +4,7 @@ from typing import Any
 
 import polars as pl
 import pytest
-from lpworld import T0, US, WALLET, D, J, L, T, world_end_us, world_inputs
+from lpworld import JIT_DIRECT_WEI, T0, US, WALLET, D, J, L, T, world_end_us, world_inputs
 
 from uniswap_lp_economics.config import HOUR_US
 from uniswap_lp_economics.lp import analyze as lp
@@ -65,6 +65,10 @@ def test_lp_analysis_end_to_end(tmp_path: Path) -> None:
         positions_jit_rebal(results) / jit["swaps"]
     )
     assert "JIT per swap" in (results / "lp_pnl.md").read_text(encoding="utf-8")
+    daily = summary["lp"]["daily"]
+    assert daily["fees_minus_lvr_usd"] == pytest.approx(summary["lp"]["fees_minus_lvr_usd"])
+    assert daily["fees_minus_lvr_ci_lo_usd"] <= daily["fees_minus_lvr_ci_hi_usd"]
+    assert summary["lp"]["lifetime_by_life"] and summary["lp"]["lifetime_by_width"]
     dest = summary["lp"]["destination"]
     # Chain (0 s): LVR on searcher steps = LP fees + protocol fees + searchers' gross markout.
     assert dest["lvr_on_searcher_swaps_usd"] == pytest.approx(
@@ -82,14 +86,22 @@ def test_lp_analysis_end_to_end(tmp_path: Path) -> None:
     assert dest["gas_burned_usd"] == pytest.approx(
         sum(1e-4 * p for p in inp.aligned["p_cex_0"].to_list())
     )
-    assert dest["builder_margin_usd"] == pytest.approx(0.0)
+    # The one builder payment beyond gas: the JIT transaction's direct payment (block 9, which
+    # also swaps), counted here as the swap's and in positions.csv as the JIT position's cost.
+    p9 = inp.aligned.filter(pl.col("block_number") == 9)["p_cex_0"][0]
+    proposer_share = 5 * 10**14 / (10**15 + JIT_DIRECT_WEI)  # last_value / (priority + direct)
+    assert dest["builder_margin_usd"] == pytest.approx(
+        JIT_DIRECT_WEI / 1e18 * p9 * (1 - proposer_share)
+    )
     sens = dest["sensitivity_self_built"]  # every world block is paid: the split does not move
     assert sens["self_built_blocks"] == 0 and sens["builder_paid_self_built_usd"] == 0.0
     assert sens["proposer_usd"] == pytest.approx(dest["proposer_usd"])
     dest_text = (results / "lvr_destination.md").read_text(encoding="utf-8")
     assert "Sensitivity" in dest_text and "primary" in dest_text
+    builder_paid = dest["proposer_usd"] + dest["builder_margin_usd"]
+    assert builder_paid == pytest.approx(JIT_DIRECT_WEI / 1e18 * p9)
     assert dest["searcher_kept_usd"] == pytest.approx(
-        dest["single_pool_gross_usd"] - dest["gas_burned_usd"]
+        dest["single_pool_gross_usd"] - dest["gas_burned_usd"] - builder_paid
     )
     positions = pl.read_csv(results / "positions.csv")
     assert set(positions["lp_type"].to_list()) == {"jit", "nft_wallet", "direct_other"}
@@ -131,11 +143,19 @@ def _assert_world_numbers(inp: LpInputs, summary: dict[str, Any], positions: pl.
     assert by_id[nft] == pytest.approx(unit * (price[6] + price[10]))  # mint tx, burn+collect tx
     assert by_id[jit] == pytest.approx(unit * price[9])
     assert by_id[direct] == 0.0  # D changed nothing in the window
+    paid = dict(positions.select("position_id", "direct_usd").iter_rows())
+    assert paid[jit] == pytest.approx(JIT_DIRECT_WEI / 1e18 * price[9])
+    assert paid[nft] == 0.0 == paid[direct]
+    assert summary["lp_direct_payments_usd"] == pytest.approx(paid[jit])
+    own = summary["jit_own_swaps"]
+    assert own["jit_txs"] == 1 == own["jit_txs_with_own_swaps"]  # block 9 also swaps
+    assert own["direct_usd_in_txs_with_own_swaps"] == pytest.approx(paid[jit])
 
     # The identities pnl.window_pnl defines.
     for r in positions.iter_rows(named=True):
-        assert r["pnl_rebal_usd"] == pytest.approx(r["fee_usd"] - r["lvr_0"] - r["gas_usd"])
-        assert r["pnl_rebal_12_usd"] == pytest.approx(r["fee_usd"] - r["lvr_12"] - r["gas_usd"])
+        cost = r["gas_usd"] + r["direct_usd"]
+        assert r["pnl_rebal_usd"] == pytest.approx(r["fee_usd"] - r["lvr_0"] - cost)
+        assert r["pnl_rebal_12_usd"] == pytest.approx(r["fee_usd"] - r["lvr_12"] - cost)
     assert positions["fee_usd"].sum() <= summary["lp_fees_usd"] + 1e-9  # floors never overpay
 
     # D was open before the window: its time-weighted value comes from the hourly grid, not

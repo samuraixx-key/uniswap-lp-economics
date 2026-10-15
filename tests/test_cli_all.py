@@ -187,3 +187,41 @@ def test_standalone_fetch_builders_passes_dry_run_and_the_flag(
     monkeypatch.setattr(sys, "argv", ["ulpe", *argv])
     cli.main()
     assert calls == [expected]
+
+
+def test_standalone_fetch_logs_without_the_flag_stops_before_any_query(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(bigquery, "raw_logs_path", lambda s, e: tmp_path / f"{s}_{e}.parquet")
+    monkeypatch.setattr(bigquery, "fetch_pool_logs", _no_query)
+    argv = ["ulpe", "fetch-logs", "--start", "2026-07-01", "--end", "2026-08-01"]
+    monkeypatch.setattr(sys, "argv", argv)
+    with pytest.raises(SystemExit, match=r"ulpe fetch-logs .*--confirm-cost"):
+        cli.main()
+
+
+@pytest.mark.parametrize("flag", ["--dry-run", "--confirm-cost"])
+def test_standalone_fetch_logs_queries_with_dry_run_or_the_flag(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, flag: str
+) -> None:
+    calls: list[tuple[date, bool]] = []
+    monkeypatch.setattr(bigquery, "raw_logs_path", lambda s, e: tmp_path / f"{s}_{e}.parquet")
+    monkeypatch.setattr(
+        bigquery, "fetch_pool_logs", lambda s, e, dry_run=False: calls.append((s, dry_run))
+    )
+    argv = ["ulpe", "fetch-logs", "--start", "2026-07-01", "--end", "2026-08-01", flag]
+    monkeypatch.setattr(sys, "argv", argv)
+    cli.main()
+    assert calls == [(date(2026, 7, 1), flag == "--dry-run")]
+
+
+def test_standalone_fetch_blocks_without_the_flag_stops_before_any_query(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(config, "RAW_DIR", tmp_path)
+    monkeypatch.setattr(cli, "labelled_swaps", _no_query)
+    monkeypatch.setattr(bq_blocks, "fetch_blocks", _no_query)
+    monkeypatch.setattr(bq_blocks, "fetch_bot_tx_logs", _no_query)
+    monkeypatch.setattr(sys, "argv", ["ulpe", "fetch-blocks"])
+    with pytest.raises(SystemExit, match=r"ulpe fetch-blocks --confirm-cost"):
+        cli.main()

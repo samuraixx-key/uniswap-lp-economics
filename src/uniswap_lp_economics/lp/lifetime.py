@@ -4,6 +4,8 @@ Everything the LP got out (collected tokens, tokens still owed and accrued at th
 tokens still in the position) minus everything put in, valued at the exit price. Collected
 amounts include withdrawn principal, so withdrawals are not added again. Deposits are also
 valued at their own time for the lifetime return (Binance 1-minute closes before the window).
+The position's gas and direct builder payments inside the window are charged, as in the window
+P&L; costs before the window are not observed.
 """
 
 from typing import Any
@@ -29,6 +31,7 @@ LIFE_SCHEMA: dict[str, Any] = {
     "life_s": pl.Float64,
     "life_bucket": pl.String,
     "deposits_usd": pl.Float64,
+    "window_costs_usd": pl.Float64,
     "pnl_hold_life_usd": pl.Float64,
     "return_life": pl.Float64,
     "beat_hold": pl.Boolean,
@@ -53,7 +56,10 @@ def lifetime_table(
     minute_ref: pl.DataFrame,
     window_start_us: int,
     end: Edge,
+    window_costs: dict[str, float] | None = None,
 ) -> pl.DataFrame:
+    """`window_costs`: USD gas and direct builder payments per position inside the window."""
+    window_costs = window_costs or {}
     pos = {r["position_id"]: r for r in positions.iter_rows(named=True)}
     acc = {r["position_id"]: r for r in accounts.iter_rows(named=True)}
     fl = flows.filter(pl.col("position_id").is_in(active_ids)).sort("block_number", "log_index")
@@ -109,7 +115,8 @@ def lifetime_table(
                 raise ValueError(f"{pid}: no price for its exit at block {last['block_number']}")
             e0 = e1 = 0
             exit_ts, p_exit = last["ts_us"], prices[last["block_number"]][1]
-        pnl = usd(c0 + o0 + e0 - d0, c1 + o1 + e1 - d1, p_exit)
+        cost = window_costs.get(pid, 0.0)
+        pnl = usd(c0 + o0 + e0 - d0, c1 + o1 + e1 - d1, p_exit) - cost
         life_s = (exit_ts - p["first_ts_us"]) / US
         w = width_bp(lo, hi)
         rows.append(
@@ -120,6 +127,7 @@ def lifetime_table(
                 "life_s": life_s,
                 "life_bucket": life_bucket(life_s),
                 "deposits_usd": dep_usd,
+                "window_costs_usd": cost,
                 "pnl_hold_life_usd": pnl,
                 "return_life": pnl / dep_usd if dep_usd > 0 else None,
                 "beat_hold": pnl > 0,

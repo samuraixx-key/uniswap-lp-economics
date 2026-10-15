@@ -159,7 +159,21 @@ def test_closed_position_uses_window_prices_and_last_removal() -> None:
     assert row["deposits_usd"] == pytest.approx(usd(1000, 10**15, 1800.0))
     assert row["life_s"] == pytest.approx(DAY / 2 / US)
     assert row["life_bucket"] == "<1d"
-    assert row["beat_hold"]
+    assert row["beat_hold"] and row["window_costs_usd"] == 0.0
+    # Window gas and direct payments are charged; earlier costs are not observed.
+    costed = lifetime_table(
+        positions,
+        flows,
+        accounts,
+        ["nft:2"],
+        prices,
+        minute,
+        WINDOW_START,
+        end,
+        window_costs={"nft:2": 0.001},
+    ).row(0, named=True)
+    assert costed["pnl_hold_life_usd"] == pytest.approx(usd(500, 0, 2100.0) - 0.001)
+    assert costed["window_costs_usd"] == 0.001 and not costed["beat_hold"]
 
 
 def test_empty_lifetime_summary_keeps_its_columns() -> None:

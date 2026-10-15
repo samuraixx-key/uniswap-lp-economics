@@ -12,9 +12,11 @@ from uniswap_lp_economics.lp.pnl import (
     PNL_COLUMNS,
     Edge,
     bootstrap_ratio,
+    direct_by_position,
     gas_by_position,
     group_table,
     hold_bucket,
+    jit_own_swaps,
     jit_per_swap,
     load_lp_labels,
     position_amounts,
@@ -186,6 +188,7 @@ def pnl_frame(has_code: dict[str, bool] | None = None) -> pl.DataFrame:
         {WALLET: False} if has_code is None else has_code,
         START,
         END,
+        direct={"nft:1": 0.25},
     )
 
 
@@ -198,8 +201,11 @@ def test_window_pnl_rows() -> None:
     a, n, j = df["direct:a"], df["nft:1"], df["direct:j"]
     assert a["cohort"] == "pre_window" and a["holding"] == "whole_window"
     assert a["pnl_rebal_usd"] == pytest.approx(3.0)
-    expected = usd(900 + 50 - 1000, 2 * 10**15 + 10**12 - 10**15, 2100.0) - 0.5
+    expected = usd(900 + 50 - 1000, 2 * 10**15 + 10**12 - 10**15, 2100.0) - 0.5 - 0.25
     assert n["pnl_hold_usd"] == pytest.approx(expected)
+    assert n["gas_usd"] == pytest.approx(0.5) and n["direct_usd"] == pytest.approx(0.25)
+    assert n["pnl_rebal_usd"] == pytest.approx(1.0 - 0.5 - 0.5 - 0.25)
+    assert a["direct_usd"] == 0.0
     assert n["lp_type"] == "nft_wallet" and n["cohort"] == "in_window"
     assert n["bp_per_day"] == pytest.approx(n["pnl_rebal_usd"] / (50.0 * (360 - 240) / 86400) * 1e4)
     assert j["lp_type"] == "jit" and j["holding"] == "same_block"
@@ -246,6 +252,7 @@ def test_group_table_ratio_and_ci() -> None:
             "fee_usd": [1.0, 1.0, 2.0],
             "lvr_0": [0.5, 0.5, 1.0],
             "gas_usd": [0.0, 0.0, 0.0],
+            "direct_usd": [0.5, 0.25, 0.0],
             "pnl_rebal_usd": [1.0, 3.0, 1.0],
             "pnl_hold_usd": [1.0, -1.0, 2.0],
             "capital_days": [100.0, 100.0, 50.0],
@@ -256,6 +263,7 @@ def test_group_table_ratio_and_ci() -> None:
     jit = t.row(0, named=True)
     assert jit["positions"] == 2 and jit["bp_per_day"] == pytest.approx(4.0 / 200.0 * 1e4)
     assert jit["share_beat_hold"] == pytest.approx(0.5)
+    assert jit["direct_usd"] == pytest.approx(0.75)
     assert jit["ci_lo_bp"] <= jit["bp_per_day"] <= jit["ci_hi_bp"]
 
 
@@ -280,6 +288,60 @@ def test_gas_by_position_splits_a_transaction_across_the_positions_it_touched() 
     # 100,000 gas x 20 gwei = 0.002 ETH x 2000 = 4 USD, halved; then 50,000 gas x 20 gwei x 2100
     assert gas["direct:j"] == pytest.approx(2.0)
     assert gas["nft:1"] == pytest.approx(2.0 + 2.1)
+
+
+def test_direct_by_position_splits_builder_payments_like_gas() -> None:
+    flows = pl.DataFrame(
+        [
+            flow("nft:1", 20, "increase", L, 1, 1),
+            flow("direct:j", 20, "mint", L, 1, 1),
+            flow("nft:1", 30, "decrease", -L, 1, 1),
+        ],
+        schema=FLOW_SCHEMA,
+    )
+    tx_direct = pl.DataFrame(
+        {"tx_hash": [f"0x{20:064x}", "0x" + "ee" * 32], "direct_wei": [10**15, 10**18]},
+        schema={"tx_hash": pl.String, "direct_wei": pl.Decimal(38, 0)},
+    )
+    # 0.001 ETH x 2000 = 2 USD, halved; transaction 30 paid nothing, 0xee.. touched no position
+    assert direct_by_position(flows, tx_direct, PRICES) == {
+        "direct:j": pytest.approx(1.0),
+        "nft:1": pytest.approx(1.0),
+    }
+
+
+def test_direct_by_position_rejects_a_paying_block_without_a_price() -> None:
+    flows = pl.DataFrame([flow("nft:1", 7, "increase", L, 1, 1)], schema=FLOW_SCHEMA)
+    tx_direct = pl.DataFrame(
+        {"tx_hash": [f"0x{7:064x}"], "direct_wei": [1]},
+        schema={"tx_hash": pl.String, "direct_wei": pl.Decimal(38, 0)},
+    )
+    with pytest.raises(ValueError, match=r"0x0*7 \(block 7\) has no price"):
+        direct_by_position(flows, tx_direct, PRICES)
+
+
+def test_jit_own_swaps_counts_jit_transactions_that_also_swap() -> None:
+    positions = pl.DataFrame(
+        {
+            "position_id": ["a", "b", "c"],
+            "lp_type": ["jit", "jit", "nft_wallet"],
+            "gas_usd": [1.0, 2.0, 4.0],
+            "direct_usd": [0.5, 0.0, 8.0],
+        }
+    )
+    flows = pl.DataFrame({"position_id": ["a", "a", "b", "c"], "tx_hash": ["t1", "t1", "t2", "t3"]})
+    swaps = pl.DataFrame(
+        {"tx_hash": ["t1", "t1", "t3", "t9"], "markout_usd_0": [-3.0, -1.0, -50.0, 7.0]}
+    )
+    out = jit_own_swaps(positions, flows, swaps)
+    assert out == {
+        "jit_txs": 2,
+        "jit_txs_with_own_swaps": 1,
+        "own_swaps": 2,
+        "own_swap_markout_usd_0": pytest.approx(-4.0),
+        "gas_usd_in_txs_with_own_swaps": pytest.approx(1.0),
+        "direct_usd_in_txs_with_own_swaps": pytest.approx(0.5),
+    }
 
 
 def test_position_closed_inside_the_window_is_priced_at_its_exit_block() -> None:
@@ -426,6 +488,7 @@ def test_jit_per_swap_counts_the_swaps_between_mint_and_burn() -> None:
             "fee_usd": [1.0, 0.5, 0.0, 9.0],
             "lvr_0": [-6.0, 1.0, 0.0, 9.0],
             "gas_usd": [1.0, 0.5, 2.0, 9.0],
+            "direct_usd": [0.5, 0.0, 1.0, 9.0],
             "pnl_rebal_usd": [6.0, -1.0, -2.0, 9.0],
             "pnl_hold_usd": [6.5, -1.0, -2.0, 9.0],
         }
@@ -447,6 +510,7 @@ def test_jit_per_swap_counts_the_swaps_between_mint_and_burn() -> None:
     assert j["fee_usd_per_swap"] == pytest.approx(0.5)
     assert j["lvr_0_usd_per_swap"] == pytest.approx(-5.0 / 3)
     assert j["gas_usd_per_swap"] == pytest.approx(3.5 / 3)
+    assert j["direct_usd_per_swap"] == pytest.approx(1.5 / 3)
     assert j["pnl_rebal_usd_per_swap"] == pytest.approx(1.0)
     assert j["pnl_hold_usd_per_swap"] == pytest.approx(3.5 / 3)
     assert j["median_pnl_rebal_usd_per_swap"] == pytest.approx(1.0)  # a: 6/2 = 3, b: -1/1

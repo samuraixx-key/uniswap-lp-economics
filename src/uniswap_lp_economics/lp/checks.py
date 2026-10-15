@@ -6,6 +6,7 @@ import polars as pl
 
 from uniswap_lp_economics.arbprofit import coinbase_payments
 from uniswap_lp_economics.io import hex_u256
+from uniswap_lp_economics.lp.pnl import LP_TYPES
 from uniswap_lp_economics.lp.positions import LedgerData
 from uniswap_lp_economics.validate import MAX_LISTED, CheckResult
 
@@ -413,7 +414,14 @@ def check_r2_traces_vs_alchemy(
 
 
 def check_r3_lp_types(positions: pl.DataFrame) -> CheckResult:
-    by = positions.group_by("lp_type").agg(positions=pl.len(), fee_usd=pl.col("fee_usd").sum())
+    order = pl.DataFrame({"lp_type": list(LP_TYPES), "_o": list(range(len(LP_TYPES)))})
+    by = (
+        positions.group_by("lp_type")
+        .agg(positions=pl.len(), fee_usd=pl.col("fee_usd").sum())
+        .join(order, on="lp_type", how="left")
+        .sort("_o", "lp_type", nulls_last=True)  # pnl.LP_TYPES order, stable between runs
+        .drop("_o")
+    )
     return CheckResult(
         "R3 LP-type coverage (reported)", True, {"by_lp_type": by.to_dicts()}, reported=True
     )
