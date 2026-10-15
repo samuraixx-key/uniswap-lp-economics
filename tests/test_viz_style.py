@@ -51,3 +51,15 @@ def test_svg_is_deterministic_and_undated() -> None:
     a, b = draw(), draw()
     assert a == b
     assert b"<dc:date>" not in a and a.startswith(b"<?xml")
+
+
+def test_dollar_amounts_are_not_read_as_math() -> None:
+    with style.theme("light"):
+        fig, _ = style.new_figure()
+        style.frame(
+            fig,
+            "A $1.1M gap",
+            "LP fees − LVR: −$80 (95% interval −$110 to −$50), short by $35",
+            "$1",
+        )
+        style.svg_bytes(fig)  # raises ValueError from mathtext if "$...$" is parsed

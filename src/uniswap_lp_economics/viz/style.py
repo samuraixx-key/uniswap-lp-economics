@@ -98,6 +98,7 @@ def _rc(p: Palette) -> dict[str, Any]:
         "font.family": [FONT],
         "font.size": 10.5,
         "mathtext.fontset": "dejavusans",
+        "text.parse_math": False,  # "$" is money here; math only where asked for
         "text.color": p.ink,
         "axes.facecolor": p.background,
         "figure.facecolor": p.background,

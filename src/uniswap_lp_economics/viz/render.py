@@ -8,8 +8,8 @@ from matplotlib.figure import Figure
 
 from uniswap_lp_economics import config
 from uniswap_lp_economics.viz import discovery as viz_discovery
+from uniswap_lp_economics.viz import fees_vs_lvr, what_is_lvr
 from uniswap_lp_economics.viz import markouts as viz_markouts
-from uniswap_lp_economics.viz import what_is_lvr
 from uniswap_lp_economics.viz.data import Results, load_results
 from uniswap_lp_economics.viz.style import MODES, save_svg, theme
 
@@ -22,6 +22,9 @@ FIGURES: list[tuple[str, FigureFn]] = [
     ("02_stale_pool_episode", what_is_lvr.episode),
     ("03_pool_follows_binance", viz_discovery.pool_follows_binance),
     ("04_markouts", viz_markouts.markouts),
+    ("05_lvr_vs_volatility", fees_vs_lvr.lvr_vs_volatility),
+    ("06_cumulative_fees_vs_lvr", fees_vs_lvr.cumulative),
+    ("07_measured_vs_theory", fees_vs_lvr.measured_vs_theory),
 ]
 EXTRAS: list[ExtraFn] = [what_is_lvr.episode_gif]
 FIGURE_SUFFIXES = {".svg", ".png", ".gif"}
