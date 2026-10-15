@@ -1781,7 +1781,7 @@ z
     </g>
    </g>
   </g>
-  <g id="text_35">
+  <g id="title">
    <!-- Over their whole life, about half of LPs beat simply holding -->
    <g style="fill: #e6edf3" transform="translate(8.64 26.175625) scale(0.155 -0.155)">
     <defs>
@@ -2405,7 +2405,7 @@ z
     <use xlink:href="#Inter-Bold-292" transform="translate(2769.921875 0)"/>
    </g>
   </g>
-  <g id="text_36">
+  <g id="subtitle">
    <!-- Share of window-active positions whose lifetime result beat holding the deposited tokens: 54% overall; 78% of -->
    <g style="fill: #9aa5b1" transform="translate(8.64 45.883875) scale(0.105 -0.105)">
     <defs>
@@ -2794,7 +2794,7 @@ z
     <use xlink:href="#Inter-Regular-5de" transform="translate(3084.59375 0)"/>
    </g>
   </g>
-  <g id="text_37">
+  <g id="source">
    <!-- Gas and builder payments inside the window are charged; costs before it are not observed. Shares count positions, not dollars, and depend on each -->
    <g style="fill: #6e7781" transform="translate(8.64 428.998473) scale(0.083 -0.083)">
     <defs>

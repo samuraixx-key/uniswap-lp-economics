@@ -2419,7 +2419,7 @@ L 580.090909 165.410561
 " clip-path="url(#pc833ec4b1b)" style="fill: none; stroke: #2a7f9e; stroke-width: 2.2; stroke-linecap: square"/>
    </g>
   </g>
-  <g id="text_15">
+  <g id="title">
    <!-- Arbitrage losses grow faster with volatility than fees do -->
    <g style="fill: #1f2933" transform="translate(8.64 26.175625) scale(0.155 -0.155)">
     <defs>
@@ -2769,7 +2769,7 @@ z
     <use xlink:href="#Inter-Bold-316" transform="translate(2631.78125 0)"/>
    </g>
   </g>
-  <g id="text_16">
+  <g id="subtitle">
    <!-- Each dot is one day. Swap fees (LP + protocol) grow as σ^1.06, LVR as σ^1.40. -->
    <g style="fill: #5f6b76" transform="translate(8.64 45.883875) scale(0.105 -0.105)">
     <defs>
@@ -3192,7 +3192,7 @@ z
     <use xlink:href="#Inter-Regular-5de" transform="translate(3735.921875 0)"/>
    </g>
   </g>
-  <g id="text_17">
+  <g id="source">
    <!-- Uniswap V3 USDC/WETH 0.05%, Jul–Sep 2026. LVR measured per swap against Binance's last trade at block time. Log-log OLS fits. -->
    <g style="fill: #8d969f" transform="translate(8.64 428.998473) scale(0.083 -0.083)">
     <defs>

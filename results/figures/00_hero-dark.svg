@@ -2563,7 +2563,7 @@ z
     <use xlink:href="#Inter-Regular-59e" transform="translate(1017.078125 0)"/>
    </g>
   </g>
-  <g id="text_15">
+  <g id="title">
    <!-- Where $4.1M of arbitrage went -->
    <g style="fill: #e6edf3" transform="translate(8.64 26.175625) scale(0.155 -0.155)">
     <defs>
@@ -2667,7 +2667,7 @@ z
     <use xlink:href="#Inter-Bold-379" transform="translate(1462.484375 0)"/>
    </g>
   </g>
-  <g id="text_16">
+  <g id="subtitle">
    <!-- LVR on searcher swaps, Uniswap V3 USDC/WETH 0.05%, Jul–Sep 2026: -->
    <g style="fill: #9aa5b1" transform="translate(8.64 45.883875) scale(0.105 -0.105)">
     <defs>
@@ -3088,7 +3088,7 @@ z
     <use xlink:href="#Inter-Regular-5de" transform="translate(3520.625 0)"/>
    </g>
   </g>
-  <g id="text_17">
+  <g id="source">
    <!-- Primary split shown; the hatched box is how far the proposer/builder boundary moves under the self-built-block sensitivity. Searchers' kept is -->
    <g style="fill: #6e7781" transform="translate(8.64 428.998473) scale(0.083 -0.083)">
     <defs>

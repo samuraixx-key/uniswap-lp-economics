@@ -3122,7 +3122,7 @@ z
     </g>
    </g>
   </g>
-  <g id="text_11">
+  <g id="title">
    <!-- LVR: what an LP loses because the pool's price is always a step behind -->
    <g style="fill: #e6edf3" transform="translate(8.64 26.175625) scale(0.155 -0.155)">
     <defs>
@@ -3292,7 +3292,7 @@ z
     <use xlink:href="#Inter-Bold-255" transform="translate(3374.84375 0)"/>
    </g>
   </g>
-  <g id="text_12">
+  <g id="subtitle">
    <!-- Schematic, not data. Every price move on Binance opens a gap; the next block's arbitrage closes it at the LP's -->
    <g style="fill: #9aa5b1" transform="translate(8.64 45.883875) scale(0.105 -0.105)">
     <defs>
@@ -3514,7 +3514,7 @@ z
     <use xlink:href="#Inter-Regular-5de" transform="translate(400.328125 0)"/>
    </g>
   </g>
-  <g id="text_13">
+  <g id="source">
    <!-- LVR (loss-versus-rebalancing): Milionis, Moallemi, Roughgarden and Zhang (2022). Illustrative numbers. -->
    <g style="fill: #6e7781" transform="translate(8.64 439.041149) scale(0.083 -0.083)">
     <defs>

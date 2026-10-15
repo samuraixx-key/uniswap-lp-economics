@@ -2375,7 +2375,7 @@ z
     </g>
    </g>
   </g>
-  <g id="text_45">
+  <g id="title">
    <!-- Every LP type except JIT lost money, and JIT's result could be luck -->
    <g style="fill: #1f2933" transform="translate(8.64 26.175625) scale(0.155 -0.155)">
     <defs>
@@ -2973,7 +2973,7 @@ z
     <use xlink:href="#Inter-Bold-2d7" transform="translate(3183.859375 0)"/>
    </g>
   </g>
-  <g id="text_46">
+  <g id="subtitle">
    <!-- P&amp;L against rebalancing at Binance, in USD per $10,000 of time-weighted position value per 30 days. Wallet NFTs, -->
    <g style="fill: #5f6b76" transform="translate(8.64 45.883875) scale(0.105 -0.105)">
     <defs>
@@ -3278,7 +3278,7 @@ z
     <use xlink:href="#Inter-Regular-5de" transform="translate(2995.71875 0)"/>
    </g>
   </g>
-  <g id="text_47">
+  <g id="source">
    <!-- P&amp;L = fees − LVR (0 s) − gas − direct builder payments, against a portfolio that rebalances at Binance's last trade. 95% intervals: bootstrap over -->
    <g style="fill: #8d969f" transform="translate(8.64 428.998473) scale(0.083 -0.083)">
     <defs>

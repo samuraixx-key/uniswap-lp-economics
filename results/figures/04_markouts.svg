@@ -3167,7 +3167,7 @@ z
     </g>
    </g>
   </g>
-  <g id="text_46">
+  <g id="title">
    <!-- Searchers win against the pool; most other flow pays -->
    <g style="fill: #1f2933" transform="translate(8.64 26.175625) scale(0.155 -0.155)">
     <defs>
@@ -3288,7 +3288,7 @@ z
     <use xlink:href="#Inter-Bold-367" transform="translate(2529.109375 0)"/>
    </g>
   </g>
-  <g id="text_47">
+  <g id="subtitle">
    <!-- Notional-weighted trader markout after the swap fee, 0 s to 1 h after the block. At 0 s: searchers +2.86 bp; all -->
    <g style="fill: #5f6b76" transform="translate(8.64 45.883875) scale(0.105 -0.105)">
     <defs>
@@ -3704,7 +3704,7 @@ z
     <use xlink:href="#Inter-Regular-5de" transform="translate(759.359375 0)"/>
    </g>
   </g>
-  <g id="text_48">
+  <g id="source">
    <!-- Positive = the swap beat Binance's last trade at that horizon. Bands: 95% bootstrap over days (1,000 resamples). Dashed: all swaps. Sub-project 2. -->
    <g style="fill: #8d969f" transform="translate(8.64 439.041149) scale(0.083 -0.083)">
     <defs>

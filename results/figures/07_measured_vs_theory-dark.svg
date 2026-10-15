@@ -2261,7 +2261,7 @@ z
     </g>
    </g>
   </g>
-  <g id="text_39">
+  <g id="title">
    <!-- Measured arbitrage runs above the LVR formula, before and after fees -->
    <g style="fill: #e6edf3" transform="translate(8.64 26.175625) scale(0.155 -0.155)">
     <defs>
@@ -2834,7 +2834,7 @@ z
     <use xlink:href="#Inter-Bold-367" transform="translate(3341.421875 0)"/>
    </g>
   </g>
-  <g id="text_40">
+  <g id="subtitle">
    <!-- Each dot is one day. Before fees, measured LVR on searcher swaps is 1.31× the formula; after LP and protocol -->
    <g style="fill: #9aa5b1" transform="translate(8.64 45.883875) scale(0.105 -0.105)">
     <defs>
@@ -3088,7 +3088,7 @@ z
     <use xlink:href="#Inter-Regular-5de" transform="translate(3290.453125 0)"/>
    </g>
   </g>
-  <g id="text_41">
+  <g id="source">
    <!-- Theory: Milionis et al. (2022) with 1 s Binance returns; P_trade from Milionis, Moallemi, Roughgarden (2023), 0.05% fee and 12 s blocks. -->
    <g style="fill: #6e7781" transform="translate(8.64 439.041149) scale(0.083 -0.083)">
     <defs>

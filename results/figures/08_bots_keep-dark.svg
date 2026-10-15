@@ -2152,7 +2152,7 @@ z
     </g>
    </g>
   </g>
-  <g id="text_36">
+  <g id="title">
    <!-- Arbitrage bots hand most of their edge to block builders -->
    <g style="fill: #e6edf3" transform="translate(8.64 26.175625) scale(0.155 -0.155)">
     <defs>
@@ -2671,7 +2671,7 @@ z
     <use xlink:href="#Inter-Bold-367" transform="translate(2665.234375 0)"/>
    </g>
   </g>
-  <g id="text_37">
+  <g id="subtitle">
    <!-- Top bots' single-pool gross at 0 s: $1.2M. After the base fee, priority fees and direct payments to the block's -->
    <g style="fill: #9aa5b1" transform="translate(8.64 45.883875) scale(0.105 -0.105)">
     <defs>
@@ -2855,7 +2855,7 @@ z
     <use xlink:href="#Inter-Regular-5de" transform="translate(2312.046875 0)"/>
    </g>
   </g>
-  <g id="text_38">
+  <g id="source">
    <!-- Sub-project 2. Available = arbitrage available at block starts before gas and Binance fees. Kept misses payments outside the transaction. -->
    <g style="fill: #6e7781" transform="translate(8.64 439.041149) scale(0.083 -0.083)">
     <defs>

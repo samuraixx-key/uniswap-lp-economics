@@ -456,6 +456,13 @@ USD per $10,000 of position value per month = bp/day × 30.
   <img src="results/figures/11_jit_block.svg" alt="One real JIT block, event by event, with the position's fees, LVR, gas, builder payments and P&L">
 </picture>
 
+In the block shown (picked by a fixed rule, see [`docs/methodology.md`](docs/methodology.md),
+Figures), the operator's first swap moves the pool from $1,794.90 to $1,759.93; its liquidity then
+buys the next trader's ETH at that low price, a "negative LVR" of $2,093.08. The position made
+$1,125.36 against rebalancing, but the operator's own two swaps lost $1,088.90 against Binance at
+0 s: all in, the operator came out $36.47 ahead
+([`results/figure_data/jit_block.csv`](results/figure_data/jit_block.csv)).
+
 - **Every other type loses** against rebalancing, at 1.35 to 2.28 bp/day, with intervals below
   zero. No width bucket has a positive point estimate now that direct payments count: narrow
   ranges under 50 bp, which include the JIT positions, are at −6.03 bp/day with an interval that

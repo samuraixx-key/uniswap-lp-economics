@@ -3926,7 +3926,7 @@ z
     </g>
    </g>
   </g>
-  <g id="text_45">
+  <g id="title">
    <!-- The pool follows Binance: gaps open, and arbitrage closes them within blocks -->
    <g style="fill: #e6edf3" transform="translate(8.64 26.175625) scale(0.155 -0.155)">
     <defs>
@@ -4560,7 +4560,7 @@ z
     <use xlink:href="#Inter-Bold-367" transform="translate(3728.84375 0)"/>
    </g>
   </g>
-  <g id="text_46">
+  <g id="subtitle">
    <!-- 78% of blocks start inside the fee band; half of the gaps outside ±5 bp close within 24 s; pool returns follow -->
    <g style="fill: #9aa5b1" transform="translate(8.64 45.883875) scale(0.105 -0.105)">
     <defs>
@@ -4730,7 +4730,7 @@ z
     <use xlink:href="#Inter-Regular-5de" transform="translate(1044.984375 0)"/>
    </g>
   </g>
-  <g id="text_47">
+  <g id="source">
    <!-- Basis = pool price / Binance last trade − 1 at block start, clipped to ±50 bp. Lead–lag: correlation of per-block log returns. Sub-project 2. -->
    <g style="fill: #6e7781" transform="translate(8.64 439.041149) scale(0.083 -0.083)">
     <defs>
