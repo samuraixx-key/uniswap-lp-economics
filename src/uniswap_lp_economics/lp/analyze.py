@@ -20,7 +20,7 @@ from uniswap_lp_economics.data import (
 )
 from uniswap_lp_economics.data import blocks as bq_blocks
 from uniswap_lp_economics.io import read_exact, write_exact, write_text_atomic
-from uniswap_lp_economics.lp import destination, figures, lifetime, pnl, theory
+from uniswap_lp_economics.lp import destination, figdata, lifetime, pnl, theory
 from uniswap_lp_economics.lp.checks import (
     check_l1,
     check_l2,
@@ -42,14 +42,6 @@ from uniswap_lp_economics.lp.state import FeeAccumulators, PoolState
 from uniswap_lp_economics.tickbook import TickBook
 from uniswap_lp_economics.v3math import Q96
 
-LP_FIGURES = {
-    "daily": "7_lp_fees_vs_lvr_daily.png",
-    "theory": "8_lvr_measured_vs_theory.png",
-    "regimes": "9_lvr_by_volatility_regime.png",
-    "groups": "10_lp_pnl_by_group.png",
-    "lifetime": "11_lifetime_beat_holding.png",
-    "destination": "12_lvr_destination.png",
-}
 GROUPINGS = (
     ("lp_type", pnl.LP_TYPES),
     ("width_bucket", pnl.WIDTH_BUCKETS),
@@ -365,6 +357,9 @@ def lp_analysis(
         pl.col("r2").sum(), pl.col("lvr_theory").sum()
     )
 
+    episode_blocks, episode_cex = figdata.episode_tables(daily, bs, steps, inp.trades)
+    jit_block = figdata.jit_block_table(positions, flows_window, inp.aligned, inp.events, steps, bs)
+
     # Everything is computed: write the checks, then the data and results, summary.json last.
     validate.write_report(
         results + reported, results_dir, provenance, stem="lp_checks", title="LP analysis checks"
@@ -426,13 +421,11 @@ def lp_analysis(
         ],
         notes=[DESTINATION_NOTE, SENSITIVITY_NOTE, destination.LIMITATION_TEXT],
     )
-    figs = out / "figures"
-    figures.fees_vs_lvr_daily(daily, figs / LP_FIGURES["daily"])
-    figures.measured_vs_theory(daily, figs / LP_FIGURES["theory"])
-    figures.regime_chart(regime_summary, figs / LP_FIGURES["regimes"])
-    figures.group_chart(groups, figs / LP_FIGURES["groups"])
-    figures.lifetime_chart(life_width, life_bucket, figs / LP_FIGURES["lifetime"])
-    figures.destination_waterfall(dest, figs / LP_FIGURES["destination"])
+    fig_data = out / "figure_data"
+    fig_data.mkdir(parents=True, exist_ok=True)
+    write_text_atomic(fig_data / "episode_blocks.csv", episode_blocks.write_csv())
+    write_text_atomic(fig_data / "episode_cex.csv", episode_cex.write_csv())
+    write_text_atomic(fig_data / "jit_block.csv", jit_block.write_csv())
     report.write_summary(summary, out)
     return status
 

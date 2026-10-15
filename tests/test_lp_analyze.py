@@ -38,8 +38,21 @@ def test_lp_analysis_end_to_end(tmp_path: Path) -> None:
         "lvr_destination.md",
     ):
         assert (results / name).exists(), name
-    for name in lp.LP_FIGURES.values():
-        assert (results / "figures" / name).exists(), name
+    fd = results / "figure_data"
+    blocks = pl.read_csv(fd / "episode_blocks.csv")
+    assert blocks.columns == [
+        "block_number",
+        "ts_us",
+        "pool_price",
+        "p_cex",
+        "lvr_0_usd",
+        "has_searcher",
+    ]
+    assert blocks.height >= 1 and pl.read_csv(fd / "episode_cex.csv").height >= 1
+    jit_block = pl.read_csv(fd / "jit_block.csv")
+    assert jit_block.height >= 3 and set(jit_block["role"]) >= {"jit"}
+    assert jit_block["full_pattern"].to_list()[0] is False  # no own swaps around the world's JIT
+    assert not (results / "figures").exists()
     summary = json.loads((results / "summary.json").read_text(encoding="utf-8"))
     assert summary["swaps"] == 4  # sub-project 2 keys are kept
     assert summary["lp"]["git_commit"] == "test"
