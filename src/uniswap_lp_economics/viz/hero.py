@@ -1,6 +1,7 @@
 """The hero (README top): where the LVR on searcher swaps went, as a Sankey, with the uncertain
 proposer/builder split hatched; also the 1280×640 social card."""
 
+import textwrap
 from pathlib import Path
 from typing import Any
 
@@ -17,7 +18,7 @@ CARD_NAME = "00_hero.png"
 DEST_KEYS = (
     ("fees_on_searcher_swaps_usd", "LP fees", "fees"),
     ("protocol_fees_on_searcher_swaps_usd", "Protocol fees", "protocol"),
-    ("multi_pool_gross_usd", "Multi-pool arbitrage (not split)", "other"),
+    ("multi_pool_gross_usd", "Multi-pool (not split)", "other"),
     ("gas_burned_usd", "Gas burned", "faint"),
     ("builder_margin_usd", "Block builders", "builder"),
     ("proposer_usd", "Proposers", "proposer"),
@@ -103,7 +104,7 @@ def hero(r: Results, size: tuple[float, float] = CANVAS) -> Figure:
     sources, dests = flows(dest, p)
     lvr = float(dest["lvr_on_searcher_swaps_usd"])
     fig = plt.figure(figsize=size)
-    ax = fig.add_axes((0.03, 0.10, 0.50, 0.66))
+    ax = fig.add_axes((0.17, 0.10, 0.36, 0.66))
     ax.set_axis_off()
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
@@ -143,7 +144,7 @@ def hero(r: Results, size: tuple[float, float] = CANVAS) -> Figure:
         ax.text(
             X_LEFT - 0.02,
             y - h / 2,
-            f"{label}\n{usd(v)}",
+            f"{textwrap.fill(label, 16)}\n{usd(v)}",
             va="center",
             ha="right",
             fontsize=9.5,
@@ -191,7 +192,7 @@ def hero(r: Results, size: tuple[float, float] = CANVAS) -> Figure:
     frame(
         fig,
         f"Where {usd(lvr)} of arbitrage went",
-        f"LVR on searcher swaps, Uniswap V3 USDC/WETH 0.05%, Jul–Sep 2026: "
+        "LVR on searcher swaps, Uniswap V3 USDC/WETH 0.05%, Jul–Sep 2026:\n"
         f"{pct(float(dest['fees_on_searcher_swaps_usd']) / lvr)} came back to LPs as fees, "
         f"{pct(share_bp)} went to block builders and proposers.",
         "Primary split shown; the hatched box is how far the proposer/builder boundary moves "

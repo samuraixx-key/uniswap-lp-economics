@@ -63,3 +63,14 @@ def test_dollar_amounts_are_not_read_as_math() -> None:
             "$1",
         )
         style.svg_bytes(fig)  # raises ValueError from mathtext if "$...$" is parsed
+
+
+def test_frame_wraps_long_subtitle_and_source_lines() -> None:
+    with style.theme("light"):
+        fig, _ = style.new_figure()
+        style.frame(fig, "Title", "word " * 60 + "\nsecond paragraph", "note " * 60)
+        texts = [t.get_text() for t in fig.texts]
+    subtitle, source = texts[1], texts[2]
+    assert max(len(line) for line in subtitle.split("\n")) <= style.SUBTITLE_CHARS
+    assert subtitle.endswith("\nsecond paragraph")  # explicit breaks are kept
+    assert max(len(line) for line in source.split("\n")) <= style.SOURCE_CHARS

@@ -1,6 +1,7 @@
 """House style for every figure (chart redesign spec sections 5 and 7): palettes for light and dark
 mode, the bundled Inter font, the title block, formatters and deterministic SVG output."""
 
+import textwrap
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -27,6 +28,8 @@ FONT = "Inter"
 CANVAS = (10.0, 6.2)
 MODES = ("light", "dark")
 SVG_SALT = "ulpe-figures"
+SUBTITLE_CHARS = 112  # 10.5 pt subtitle on the 10 in canvas
+SOURCE_CHARS = 150  # 8.3 pt source line
 
 
 @dataclass(frozen=True)
@@ -164,12 +167,18 @@ def new_figure(
     return fig, axes
 
 
+def _wrap(text: str, width: int) -> str:
+    """Wrap each paragraph line to `width` characters; explicit line breaks are kept."""
+    return "\n".join(textwrap.fill(line, width) for line in text.split("\n"))
+
+
 def frame(fig: Figure, title: str, subtitle: str, source: str) -> None:
-    """Headline stating the finding, a muted subtitle with the key numbers, a source line."""
+    """Headline stating the finding, a muted subtitle with the key numbers, a source line. Long
+    subtitle and source lines wrap to the canvas width."""
     p = pal()
     fig.text(0.012, 0.975, title, fontsize=15.5, fontweight="bold", va="top", color=p.ink)
-    fig.text(0.012, 0.92, subtitle, fontsize=10.5, va="top", color=p.muted)
-    fig.text(0.012, 0.012, source, fontsize=8.3, va="bottom", color=p.faint)
+    fig.text(0.012, 0.92, _wrap(subtitle, SUBTITLE_CHARS), fontsize=10.5, va="top", color=p.muted)
+    fig.text(0.012, 0.012, _wrap(source, SOURCE_CHARS), fontsize=8.3, va="bottom", color=p.faint)
 
 
 def usd(x: float) -> str:

@@ -9,13 +9,13 @@ from uniswap_lp_economics.viz.style import USD_FMT, frame, new_figure, no_data, 
 
 # (summary.arbitrage key, label, kind): "total" bars stand on zero, "minus" bars float down
 WATERFALL = (
-    ("available_usd", "Available\nat block starts", "total"),
-    ("captured_searchers_usd", "Captured\nby searchers", "total"),
-    ("top_bot_single_pool_gross_usd", "Top bots'\nsingle-pool gross", "total"),
-    ("gas_burned_usd", "Base fee\nburned", "minus"),
+    ("available_usd", "Available", "total"),
+    ("captured_searchers_usd", "Captured\n(searchers)", "total"),
+    ("top_bot_single_pool_gross_usd", "Top bots'\ngross", "total"),
+    ("gas_burned_usd", "Base\nfee", "minus"),
     ("priority_fee_usd", "Priority\nfee", "minus"),
     ("coinbase_usd", "Direct\npayment", "minus"),
-    ("kept_usd", "Kept\n(upper bound)", "total"),
+    ("kept_usd", "Kept\n(upper\nbound)", "total"),
 )
 
 

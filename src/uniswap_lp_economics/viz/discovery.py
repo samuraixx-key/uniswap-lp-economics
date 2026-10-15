@@ -10,7 +10,7 @@ from uniswap_lp_economics.discovery import EPISODE_THRESHOLDS_BP, FEE_BAND_BP
 from uniswap_lp_economics.viz.data import Results
 from uniswap_lp_economics.viz.style import frame, new_figure, no_data, pal, pct
 
-DURATION_TICKS_S = (12, 24, 60, 120, 300, 600, 1800)
+DURATION_TICKS_S = (12, 24, 60, 300, 1800)
 
 
 def _duration(v: float) -> str:
@@ -30,6 +30,7 @@ def pool_follows_binance(r: Results) -> Figure:
     a.axvspan(-FEE_BAND_BP, FEE_BAND_BP, color=p.fees, alpha=0.12, lw=0)
     if total:
         a.bar(mid, n / total * 100, width=width, color=p.other, lw=0)
+        a.set_ylim(0, float((n / total * 100).max()) * 1.35)  # room for the band label
     else:
         no_data(a)
     a.set_xlim(-25, 25)
@@ -37,11 +38,11 @@ def pool_follows_binance(r: Results) -> Figure:
     a.set_xlabel("Pool vs Binance at block start (bp)")
     a.set_ylabel("% of blocks")
     a.text(
-        0.5,
-        0.95,
+        0.03,
+        0.97,
         f"{pct(inside)} of blocks inside\nthe ±{FEE_BAND_BP:g} bp fee band",
         transform=a.transAxes,
-        ha="center",
+        ha="left",
         va="top",
         color=p.fees,
         fontsize=9.5,
@@ -95,7 +96,7 @@ def pool_follows_binance(r: Results) -> Figure:
     c.set_xlabel("Lag in blocks (positive: Binance first)")
     c.set_ylabel("Correlation of per-block returns")
     lead = (
-        f"pool returns track Binance's {best_lag} block{'s' if best_lag != 1 else ''} earlier"
+        f"pool returns follow Binance's {best_lag} block{'s' if best_lag != 1 else ''} later"
         if best_lag > 0
         else "the pool does not lag Binance in this sample"
     )

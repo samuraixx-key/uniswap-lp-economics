@@ -8,7 +8,7 @@ from uniswap_lp_economics.config import HORIZONS_S
 from uniswap_lp_economics.viz.data import Results
 from uniswap_lp_economics.viz.style import fade_band, frame, new_figure, no_data, pal
 
-HORIZON_LABELS = {0: "0 s", 12: "12 s", 60: "1 min", 300: "5 min", 3600: "1 h"}
+HORIZON_LABELS = {0: "0 s", 12: "12 s", 60: "1 m", 300: "5 m", 3600: "1 h"}
 FLOW_NAMES = {
     "searcher": "Searchers",
     "aggregator": "Aggregators",
@@ -45,8 +45,14 @@ def markouts(r: Results) -> Figure:
         mean = g["mean_bp"].to_list()
         ax.plot(x, mean, color=color, lw=2.2, marker="o", ms=4)
         ax.axhline(0, color=p.muted, lw=0.8)
-        ax.text(
-            x[0], mean[0], f"{mean[0]:+.1f} bp  ", ha="right", va="center", fontsize=9, color=color
+        ax.annotate(
+            f"{mean[0]:+.1f} bp",
+            (x[0], mean[0]),
+            xytext=(2, 9),
+            textcoords="offset points",
+            fontsize=9,
+            color=color,
+            fontweight="bold",
         )
         ax.set_title(_name(label), loc="left", fontsize=11, fontweight="bold", color=color)
         ax.set_xticks(
