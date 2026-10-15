@@ -1,25 +1,28 @@
 {
   "status": "PASS",
-  "generated_utc": "2026-10-15T02:13:46+00:00",
-  "git_commit": "2f94abc",
+  "generated_utc": "2026-10-15T03:07:50+00:00",
+  "git_commit": "ddd0cf2",
   "checks": [
     {
       "name": "L1 every swap reproduced bit-exactly",
       "passed": true,
+      "reported": false,
       "summary": {
         "swaps": 534377,
         "unreproduced": 0,
         "by_mode": {
-          "to_price": 11595,
+          "exact_output": 25846,
           "exact_input": 496936,
-          "exact_output": 25846
-        }
+          "to_price": 11595
+        },
+        "engine_unmatched": 0
       },
       "mismatches": []
     },
     {
       "name": "L2 fee accumulators match the chain",
       "passed": true,
+      "reported": false,
       "summary": {
         "blocks": 500,
         "values_compared": 18125,
@@ -30,6 +33,7 @@
     {
       "name": "L3 position state matches the chain at both ends",
       "passed": true,
+      "reported": false,
       "summary": {
         "compared": 12263,
         "mismatches": 0,
@@ -40,6 +44,7 @@
     {
       "name": "L4 fees equal Collect minus principal",
       "passed": true,
+      "reported": false,
       "summary": {
         "positions_checked": 3428,
         "mismatches": 0
@@ -49,6 +54,7 @@
     {
       "name": "L5 positions rebuild the snapshot tick book",
       "passed": true,
+      "reported": false,
       "summary": {
         "positions_open_at_snapshot": 3837,
         "ticks_compared": 1557,
@@ -60,6 +66,7 @@
     {
       "name": "L6 accounting identities",
       "passed": true,
+      "reported": false,
       "summary": {
         "pool_lp_fees_raw": [
           1337421456289,
@@ -80,6 +87,7 @@
     {
       "name": "L7 history complete and every event assigned",
       "passed": true,
+      "reported": false,
       "summary": {
         "window_liquidity_events": 21850,
         "missing_in_history": 0,
@@ -92,18 +100,40 @@
     {
       "name": "R1 relay vs on-chain proposer payment (reported)",
       "passed": true,
+      "reported": true,
       "summary": {
         "sampled": 1000,
         "found_on_a_relay": 769,
         "compared_with_on_chain": 769,
         "match_within_1_wei": 699,
-        "match_within_1pct": 699
+        "match_within_1pct": 699,
+        "by_block_type": {
+          "paid": {
+            "sampled": 824,
+            "found": 699,
+            "match_within_1_wei": 699,
+            "match_within_1pct": 699,
+            "median_relay_value_over_revenue": 0.6344612952541893,
+            "relay_recipient_not_fee_recipient": 699
+          },
+          "self_built": {
+            "sampled": 176,
+            "found": 70,
+            "match_within_1_wei": 0,
+            "match_within_1pct": 0,
+            "median_relay_value_over_revenue": 0.5561328198956222,
+            "relay_recipient_not_fee_recipient": 70
+          }
+        },
+        "not_found_unchecked": 190,
+        "not_found_all_answered": 41
       },
       "mismatches": []
     },
     {
       "name": "R2 traces vs Alchemy builder payments, top bots (reported)",
       "passed": true,
+      "reported": true,
       "summary": {
         "alchemy_pool_txs_with_payment": 56724,
         "same_amount_in_traces": 56724
@@ -113,22 +143,23 @@
     {
       "name": "R3 LP-type coverage (reported)",
       "passed": true,
+      "reported": true,
       "summary": {
         "by_lp_type": [
           {
-            "lp_type": "lp_vault",
-            "positions": 111,
-            "fee_usd": 12151.368260761032
-          },
-          {
             "lp_type": "nft_contract",
             "positions": 734,
-            "fee_usd": 38156.21842198651
+            "fee_usd": 38156.2184219865
           },
           {
             "lp_type": "jit",
             "positions": 844,
-            "fee_usd": 4752.9155765646165
+            "fee_usd": 4752.915576564618
+          },
+          {
+            "lp_type": "lp_vault",
+            "positions": 111,
+            "fee_usd": 12151.368260761034
           },
           {
             "lp_type": "direct_other",
@@ -138,7 +169,7 @@
           {
             "lp_type": "nft_wallet",
             "positions": 5788,
-            "fee_usd": 2572025.837765223
+            "fee_usd": 2572025.8377652233
           }
         ]
       },
@@ -147,6 +178,7 @@
     {
       "name": "R4 NFT positions transferred while open (reported)",
       "passed": true,
+      "reported": true,
       "summary": {
         "window_active": 7874,
         "transferred": 570
@@ -156,6 +188,7 @@
     {
       "name": "R5 steps without a 12 s reference (reported)",
       "passed": true,
+      "reported": true,
       "summary": {
         "steps": 586360,
         "without_12s_reference": 0

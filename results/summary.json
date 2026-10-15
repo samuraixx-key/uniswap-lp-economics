@@ -1185,18 +1185,18 @@
   ],
   "limitation": "Builder payments are detected only as direct ETH transfers from the bot contract to the block's fee recipient within the same transaction. Payments routed elsewhere (another contract, a separate transaction in the bundle, off-chain agreements) are missed, so the reported net profit is an **upper bound** on what the bots keep. Binance-side trading fees, inventory and hedging costs are not observed.",
   "lp": {
-    "generated_utc": "2026-10-15T02:13:46+00:00",
-    "git_commit": "2f94abc",
+    "generated_utc": "2026-10-15T03:07:50+00:00",
+    "git_commit": "ddd0cf2",
     "lp_fees_usd": 2644187.170867051,
     "protocol_fees_usd": 881290.1311692027,
     "lvr_0_usd": 3703796.759283188,
     "lvr_12_usd": 4089325.48656422,
     "lvr_0_searcher_usd": 4144118.0033720457,
     "lp_fees_searcher_usd": 1976144.8451833571,
-    "theory_1s_usd": 3158845.5113047687,
-    "theory_1m_usd": 4333659.236499247,
-    "theory_arb_usd": 933257.671702508,
-    "theory_arb_fees_usd": 2225587.8396022604,
+    "theory_1s_usd": 3155610.478019242,
+    "theory_1m_usd": 4325747.961407778,
+    "theory_arb_usd": 931857.4743654147,
+    "theory_arb_fees_usd": 2223753.0036538276,
     "positions_window_active": 7874,
     "pnl_rebal_total_usd": -1087478.4579404388,
     "pnl_hold_total_usd": -18208565.523284324,
@@ -1218,8 +1218,8 @@
         "sigma_annual_mean": 0.24276423235392122,
         "fees_usd": 550621.7134713861,
         "lvr_0": 702456.4128484656,
-        "theory_1s": 544918.2977841398,
-        "theory_arb": 104748.97627515496,
+        "theory_1s": 545231.4784344546,
+        "theory_arb": 104819.93204453064,
         "fees_minus_lvr_usd": -151834.6993770795
       },
       {
@@ -1228,8 +1228,8 @@
         "sigma_annual_mean": 0.3877290986012223,
         "fees_usd": 842277.6328774388,
         "lvr_0": 1068876.8279067643,
-        "theory_1s": 911278.1057603568,
-        "theory_arb": 231005.65441907648,
+        "theory_1s": 910782.6323392316,
+        "theory_arb": 230903.5952289974,
         "fees_minus_lvr_usd": -226599.19502932555
       },
       {
@@ -1238,8 +1238,8 @@
         "sigma_annual_mean": 0.5659923616548425,
         "fees_usd": 1251287.8245182256,
         "lvr_0": 1932463.5185279588,
-        "theory_1s": 1702649.107760271,
-        "theory_arb": 597503.0410082763,
+        "theory_1s": 1699596.367245556,
+        "theory_arb": 596133.9470918868,
         "fees_minus_lvr_usd": -681175.6940097332
       }
     ],
@@ -1385,7 +1385,7 @@
         "positions": 2131,
         "fees_usd": 574490.9940378921,
         "lvr_0_usd": 773089.5727441848,
-        "gas_usd": 1747.134759097508,
+        "gas_usd": 1747.1347590975079,
         "pnl_rebal_usd": -200345.7134653901,
         "pnl_hold_usd": -3493525.8065335467,
         "share_beat_hold": 0.11778507742843736,
@@ -1451,7 +1451,7 @@
         "share_beat_hold": 0.3180169286577993,
         "bp_per_day": -7.571843881047216,
         "ci_lo_bp": -9.599546460077095,
-        "ci_hi_bp": -3.8665400354408925,
+        "ci_hi_bp": -3.8665400354408916,
         "bp_per_day_hold": -4.227591697086023
       },
       {
@@ -1515,6 +1515,17 @@
         "bp_per_day_hold": -6.699444100109264
       }
     ],
+    "jit_per_swap": {
+      "positions": 844,
+      "positions_with_swaps": 826,
+      "swaps": 914,
+      "fee_usd_per_swap": 5.200126451383609,
+      "lvr_0_usd_per_swap": -31.657372357714085,
+      "gas_usd_per_swap": 21.63174075985401,
+      "pnl_rebal_usd_per_swap": 15.225758049243682,
+      "pnl_hold_usd_per_swap": 15.225756837304273,
+      "median_pnl_rebal_usd_per_swap": 0.09156391803424539
+    },
     "lifetime": {
       "positions": 7874,
       "n_excluded_carry": 0,
@@ -1526,10 +1537,11 @@
         "swaps": 534377,
         "unreproduced": 0,
         "by_mode": {
-          "to_price": 11595,
+          "exact_output": 25846,
           "exact_input": 496936,
-          "exact_output": 25846
-        }
+          "to_price": 11595
+        },
+        "engine_unmatched": 0
       },
       "L2 fee accumulators match the chain": {
         "blocks": 500,
@@ -1578,7 +1590,27 @@
         "found_on_a_relay": 769,
         "compared_with_on_chain": 769,
         "match_within_1_wei": 699,
-        "match_within_1pct": 699
+        "match_within_1pct": 699,
+        "by_block_type": {
+          "paid": {
+            "sampled": 824,
+            "found": 699,
+            "match_within_1_wei": 699,
+            "match_within_1pct": 699,
+            "median_relay_value_over_revenue": 0.6344612952541893,
+            "relay_recipient_not_fee_recipient": 699
+          },
+          "self_built": {
+            "sampled": 176,
+            "found": 70,
+            "match_within_1_wei": 0,
+            "match_within_1pct": 0,
+            "median_relay_value_over_revenue": 0.5561328198956222,
+            "relay_recipient_not_fee_recipient": 70
+          }
+        },
+        "not_found_unchecked": 190,
+        "not_found_all_answered": 41
       },
       "R2 traces vs Alchemy builder payments, top bots (reported)": {
         "alchemy_pool_txs_with_payment": 56724,
@@ -1587,19 +1619,19 @@
       "R3 LP-type coverage (reported)": {
         "by_lp_type": [
           {
-            "lp_type": "lp_vault",
-            "positions": 111,
-            "fee_usd": 12151.368260761032
-          },
-          {
             "lp_type": "nft_contract",
             "positions": 734,
-            "fee_usd": 38156.21842198651
+            "fee_usd": 38156.2184219865
           },
           {
             "lp_type": "jit",
             "positions": 844,
-            "fee_usd": 4752.9155765646165
+            "fee_usd": 4752.915576564618
+          },
+          {
+            "lp_type": "lp_vault",
+            "positions": 111,
+            "fee_usd": 12151.368260761034
           },
           {
             "lp_type": "direct_other",
@@ -1609,7 +1641,7 @@
           {
             "lp_type": "nft_wallet",
             "positions": 5788,
-            "fee_usd": 2572025.837765223
+            "fee_usd": 2572025.8377652233
           }
         ]
       },
@@ -1646,7 +1678,24 @@
       "n_searcher_swaps": 253280,
       "n_swaps_no_other_logs_row": 0,
       "n_swaps_block_not_in_split": 0,
-      "n_swaps_null_costs": 0
+      "n_swaps_null_costs": 0,
+      "sensitivity_self_built": {
+        "self_built_proposer_share": 0.4914818882573164,
+        "self_built_share_basis": "volume-weighted over paid blocks: sum of proposer payments / sum of builder revenue",
+        "median_paid_block_proposer_share": 0.6240339184319743,
+        "blocks": 659799,
+        "self_built_blocks": 105536,
+        "share_blocks_self_built": 0.1599517428792708,
+        "n_single_pool_swaps_self_built": 11432,
+        "builder_paid_usd": 1443430.5544331498,
+        "builder_paid_self_built_usd": 297357.3750799717,
+        "share_builder_paid_self_built": 0.20600739964019055,
+        "share_primary_proposer_in_self_built": 0.3767397832258986,
+        "proposer_usd": 638079.5346704468,
+        "builder_margin_usd": 805351.019762703,
+        "share_proposer": 0.1539723372141539,
+        "share_builder_margin": 0.19433592844301087
+      }
     },
     "destination_limitation": "The split of builder payments between builder and proposer uses each block's ratio of proposer payment to builder revenue; how a builder prices an individual transaction is not observed. Proposer payments are identified as the block's last transaction from the fee recipient and cross-checked against relay data on a sample of blocks only."
   }

@@ -2,6 +2,8 @@
 
 P&L against rebalancing = fees - LVR (0 s) - LP gas; against holding = everything the LP got out minus everything put in, at the exit price. bp_per_day = P&L / (hourly time-weighted position value x days). Intervals: 95% bootstrap over positions (1,000 resamples, seed 42).
 
+JIT per swap: P&L of the jit positions divided by the swaps each was active for (swaps in its block between its first liquidity add and its last removal, in log order), summed over position-swap pairs; the median is over jit positions with at least one swap.
+
 ## Window totals
 
 | metric | value |
@@ -12,10 +14,10 @@ P&L against rebalancing = fees - LVR (0 s) - LP gas; against holding = everythin
 | lvr_12_usd | 4,089,325.4866 |
 | lvr_0_searcher_usd | 4,144,118.0034 |
 | lp_fees_searcher_usd | 1,976,144.8452 |
-| theory_1s_usd | 3,158,845.5113 |
-| theory_1m_usd | 4,333,659.2365 |
-| theory_arb_usd | 933,257.6717 |
-| theory_arb_fees_usd | 2,225,587.8396 |
+| theory_1s_usd | 3,155,610.4780 |
+| theory_1m_usd | 4,325,747.9614 |
+| theory_arb_usd | 931,857.4744 |
+| theory_arb_fees_usd | 2,223,753.0037 |
 | positions_window_active | 7,874 |
 | pnl_rebal_total_usd | -1,087,478.4579 |
 | pnl_hold_total_usd | -18,208,565.5233 |
@@ -38,3 +40,17 @@ P&L against rebalancing = fees - LVR (0 s) - LP gas; against holding = everythin
 | lp_type | nft_wallet | 5,788 | 2,572,025.84 | 3,644,992.64 | 5,495.25 | -1,078,462.06 | -18,127,230.35 | 0.19 | -1.35 | -1.77 | -1.12 | -22.75 |
 | lp_type | nft_contract | 734 | 38,156.22 | 50,739.87 | 1,717.36 | -14,301.02 | -74,523.43 | 0.19 | -2.28 | -2.77 | -1.91 | -11.90 |
 | lp_type | direct_other | 397 | 17,100.83 | 21,355.65 | 708.54 | -4,963.36 | -198.55 | 0.38 | -1.55 | -2.12 | -1.08 | -0.06 |
+
+## JIT per swap
+
+| metric | value |
+|---|---|
+| positions | 844 |
+| positions_with_swaps | 826 |
+| swaps | 914 |
+| fee_usd_per_swap | 5.2001 |
+| lvr_0_usd_per_swap | -31.6574 |
+| gas_usd_per_swap | 21.6317 |
+| pnl_rebal_usd_per_swap | 15.2258 |
+| pnl_hold_usd_per_swap | 15.2258 |
+| median_pnl_rebal_usd_per_swap | 0.0916 |
