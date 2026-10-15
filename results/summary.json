@@ -1185,8 +1185,8 @@
   ],
   "limitation": "Builder payments are detected only as direct ETH transfers from the bot contract to the block's fee recipient within the same transaction. Payments routed elsewhere (another contract, a separate transaction in the bundle, off-chain agreements) are missed, so the reported net profit is an **upper bound** on what the bots keep. Binance-side trading fees, inventory and hedging costs are not observed.",
   "lp": {
-    "generated_utc": "2026-10-15T23:25:20+00:00",
-    "git_commit": "bd00be7-dirty",
+    "generated_utc": "2026-10-15T23:26:29+00:00",
+    "git_commit": "37205c9",
     "lp_fees_usd": 2644187.170867051,
     "protocol_fees_usd": 881290.1311692027,
     "lvr_0_usd": 3703796.759283188,
@@ -1650,8 +1650,8 @@
         "swaps": 534377,
         "unreproduced": 0,
         "by_mode": {
-          "exact_input": 496936,
           "to_price": 11595,
+          "exact_input": 496936,
           "exact_output": 25846
         },
         "engine_unmatched": 0
@@ -1739,12 +1739,12 @@
           {
             "lp_type": "lp_vault",
             "positions": 111,
-            "fee_usd": 12151.368260761035
+            "fee_usd": 12151.368260761032
           },
           {
             "lp_type": "nft_wallet",
             "positions": 5788,
-            "fee_usd": 2572025.8377652247
+            "fee_usd": 2572025.8377652233
           },
           {
             "lp_type": "nft_contract",
