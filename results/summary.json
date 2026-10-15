@@ -1,6 +1,6 @@
 {
-  "generated_utc": "2026-10-14T16:27:13+00:00",
-  "git_commit": "1314510",
+  "generated_utc": "2026-10-15T23:24:33+00:00",
+  "git_commit": "bd00be7",
   "input_sha256_16": {
     "interim/cex_ethusdc.parquet": "2bb21f2bb6ca55b8",
     "interim/cex_ethusdt_1s.parquet": "02a5ea793a51eea0",
@@ -36,8 +36,8 @@
       "markout_usd": 178635.79928038438,
       "mean_bp": 0.2533863032608462,
       "median_bp": -2.190964682981687,
-      "ci_lo_bp": -0.13707210662318475,
-      "ci_hi_bp": 0.7654885312344668
+      "ci_lo_bp": -0.13707210662318492,
+      "ci_hi_bp": 0.7654885312344645
     },
     {
       "grouping": "all",
@@ -49,8 +49,8 @@
       "markout_usd": 564229.587743267,
       "mean_bp": 0.8003325761386547,
       "median_bp": -2.4475963231812514,
-      "ci_lo_bp": 0.30422292525156625,
-      "ci_hi_bp": 1.4765565673567527
+      "ci_lo_bp": 0.30422292525156636,
+      "ci_hi_bp": 1.4765565673567533
     },
     {
       "grouping": "all",
@@ -75,8 +75,8 @@
       "markout_usd": 612580.8163396935,
       "mean_bp": 0.8689365973422072,
       "median_bp": -3.177538340441922,
-      "ci_lo_bp": 0.02755169404365626,
-      "ci_hi_bp": 2.0574559480907917
+      "ci_lo_bp": 0.027551694043656087,
+      "ci_hi_bp": 2.0574559480907912
     },
     {
       "grouping": "all",
@@ -88,8 +88,8 @@
       "markout_usd": 1686249.7996513147,
       "mean_bp": 2.3923019168198274,
       "median_bp": -3.24674007863463,
-      "ci_lo_bp": -0.7247769265912235,
-      "ci_hi_bp": 7.6862104129059166
+      "ci_lo_bp": -0.7247769265912234,
+      "ci_hi_bp": 7.686210412905924
     }
   ],
   "markouts_by_label": [
@@ -376,8 +376,8 @@
       "markout_usd": 1944.7778192657472,
       "mean_bp": 0.5537965499338834,
       "median_bp": -1.975028464235236,
-      "ci_lo_bp": -11.204630257982481,
-      "ci_hi_bp": 14.490210532667001
+      "ci_lo_bp": -11.204630257982478,
+      "ci_hi_bp": 14.490210532666998
     },
     {
       "grouping": "flow_label",
@@ -561,8 +561,8 @@
       "markout_usd": -17804.90417592513,
       "mean_bp": -5.070092174521019,
       "median_bp": -1.4835029352934583,
-      "ci_lo_bp": -7.32657657275221,
-      "ci_hi_bp": -3.181593857353086
+      "ci_lo_bp": -7.326576572752209,
+      "ci_hi_bp": -3.1815938573530875
     },
     {
       "variant": "t0_minus_2s",
@@ -621,8 +621,8 @@
       "markout_usd": -16817.928777730624,
       "mean_bp": -5.318041642113704,
       "median_bp": -1.4266813747502496,
-      "ci_lo_bp": -7.63138857581806,
-      "ci_hi_bp": -3.2898406889793206
+      "ci_lo_bp": -7.6313885758180575,
+      "ci_hi_bp": -3.28984068897932
     },
     {
       "variant": "exclude_stale_over_5s",
@@ -1155,38 +1155,38 @@
     {
       "flow_label": "searcher",
       "swaps": 253280,
-      "notional_usd": 5270211098.65983,
-      "notional_share": 0.747554137005692
+      "notional_usd": 5270211098.659836,
+      "notional_share": 0.7475541370056927
     },
     {
       "flow_label": "uniswap_router",
       "swaps": 167988,
-      "notional_usd": 818105300.7949967,
-      "notional_share": 0.1160443084094117
+      "notional_usd": 818105300.7949966,
+      "notional_share": 0.11604430840941168
     },
     {
       "flow_label": "other_contract",
       "swaps": 91722,
-      "notional_usd": 768248014.4768475,
-      "notional_share": 0.10897229175784201
+      "notional_usd": 768248014.4768481,
+      "notional_share": 0.1089722917578421
     },
     {
       "flow_label": "aggregator",
       "swaps": 17822,
-      "notional_usd": 158257115.234123,
-      "notional_share": 0.02244801185173385
+      "notional_usd": 158257115.23412302,
+      "notional_share": 0.022448011851733857
     },
     {
       "flow_label": "intent_settlement",
       "swaps": 3565,
-      "notional_usd": 35117515.743404,
-      "notional_share": 0.004981250975320495
+      "notional_usd": 35117515.74340401,
+      "notional_share": 0.004981250975320497
     }
   ],
   "limitation": "Builder payments are detected only as direct ETH transfers from the bot contract to the block's fee recipient within the same transaction. Payments routed elsewhere (another contract, a separate transaction in the bundle, off-chain agreements) are missed, so the reported net profit is an **upper bound** on what the bots keep. Binance-side trading fees, inventory and hedging costs are not observed.",
   "lp": {
-    "generated_utc": "2026-10-15T14:59:39+00:00",
-    "git_commit": "622f1da",
+    "generated_utc": "2026-10-15T23:25:20+00:00",
+    "git_commit": "bd00be7-dirty",
     "lp_fees_usd": 2644187.170867051,
     "protocol_fees_usd": 881290.1311692027,
     "lvr_0_usd": 3703796.759283188,
@@ -1650,9 +1650,9 @@
         "swaps": 534377,
         "unreproduced": 0,
         "by_mode": {
-          "exact_output": 25846,
+          "exact_input": 496936,
           "to_price": 11595,
-          "exact_input": 496936
+          "exact_output": 25846
         },
         "engine_unmatched": 0
       },
@@ -1734,22 +1734,22 @@
           {
             "lp_type": "jit",
             "positions": 844,
-            "fee_usd": 4752.91557656462
+            "fee_usd": 4752.915576564618
           },
           {
             "lp_type": "lp_vault",
             "positions": 111,
-            "fee_usd": 12151.368260761034
+            "fee_usd": 12151.368260761035
           },
           {
             "lp_type": "nft_wallet",
             "positions": 5788,
-            "fee_usd": 2572025.8377652243
+            "fee_usd": 2572025.8377652247
           },
           {
             "lp_type": "nft_contract",
             "positions": 734,
-            "fee_usd": 38156.21842198651
+            "fee_usd": 38156.218421986516
           },
           {
             "lp_type": "direct_other",
