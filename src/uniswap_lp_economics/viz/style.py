@@ -131,7 +131,7 @@ def theme(mode: str) -> Iterator[Palette]:
         raise ValueError(f"unknown mode {mode!r}; expected one of {MODES}")
     register_fonts()
     p, previous = PALETTES[mode], _current
-    with plt.rc_context(_rc(p)):
+    with plt.rc_context(_rc(p)):  # type: ignore[arg-type]  # rcParams keys typed as literals
         _current = p
         try:
             yield p
