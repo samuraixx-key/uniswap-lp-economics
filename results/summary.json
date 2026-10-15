@@ -1185,8 +1185,8 @@
   ],
   "limitation": "Builder payments are detected only as direct ETH transfers from the bot contract to the block's fee recipient within the same transaction. Payments routed elsewhere (another contract, a separate transaction in the bundle, off-chain agreements) are missed, so the reported net profit is an **upper bound** on what the bots keep. Binance-side trading fees, inventory and hedging costs are not observed.",
   "lp": {
-    "generated_utc": "2026-10-15T03:07:50+00:00",
-    "git_commit": "ddd0cf2",
+    "generated_utc": "2026-10-15T14:48:49+00:00",
+    "git_commit": "6c546d9",
     "lp_fees_usd": 2644187.170867051,
     "protocol_fees_usd": 881290.1311692027,
     "lvr_0_usd": 3703796.759283188,
@@ -1198,9 +1198,11 @@
     "theory_arb_usd": 931857.4743654147,
     "theory_arb_fees_usd": 2223753.0036538276,
     "positions_window_active": 7874,
-    "pnl_rebal_total_usd": -1087478.4579404388,
-    "pnl_hold_total_usd": -18208565.523284324,
-    "share_positions_beat_hold_window": 0.24091948183896367,
+    "lp_gas_usd": 27868.86952439245,
+    "lp_direct_payments_usd": 10357.864946752075,
+    "pnl_rebal_total_usd": -1097836.3228871906,
+    "pnl_hold_total_usd": -18218923.388231076,
+    "share_positions_beat_hold_window": 0.24066548133096266,
     "zero_liquidity_steps": 0,
     "steps_without_12s_reference": 0,
     "collect_shortfalls": {
@@ -1220,7 +1222,9 @@
         "lvr_0": 702456.4128484656,
         "theory_1s": 545231.4784344546,
         "theory_arb": 104819.93204453064,
-        "fees_minus_lvr_usd": -151834.6993770795
+        "fees_minus_lvr_usd": -151834.6993770795,
+        "protocol_fee_usd": 183538.32123423924,
+        "total_fees_minus_lvr_usd": 31703.621857159742
       },
       {
         "regime": "mid",
@@ -1230,7 +1234,9 @@
         "lvr_0": 1068876.8279067643,
         "theory_1s": 910782.6323392316,
         "theory_arb": 230903.5952289974,
-        "fees_minus_lvr_usd": -226599.19502932555
+        "fees_minus_lvr_usd": -226599.19502932555,
+        "protocol_fee_usd": 280756.91252252035,
+        "total_fees_minus_lvr_usd": 54157.717493194796
       },
       {
         "regime": "high",
@@ -1240,7 +1246,9 @@
         "lvr_0": 1932463.5185279588,
         "theory_1s": 1699596.367245556,
         "theory_arb": 596133.9470918868,
-        "fees_minus_lvr_usd": -681175.6940097332
+        "fees_minus_lvr_usd": -681175.6940097332,
+        "protocol_fee_usd": 416994.8974124433,
+        "total_fees_minus_lvr_usd": -264180.79659728985
       }
     ],
     "groups": [
@@ -1251,13 +1259,14 @@
         "fees_usd": 4752.915576564617,
         "lvr_0_usd": -28934.838334950684,
         "gas_usd": 19771.411054506567,
-        "pnl_rebal_usd": 13916.342857008724,
-        "pnl_hold_usd": 13916.341749296103,
-        "share_beat_hold": 0.5746445497630331,
-        "bp_per_day": 5629.536651773942,
-        "ci_lo_bp": 1240.3803625596067,
-        "ci_hi_bp": 10381.086972687259,
-        "bp_per_day_hold": 5629.536203674262
+        "direct_usd": 10353.707646051791,
+        "pnl_rebal_usd": 3562.6352109569343,
+        "pnl_hold_usd": 3562.6341032443142,
+        "share_beat_hold": 0.5722748815165877,
+        "bp_per_day": 1441.182191546941,
+        "ci_lo_bp": -754.7069648986657,
+        "ci_hi_bp": 3555.8870533609042,
+        "bp_per_day_hold": 1441.18174344726
       },
       {
         "grouping": "lp_type",
@@ -1266,6 +1275,7 @@
         "fees_usd": 12151.368260761035,
         "lvr_0_usd": 15643.434719341873,
         "gas_usd": 176.30085958556379,
+        "direct_usd": 0.0,
         "pnl_rebal_usd": -3668.3673181664044,
         "pnl_hold_usd": -20529.53379829292,
         "share_beat_hold": 0.32432432432432434,
@@ -1281,6 +1291,7 @@
         "fees_usd": 2572025.8377652243,
         "lvr_0_usd": 3644992.6416971143,
         "gas_usd": 5495.253179217516,
+        "direct_usd": 0.0,
         "pnl_rebal_usd": -1078462.0571111082,
         "pnl_hold_usd": -18127230.351147577,
         "share_beat_hold": 0.18814789219073946,
@@ -1296,13 +1307,14 @@
         "fees_usd": 38156.218421986516,
         "lvr_0_usd": 50739.870990419186,
         "gas_usd": 1717.3630839973844,
-        "pnl_rebal_usd": -14301.015652430046,
-        "pnl_hold_usd": -74523.43035960043,
+        "direct_usd": 0.062353308090150245,
+        "pnl_rebal_usd": -14301.078005738134,
+        "pnl_hold_usd": -74523.49271290851,
         "share_beat_hold": 0.18528610354223432,
-        "bp_per_day": -2.283087537593574,
-        "ci_lo_bp": -2.7747332059644596,
-        "ci_hi_bp": -1.906397066523156,
-        "bp_per_day_hold": -11.897302908259903
+        "bp_per_day": -2.283097491995701,
+        "ci_lo_bp": -2.7747396910251925,
+        "ci_hi_bp": -1.9064002494702992,
+        "bp_per_day_hold": -11.897312862662027
       },
       {
         "grouping": "lp_type",
@@ -1310,14 +1322,15 @@
         "positions": 397,
         "fees_usd": 17100.83084260079,
         "lvr_0_usd": 21355.65021125805,
-        "gas_usd": 708.5413470854173,
-        "pnl_rebal_usd": -4963.36071574268,
-        "pnl_hold_usd": -198.54972815008307,
+        "gas_usd": 708.5413470854172,
+        "direct_usd": 4.094947392193042,
+        "pnl_rebal_usd": -4967.455663134873,
+        "pnl_hold_usd": -202.644675542277,
         "share_beat_hold": 0.380352644836272,
-        "bp_per_day": -1.5523659514385149,
-        "ci_lo_bp": -2.120655402906205,
-        "ci_hi_bp": -1.076136171620984,
-        "bp_per_day_hold": -0.062099423213378545
+        "bp_per_day": -1.5536467080203222,
+        "ci_lo_bp": -2.123798081211573,
+        "ci_hi_bp": -1.0776154172781849,
+        "bp_per_day_hold": -0.06338017979518637
       },
       {
         "grouping": "width_bucket",
@@ -1326,13 +1339,14 @@
         "fees_usd": 31534.023554002204,
         "lvr_0_usd": 8612.528424575808,
         "gas_usd": 20158.66068565103,
-        "pnl_rebal_usd": 2762.834443775366,
-        "pnl_hold_usd": -7993.982873084872,
-        "share_beat_hold": 0.3564413633737724,
-        "bp_per_day": 2.196372916933351,
-        "ci_lo_bp": -10.794848785805685,
-        "ci_hi_bp": 20.750416069783753,
-        "bp_per_day_hold": -6.35498356422699
+        "direct_usd": 10353.70652758622,
+        "pnl_rebal_usd": -7590.872083810856,
+        "pnl_hold_usd": -18347.689400671094,
+        "share_beat_hold": 0.35528596187175043,
+        "bp_per_day": -6.03452222711002,
+        "ci_lo_bp": -19.93605518702729,
+        "ci_hi_bp": 2.781890904362851,
+        "bp_per_day_hold": -14.58587870827036
       },
       {
         "grouping": "width_bucket",
@@ -1341,6 +1355,7 @@
         "fees_usd": 14327.439661109087,
         "lvr_0_usd": 18361.942760850045,
         "gas_usd": 387.0628931052224,
+        "direct_usd": 0.0,
         "pnl_rebal_usd": -4421.565992846183,
         "pnl_hold_usd": -5679.831815965281,
         "share_beat_hold": 0.19273743016759776,
@@ -1356,6 +1371,7 @@
         "fees_usd": 114084.66825284885,
         "lvr_0_usd": 148283.46478859917,
         "gas_usd": 1893.204327647389,
+        "direct_usd": 0.0,
         "pnl_rebal_usd": -36092.0008633977,
         "pnl_hold_usd": -29441.91076397423,
         "share_beat_hold": 0.2599309153713299,
@@ -1371,13 +1387,14 @@
         "fees_usd": 1909750.0453612849,
         "lvr_0_usd": 2755449.2505649733,
         "gas_usd": 3682.806858891297,
-        "pnl_rebal_usd": -849382.01206258,
-        "pnl_hold_usd": -14671923.99129775,
+        "direct_usd": 4.148160392020907,
+        "pnl_rebal_usd": -849386.1602229719,
+        "pnl_hold_usd": -14671928.139458146,
         "share_beat_hold": 0.2640224358974359,
-        "bp_per_day": -1.7263398532827714,
-        "ci_lo_bp": -3.0432386259863256,
-        "ci_hi_bp": -1.3521933205548184,
-        "bp_per_day_hold": -29.82018308700277
+        "bp_per_day": -1.7263482842767182,
+        "ci_lo_bp": -3.0432583026996025,
+        "ci_hi_bp": -1.352204344075517,
+        "bp_per_day_hold": -29.820191517996726
       },
       {
         "grouping": "width_bucket",
@@ -1385,14 +1402,15 @@
         "positions": 2131,
         "fees_usd": 574490.9940378921,
         "lvr_0_usd": 773089.5727441848,
-        "gas_usd": 1747.1347590975079,
-        "pnl_rebal_usd": -200345.7134653901,
-        "pnl_hold_usd": -3493525.8065335467,
+        "gas_usd": 1747.134759097508,
+        "direct_usd": 0.0102587738304865,
+        "pnl_rebal_usd": -200345.72372416395,
+        "pnl_hold_usd": -3493525.816792321,
         "share_beat_hold": 0.11778507742843736,
-        "bp_per_day": -0.6703471601106138,
-        "ci_lo_bp": -0.7514955544129683,
-        "ci_hi_bp": -0.6141712950459745,
-        "bp_per_day_hold": -11.689169998575814
+        "bp_per_day": -0.6703471944359797,
+        "ci_lo_bp": -0.7514956691150178,
+        "ci_hi_bp": -0.6141713603736866,
+        "bp_per_day_hold": -11.689170032901181
       },
       {
         "grouping": "holding",
@@ -1401,13 +1419,14 @@
         "fees_usd": 4752.915576564617,
         "lvr_0_usd": -28934.838334950684,
         "gas_usd": 19771.411054506567,
-        "pnl_rebal_usd": 13916.342857008724,
-        "pnl_hold_usd": 13916.341749296103,
-        "share_beat_hold": 0.5746445497630331,
-        "bp_per_day": 5629.536651773942,
-        "ci_lo_bp": 1240.3803625596067,
-        "ci_hi_bp": 10381.086972687259,
-        "bp_per_day_hold": 5629.536203674262
+        "direct_usd": 10353.707646051791,
+        "pnl_rebal_usd": 3562.6352109569343,
+        "pnl_hold_usd": 3562.6341032443142,
+        "share_beat_hold": 0.5722748815165877,
+        "bp_per_day": 1441.182191546941,
+        "ci_lo_bp": -754.7069648986657,
+        "ci_hi_bp": 3555.8870533609042,
+        "bp_per_day_hold": 1441.18174344726
       },
       {
         "grouping": "holding",
@@ -1416,13 +1435,14 @@
         "fees_usd": 5014.808018061301,
         "lvr_0_usd": 6995.745617426338,
         "gas_usd": 717.0627578693992,
-        "pnl_rebal_usd": -2698.0003572344367,
-        "pnl_hold_usd": -7658.744384589839,
+        "direct_usd": 1.1876257233334873,
+        "pnl_rebal_usd": -2699.18798295777,
+        "pnl_hold_usd": -7659.932010313173,
         "share_beat_hold": 0.10714285714285714,
-        "bp_per_day": -86.77100884379765,
-        "ci_lo_bp": -153.740251532156,
-        "ci_hi_bp": -42.8341810635088,
-        "bp_per_day_hold": -246.31463629931804
+        "bp_per_day": -86.80920434731792,
+        "ci_lo_bp": -153.9669456498088,
+        "ci_hi_bp": -42.86458213119398,
+        "bp_per_day_hold": -246.35283180283835
       },
       {
         "grouping": "holding",
@@ -1431,13 +1451,14 @@
         "fees_usd": 47377.63964411457,
         "lvr_0_usd": 91490.69462404317,
         "gas_usd": 1708.169566808768,
-        "pnl_rebal_usd": -45821.224546737365,
-        "pnl_hold_usd": -118890.1193981787,
+        "direct_usd": 2.9049171739850634,
+        "pnl_rebal_usd": -45824.12946391135,
+        "pnl_hold_usd": -118893.02431535268,
         "share_beat_hold": 0.3105906313645621,
-        "bp_per_day": -34.439976163083266,
-        "ci_lo_bp": -67.84250713494555,
-        "ci_hi_bp": -10.449771772144043,
-        "bp_per_day_hold": -89.35974362542315
+        "bp_per_day": -34.44215954598534,
+        "ci_lo_bp": -67.84399119731043,
+        "ci_hi_bp": -10.453979585650215,
+        "bp_per_day_hold": -89.36192700832522
       },
       {
         "grouping": "holding",
@@ -1446,12 +1467,13 @@
         "fees_usd": 181924.45411901074,
         "lvr_0_usd": 240008.65701562286,
         "gas_usd": 1614.3191116148773,
+        "direct_usd": 0.0,
         "pnl_rebal_usd": -59698.52200822693,
         "pnl_hold_usd": -33331.50814189556,
         "share_beat_hold": 0.3180169286577993,
         "bp_per_day": -7.571843881047216,
         "ci_lo_bp": -9.599546460077095,
-        "ci_hi_bp": -3.8665400354408916,
+        "ci_hi_bp": -3.8665400354408925,
         "bp_per_day_hold": -4.227591697086023
       },
       {
@@ -1461,13 +1483,14 @@
         "fees_usd": 1074902.8597697061,
         "lvr_0_usd": 1453936.5397251544,
         "gas_usd": 3738.4777865052693,
-        "pnl_rebal_usd": -382772.1577419535,
-        "pnl_hold_usd": -1760006.1766318588,
+        "direct_usd": 0.062353308090150245,
+        "pnl_rebal_usd": -382772.22009526164,
+        "pnl_hold_usd": -1760006.2389851671,
         "share_beat_hold": 0.27242152466367714,
-        "bp_per_day": -2.271582880018526,
-        "ci_lo_bp": -2.8683332177042513,
-        "ci_hi_bp": -1.6706928868761968,
-        "bp_per_day_hold": -10.444855558849323
+        "bp_per_day": -2.2715832500577373,
+        "ci_lo_bp": -2.868333503791907,
+        "ci_hi_bp": -1.6706937203747763,
+        "bp_per_day_hold": -10.444855928888535
       },
       {
         "grouping": "holding",
@@ -1476,13 +1499,14 @@
         "fees_usd": 1330214.493739679,
         "lvr_0_usd": 1940299.9606358863,
         "gas_usd": 319.4292470875663,
-        "pnl_rebal_usd": -610404.8961432951,
-        "pnl_hold_usd": -16302595.316477094,
+        "direct_usd": 0.0024044948744908878,
+        "pnl_rebal_usd": -610404.89854779,
+        "pnl_hold_usd": -16302595.31888159,
         "share_beat_hold": 0.10380735437683046,
-        "bp_per_day": -0.9675950810136051,
-        "ci_lo_bp": -1.1615402301492217,
-        "ci_hi_bp": -0.6364924566249459,
-        "bp_per_day_hold": -25.84237304721027
+        "bp_per_day": -0.9675950848251365,
+        "ci_lo_bp": -1.161540236998761,
+        "ci_hi_bp": -0.6364924742862965,
+        "bp_per_day_hold": -25.842373051021802
       },
       {
         "grouping": "cohort",
@@ -1491,13 +1515,14 @@
         "fees_usd": 1559269.7587254918,
         "lvr_0_usd": 2256207.322762384,
         "gas_usd": 1257.964550568535,
-        "pnl_rebal_usd": -698195.5285874605,
-        "pnl_hold_usd": -17415498.79618833,
+        "direct_usd": 0.0024044948744908878,
+        "pnl_rebal_usd": -698195.5309919553,
+        "pnl_hold_usd": -17415498.798592824,
         "share_beat_hold": 0.09043523586135001,
-        "bp_per_day": -1.0115515745770634,
-        "ci_lo_bp": -1.2178732699518964,
-        "ci_hi_bp": -0.7300733084128317,
-        "bp_per_day_hold": -25.23172164246033
+        "bp_per_day": -1.0115515780607156,
+        "ci_lo_bp": -1.217873276005856,
+        "ci_hi_bp": -0.7300733085649643,
+        "bp_per_day_hold": -25.23172164594398
       },
       {
         "grouping": "cohort",
@@ -1506,13 +1531,14 @@
         "fees_usd": 1084917.4121416446,
         "lvr_0_usd": 1447589.436520799,
         "gas_usd": 26610.904973823915,
-        "pnl_rebal_usd": -389282.9293529782,
-        "pnl_hold_usd": -793066.7270959978,
-        "share_beat_hold": 0.38394847659152836,
-        "bp_per_day": -3.288473889046886,
-        "ci_lo_bp": -4.417903297329197,
-        "ci_hi_bp": -2.3414858204870788,
-        "bp_per_day_hold": -6.699444100109264
+        "direct_usd": 10357.862542257199,
+        "pnl_rebal_usd": -399640.7918952354,
+        "pnl_hold_usd": -803424.5896382547,
+        "share_beat_hold": 0.383453059202378,
+        "bp_per_day": -3.3759721016532365,
+        "ci_lo_bp": -4.509632963913751,
+        "ci_hi_bp": -2.4604151327705264,
+        "bp_per_day_hold": -6.786942312715612
       }
     ],
     "jit_per_swap": {
@@ -1522,23 +1548,109 @@
       "fee_usd_per_swap": 5.200126451383609,
       "lvr_0_usd_per_swap": -31.657372357714085,
       "gas_usd_per_swap": 21.63174075985401,
-      "pnl_rebal_usd_per_swap": 15.225758049243682,
-      "pnl_hold_usd_per_swap": 15.225756837304273,
-      "median_pnl_rebal_usd_per_swap": 0.09156391803424539
+      "direct_usd_per_swap": 11.327907709028215,
+      "pnl_rebal_usd_per_swap": 3.8978503402154643,
+      "pnl_hold_usd_per_swap": 3.897849128276055,
+      "median_pnl_rebal_usd_per_swap": 0.0906471411738983
+    },
+    "jit_own_swaps": {
+      "jit_txs": 1662,
+      "jit_txs_with_own_swaps": 265,
+      "own_swaps": 298,
+      "own_swap_markout_usd_0": -14295.61087764496,
+      "gas_usd_in_txs_with_own_swaps": 9805.666276459202,
+      "direct_usd_in_txs_with_own_swaps": 10353.707646051791
+    },
+    "daily": {
+      "days": 92,
+      "days_lvr_above_lp_fees": 79,
+      "days_lvr_above_total_fees": 41,
+      "total_fees_usd": 3525477.3020362537,
+      "fees_minus_lvr_usd": -1059609.5884161384,
+      "total_fees_minus_lvr_usd": -178319.45724693558,
+      "bootstrap": "95%, 1000 resamples of days, seed 42",
+      "fees_minus_lvr_ci_lo_usd": -1533757.9590614524,
+      "fees_minus_lvr_ci_hi_usd": -712591.7684023161,
+      "total_fees_minus_lvr_ci_lo_usd": -566463.7116437856,
+      "total_fees_minus_lvr_ci_hi_usd": 91433.72869427405
     },
     "lifetime": {
       "positions": 7874,
       "n_excluded_carry": 0,
-      "share_beat_hold": 0.6567183134366269,
-      "median_return": 0.0003296469772181695
+      "share_beat_hold": 0.5350520701041402,
+      "median_return": 8.87324905673536e-06
     },
+    "lifetime_by_width": [
+      {
+        "width_bucket": "<50",
+        "positions": 1731,
+        "share_beat_hold": 0.6262276140958983,
+        "median_return": 4.516274603554039e-06
+      },
+      {
+        "width_bucket": "50-200",
+        "positions": 358,
+        "share_beat_hold": 0.42178770949720673,
+        "median_return": -4.08502376214931e-05
+      },
+      {
+        "width_bucket": "200-1000",
+        "positions": 1158,
+        "share_beat_hold": 0.4006908462867012,
+        "median_return": -0.0009109736897214024
+      },
+      {
+        "width_bucket": "1000-5000",
+        "positions": 2496,
+        "share_beat_hold": 0.4391025641025641,
+        "median_return": -0.00046222501365672416
+      },
+      {
+        "width_bucket": ">=5000",
+        "positions": 2131,
+        "share_beat_hold": 0.665415297982168,
+        "median_return": 0.01422583518629414
+      }
+    ],
+    "lifetime_by_life": [
+      {
+        "life_bucket": "<1d",
+        "positions": 2167,
+        "share_beat_hold": 0.38394093216428243,
+        "median_return": -2.7437498897461322e-05
+      },
+      {
+        "life_bucket": "1-7d",
+        "positions": 757,
+        "share_beat_hold": 0.3632760898282695,
+        "median_return": -0.0025609567491517698
+      },
+      {
+        "life_bucket": "7-30d",
+        "positions": 837,
+        "share_beat_hold": 0.4647550776583035,
+        "median_return": -0.001326201248681486
+      },
+      {
+        "life_bucket": "30-180d",
+        "positions": 1166,
+        "share_beat_hold": 0.35506003430531735,
+        "median_return": -0.019626405398280297
+      },
+      {
+        "life_bucket": ">=180d",
+        "positions": 2947,
+        "share_beat_hold": 0.7814726840855107,
+        "median_return": 0.08526767347324483
+      }
+    ],
     "checks": {
       "L1 every swap reproduced bit-exactly": {
         "swaps": 534377,
         "unreproduced": 0,
         "by_mode": {
-          "exact_output": 25846,
           "exact_input": 496936,
+          "exact_output": 25846,
           "to_price": 11595
         },
         "engine_unmatched": 0
@@ -1619,29 +1731,29 @@
       "R3 LP-type coverage (reported)": {
         "by_lp_type": [
           {
-            "lp_type": "nft_contract",
-            "positions": 734,
-            "fee_usd": 38156.2184219865
-          },
-          {
             "lp_type": "jit",
             "positions": 844,
-            "fee_usd": 4752.915576564618
+            "fee_usd": 4752.915576564617
           },
           {
             "lp_type": "lp_vault",
             "positions": 111,
-            "fee_usd": 12151.368260761034
+            "fee_usd": 12151.36826076103
+          },
+          {
+            "lp_type": "nft_wallet",
+            "positions": 5788,
+            "fee_usd": 2572025.8377652224
+          },
+          {
+            "lp_type": "nft_contract",
+            "positions": 734,
+            "fee_usd": 38156.218421986516
           },
           {
             "lp_type": "direct_other",
             "positions": 397,
             "fee_usd": 17100.83084260079
-          },
-          {
-            "lp_type": "nft_wallet",
-            "positions": 5788,
-            "fee_usd": 2572025.8377652233
           }
         ]
       },
