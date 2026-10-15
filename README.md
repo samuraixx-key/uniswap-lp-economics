@@ -95,8 +95,9 @@ at the pool's price instead of Binance's)? Which LPs make money? And where does 
    Against simply holding the deposited tokens, 24.1% of positions came out ahead within the
    window; over their whole life, 53.5% did (median return about zero), and 78% of positions with
    a life of 180 days or more.
-   *Caveat:* 265 of the 1,662 JIT transactions also swap in the pool, and they carry all of JIT's
-   direct builder payments, which may be for the swap rather than the liquidity. Their 298 swaps
+   *Caveat:* 265 of the 1,662 JIT transactions also swap in the pool, and they carry
+   99.5% of JIT's direct builder payments, which may be for the swap rather than the
+   liquidity. Their 298 swaps
    lost $14.3k against Binance at 0 s, which the rebalancing benchmark takes as free; counted with
    those swaps, the JIT operators lost about $10.7k. The benchmark assumes the LP could hedge for
    free at Binance's last trade; LPs' hedges and other holdings are not observed. Gas and builder
@@ -457,7 +458,8 @@ Fees grow with volatility, but LVR grows faster. These are LP fees, net of the p
 With the protocol's fees added back (`total_fees_minus_lvr_usd` in
 [`results/vol_regimes.md`](results/vol_regimes.md)), total swap fees exceed LVR on the low and mid
 terciles (+31,703.62 and +54,157.72) and fall short only on the high one (−264,180.80). The same
-file splits each regime by LP type: JIT liquidity is positive in all three, wallet-held NFT
+file splits each regime by LP type: JIT liquidity's fees − LVR (before gas and builder
+payments) is positive in all three, wallet-held NFT
 positions negative in all three.
 
 ### Which LPs make money? (chart 10)
@@ -502,11 +504,14 @@ day, with a 95% bootstrap interval over positions. From
   negative LVR, −$21.63 of gas, −$11.33 of direct payments); the median position made +$0.09 per
   swap, so a few positions carry the total.
 - **JIT transactions that also swap** (`jit_own_swaps` in `summary.json`): 265 of the 1,662 JIT
-  transactions also swap in the pool (298 swaps). They carry $9,805.67 of JIT gas and all
-  $10,353.71 of its direct payments, which may pay for the swap rather than the liquidity. Those
-  swaps lost $14,295.61 against Binance at 0 s; the rebalancing benchmark takes the LP's own
-  trades as free, so counting them, the JIT operators lost about $10.7k. Part of that loss is the
-  JIT positions' own negative LVR, since an operator's swap can trade against its own liquidity.
+  transactions also swap in the pool (298 swaps). They carry $8,711.70 of JIT gas and
+  $10,305.31 of its $10,353.71 of direct payments, which may pay for the swap rather than
+  the liquidity. Those swaps lost $14,295.61 against Binance at 0 s; the rebalancing benchmark
+  takes the LP's own trades as free, so counting them, the JIT operators lost about $10.7k. The
+  swaps sit outside the JIT positions' own spans (all but 6, worth −$0.01, come before the
+  liquidity is added or after it is removed), so they trade against other LPs, around the swap the
+  JIT position serves; the $10.7k is the operators' combined result, with no overlap with JIT's
+  negative LVR.
 - **Every other type loses** against rebalancing, at 1.35 to 2.28 bp/day, with intervals below
   zero. No width bucket has a positive point estimate now that direct payments count: narrow
   ranges under 50 bp, which include the JIT positions, are at −6.03 bp/day with an interval that
@@ -548,8 +553,9 @@ positions with a life of 180 days or more and −0.02 for lives of 30 to 180 day
 rounds to 0.00. The lifetime tables are also in `summary.json` (`lifetime_by_width`,
 `lifetime_by_life`). Within the window only 24.1% of positions beat holding; over a whole life the
 share is higher, mostly through positions opened long before the window, but a share counts
-positions, not dollars. Positions that lived under a day, most of them JIT, beat holding only 38%
-of the time once their gas and builder payments count.
+positions, not dollars. Of the 2,167 positions that lived under a day, 38% beat holding once
+their gas and builder payments count: 57% of the 844 JIT positions
+(whose lifetime is their window) and 26% of the others.
 
 ![Share of positions that beat holding over their lifetime](results/figures/11_lifetime_beat_holding.png)
 
@@ -692,7 +698,10 @@ payment together (34.8%) exceed the single-pool gross at 0 s (30.2%).*
   hands them to the next position, and such positions are left out of the lifetime statistics (none
   among the window-active positions).
 - **Where LVR goes:** "kept" is an upper bound (builder payments outside the transaction and
-  failed transactions are missed). The proposer/builder split is uncertain: the primary method
+  failed transactions are missed). A transaction that both swaps and moves JIT liquidity has its
+  gas and builder payments counted twice, as the searcher's cost here and as the LP's cost in the
+  P&L tables: at most $19,017 in this window (the 265 such transactions).
+  The two analyses are never added together. The proposer/builder split is uncertain: the primary method
   treats the 16.0% of blocks without a last-transaction payment as self-built, and the relay
   sample shows they are mostly MEV-Boost blocks that paid the proposer another way (all 70 relay
   mismatches over 1% are such blocks; all 699 paid blocks found match within 1 wei). Giving them

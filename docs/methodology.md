@@ -689,11 +689,14 @@ Per window-active position, in USD ([`results/positions.csv`](../results/positio
   positions with a swap is +0.09 USD per swap.
 - **JIT transactions that also swap** (`jit_own_swaps` in `summary.json`): the transactions of
   `jit` positions that also hold a pool swap: 265 of 1,662, with 298 swaps whose 0 s trader
-  markout sums to −14,295.61 USD. The `jit` positions in them carry 9,805.67 USD of gas and
-  10,353.71 USD of direct payments (all of JIT's). Such a payment may be for the swap, and the
+  markout sums to −14,295.61 USD. The `jit` positions carry 8,711.70 USD of gas and 10,305.31 USD
+  of direct payments in those transactions (of 10,353.71 USD of JIT direct payments in
+  all), counted per transaction from `cost_shares`: a JIT position usually has two transactions,
+  mint and burn, and only the swapping ones count. Such a payment may be for the swap, and the
   rebalancing benchmark takes the operator's own swaps as free: JIT's 3,562.64 USD against
-  rebalancing becomes about −10,733 USD with the swaps' markout added. Part of that markout is the
-  same positions' negative LVR, when the operator's swap trades against its own liquidity.
+  rebalancing becomes about −10,733 USD with the swaps' markout added. The swaps lie outside the
+  JIT positions' spans (all but 6, worth −0.01 USD, come before the first add or after the last
+  removal), so they trade against other LPs and do not overlap the JIT positions' LVR.
 - **Daily series** ([`results/lvr_daily.md`](../results/lvr_daily.md)): per UTC day, LP fees,
   protocol fees, measured LVR at 0 s and 12 s, the searcher part (LVR, LP fees and protocol fees on
   searcher swaps), realised variance, `σ_annual`, the theoretical values and the regime.
@@ -765,7 +768,9 @@ builder_margin = builder_paid − proposer
 kept           = gross − gas_burned − builder_paid
 ```
 
-Trace payments cover every searcher, not only the top bots of sub-project 2. **Scope:** a
+Trace payments cover every searcher, not only the top bots of sub-project 2. A transaction
+that both swaps and moves JIT liquidity (section 13) has its gas and payments counted here as the
+searcher's cost and in section 13 as the LP's cost; the two analyses are never added together. **Scope:** a
 transaction is single-pool when it emits no log from an address other than our pool, USDC, WETH and
 its target (`COALESCE(to_address, the contract created)`); this is counted for every transaction
 touching our pool. Multi-pool transactions are reported gross only.
