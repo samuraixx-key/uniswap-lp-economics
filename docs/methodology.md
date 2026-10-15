@@ -371,7 +371,7 @@ block-start state does not show) and searcher strategies other than CEX-DEX arbi
 captured exceeds available (the "By day" table). `captured_over_available` is a ratio of two totals,
 not a capture rate.
 
-The waterfall (chart 4) runs: available → captured (all searchers) → top-bot single-pool gross →
+The waterfall (figure 8) runs: available → captured (all searchers) → top-bot single-pool gross →
 minus gas burned → minus priority fee → minus coinbase payment → kept.
 
 ## 8. Checks A1–A6
@@ -775,7 +775,7 @@ transaction is single-pool when it emits no log from an address other than our p
 its target (`COALESCE(to_address, the contract created)`); this is counted for every transaction
 touching our pool. Multi-pool transactions are reported gross only.
 
-The chain ([`results/lvr_destination.md`](../results/lvr_destination.md), chart 12) runs: pool LVR
+The chain ([`results/lvr_destination.md`](../results/lvr_destination.md), the hero figure) runs: pool LVR
 at 0 s (3,703,796.76 USD) → minus the other flows (−440,321.24) → LVR on searcher steps
 (4,144,118.00) = LP fees (1,976,144.85) + protocol fees (658,714.87) + searcher gross
 (1,509,258.29); gross = multi-pool gross (257,681.73) + single-pool gross (1,251,576.57); single-pool
@@ -819,7 +819,7 @@ builder subsidises the proposer, cannot pull it. The median per-block share of t
 Their sum (0.3483), gas, kept and every other figure are the same under both. Builder margin
 exceeds the proposer payment for any share below 0.77 in these blocks, so the ordering does not
 depend on choosing the weighted ratio over the median. The primary method stays the published
-one (it is what the data identify directly, and chart 12 shows it); the sensitivity is the better
+one (it is what the data identify directly, and the hero figure shows it); the sensitivity is the better
 estimate of the split.
 
 Required limitation text (also in the README and `results/lvr_destination.md`):
@@ -874,6 +874,43 @@ What they prove and what they do not:
   a problem with the paid blocks, where the method agrees with the relays exactly. The overall
   match rate, 699 / 769 = 90.9%, only just clears the plan's 90% threshold, and this breakdown is
   the investigation that threshold asked for.
+
+## 16a. Figures
+
+`ulpe figures` renders every figure from `results/` only (`summary.json`, the results CSVs and
+`results/figure_data/`), in light and dark SVG with text as outlines, so a re-render with unchanged
+inputs changes no file. The style (palette, Inter font, title block) is in `viz/style.py`.
+
+| Figure | Inputs |
+|---|---|
+| Hero: where the LVR on searcher swaps went | `summary.json` `lp.destination` |
+| 1 What is LVR (schematic) | none |
+| 2 A stale-pool episode (and GIF) | `figure_data/episode_blocks.csv`, `episode_cex.csv` |
+| 3 The pool follows Binance | `figure_data/basis_hist.csv`, `episodes.csv`, `summary.json` `lead_lag` |
+| 4 Markouts by flow | `markouts.csv` |
+| 5 LVR and fees against volatility | `lvr_daily.csv` |
+| 6 Cumulative fees vs LVR | `lvr_daily.csv`, `summary.json` `lp.daily` |
+| 7 Measured vs theoretical LVR | `lvr_daily.csv` |
+| 8 Do bots keep the edge | `summary.json` `arbitrage`, `bot_profit.csv` |
+| 9 Every position | `positions.csv` |
+| 10 P&L by group | `lp_groups.csv` |
+| 11 One JIT block | `figure_data/jit_block.csv`, `positions.csv` |
+| 12 Lifetime vs holding | `summary.json` `lp.lifetime*` |
+
+**Episode selection (figure 2).** The day with the largest measured LVR (0 s; the earliest on
+ties); within it, the 20-block stretch with the largest absolute Binance log move; the figure shows
+32 blocks starting 4 blocks before that stretch (fewer at the day's edges).
+
+**JIT block selection (figure 11).** Among JIT positions whose own transactions (mint and burn) also
+hold a pool swap before the first liquidity add and one after the last removal, the one with the
+largest P&L vs rebalancing (then the lowest block, then the id). Without such a position, the most
+profitable JIT position, and the figure says so.
+
+**"$10k" framing (figure 10).** P&L per $10,000 of time-weighted position value per 30 days =
+`bp_per_day × 30`, since `bp_per_day` is P&L per 10⁴ of value per day.
+
+**Line of best fit (figure 5).** Ordinary least squares of log USD per day on log annualised
+volatility, over days with positive LVR and fees; the break-even is where the two fits cross.
 
 ## 17. Limitations of sub-project 3
 

@@ -48,12 +48,12 @@ from the data at render time, never typed in.
 | H | `00_hero` | Hero (README top) | Sankey: where the LVR on searcher swaps went (LP fees, protocol fees, multi-pool gross, gas burned, builders, proposers, searchers kept). The proposer/builder split is uncertain: the primary split is drawn solid, and the range up to the self-built sensitivity is a hatched band on both flows. Negative `kept` is drawn as a flow back out of the builder/proposer total and labelled. Three headline numbers beside it. Also exported as a 1280×640 PNG social card. | `summary.json` `lp.destination` |
 | 1 | `01_what_is_lvr` | What is LVR? | Concept diagram, four steps: Binance moves → the pool's price is stale → an arbitrageur trades the pool back to Binance → the LP's loss is the gap. Drawn from fixed illustrative numbers and labelled "schematic". | none |
 | 2 | `02_stale_pool_episode` | | Real episode (sample 2): Binance trades as a line, the pool's price as a step per block, the gap shaded, each block's arbitrage as a dot sized by its LVR, the four largest labelled. Plus `02_stale_pool_episode.gif`, the same window animated block by block (light mode only). | `figure_data/episode_cex.csv`, `figure_data/episode_blocks.csv` |
-| 3 | `03_pool_follows_binance` | Does the pool follow Binance? | Three panels: (a) distribution of the pool–Binance basis at block start with the ±5 bp fee band shaded; (b) how long gaps outside the band last (survival curve); (c) lead–lag cross-correlation of per-block returns. | `figure_data/basis_hist.csv`, `figure_data/gap_survival.csv`, `figure_data/leadlag.csv` |
+| 3 | `03_pool_follows_binance` | Does the pool follow Binance? | Three panels: (a) distribution of the pool–Binance basis at block start with the ±5 bp fee band shaded; (b) how long gaps outside the band last (survival curve); (c) lead–lag cross-correlation of per-block returns. | `figure_data/basis_hist.csv`, `episodes.csv`, `summary.json` `lead_lag` |
 | 4 | `04_markouts` | Who wins against the pool? | Small multiples, one panel per flow label, shared y-axis: trader markout in bp from 0 s to 1 h, with the 95% day-bootstrap interval as a band fading outwards; "all swaps" drawn faintly in every panel for reference; searchers in the highlight colour. | `markouts.csv` |
 | 5 | `05_lvr_vs_volatility` | How big is LVR, and when? | Sample 1: daily LVR (0 s) and total swap fees against daily realised volatility, log–log, with OLS fits and their slopes as labels, the break-even volatility where the fits cross, and the daily theoretical LVR (1 s) as small grey points. | `lvr_daily.csv` |
 | 6 | `06_cumulative_fees_vs_lvr` | | Cumulative LP fees, total swap fees and LVR (0 s) over the window; the gap between LP fees and LVR shaded and labelled with the total and its day-bootstrap interval; the worst day annotated. | `lvr_daily.csv`, `summary.json` `lp.daily` |
 | 7 | `07_measured_vs_theory` | | Two scatters, one point per day, with a 45° line: (a) measured LVR on searcher swaps against theoretical LVR (1 s); (b) searchers' gross after LP and protocol fees against theory × P_trade. | `lvr_daily.csv` |
-| 8 | `08_bots_keep` | Do arbitrage bots keep the edge? | Left: waterfall from available arbitrage to what the top bots kept (sub-project 2). Right: per top bot, gross against kept. | `figure_data/arb_waterfall.csv`, `bot_profit.csv` |
+| 8 | `08_bots_keep` | Do arbitrage bots keep the edge? | Left: waterfall from available arbitrage to what the top bots kept (sub-project 2). Right: per top bot, gross against kept. | `summary.json` `arbitrage`, `bot_profit.csv` |
 | 9 | `09_every_position` | Who pays? | Sample 3: every window-active position, value while open (log) against P&L vs rebalancing (symlog), JIT highlighted, wallet NFTs in teal, the rest grey; group totals and the share that made money as direct labels. Positions worth under $100 are not drawn; the footnote gives their count. | `positions.csv` |
 | 10 | `10_pnl_by_group` | | P&L vs rebalancing by LP type and by range width as dots with fading 95% intervals, in USD per $10,000 of position value per 30 days (section 6); intervals that span zero are marked; JIT on its own panel. | `lp_groups.csv` |
 | 11 | `11_jit_block` | | Anatomy of one real JIT block: a timeline of the block's pool events in log order (the operator's swap, liquidity added, the swap the JIT position serves, liquidity removed, the swap back), with the pool price after each event and the USD flows (fees earned, LVR, gas, builder payments, the operator's swap markouts) annotated. | `figure_data/jit_block.csv` |
@@ -66,15 +66,14 @@ The 12 current PNGs are deleted.
 Small committed CSVs in `results/figure_data/`, written by the step that owns the data, through the
 existing atomic writers:
 
-- **By `ulpe analyze`** (sub-project 2), for figures 3 and 8: `basis_hist.csv` (bin edges in bp and
-  counts of block-start basis), `gap_survival.csv` (duration in blocks and the share of gap episodes
-  lasting at least that long, for the primary threshold), `leadlag.csv` (lag in blocks and the
-  correlation), `arb_waterfall.csv` (the waterfall steps and USD values already in
-  `arbitrage.md`). Each is the data the current chart draws, written instead of drawn.
+- **By `ulpe analyze`** (sub-project 2), for figure 3: `basis_hist.csv` (bin edges in bp and counts
+  of block-start basis). Figure 3's gap survival is computed from `episodes.csv`, its lead–lag from
+  `summary.json` `lead_lag`, and figure 8's waterfall from `summary.json` `arbitrage`, which the
+  results already hold (as built).
 - **By `ulpe lp`**, for figures 2 and 11:
   - **Episode selection:** the day with the largest measured LVR (0 s); within it, the 20-block
     window with the largest absolute Binance log move between its first and last block; the figure
-    shows that window from 4 blocks before to 12 blocks after (32 blocks).
+    shows 32 blocks starting 4 blocks before that stretch (as built).
     `episode_blocks.csv`: per block, number, timestamp, pool price after the block, Binance price at
     block time, LVR (0 s) over the block's steps, and whether a searcher swap is in it.
     `episode_cex.csv`: Binance ETHUSDC, last trade price per second over the window.
