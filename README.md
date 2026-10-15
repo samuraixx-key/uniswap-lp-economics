@@ -67,12 +67,14 @@ at the pool's price instead of Binance's)? Which LPs make money? And where does 
 
 4. **LPs' fees, after the protocol's quarter, do not cover LVR.** Over the window LPs earned
    **$2.64M** in fees net of the protocol's quarter (which took $0.88M) and lost **$3.70M** to LVR
-   measured at the block time ($4.09M at 12 s): LP fees − LVR = **−$1.06M**. LP fees fell short in
+   measured at the block time ($4.09M at 12 s): LP fees − LVR = **−$1.06M** (95% day-bootstrap
+   interval −$1.53M to −$0.71M). LP fees fell short in
    every volatility tercile of days: −$0.15M on the 30 calmest days, −$0.23M on the middle 31 and
    −$0.68M on the 31 most volatile. The LVR formula of Milionis, Moallemi, Roughgarden and Zhang
    (2022), with 1-second Binance returns, gives $3.16M.
    *Caveat:* the protocol's quarter is most of the gap. Before it, total swap fees ($3.53M) fell
-   short of LVR by only $0.18M, and all of that on the most volatile third of days (−$264k); on the
+   short of LVR by only $0.18M (interval −$0.57M to +$0.09M, which spans zero), and all of that on
+   the most volatile third of days (−$264k); on the
    calm and middle thirds total fees exceeded LVR (+$31.7k and +$54.2k), and LVR exceeded total
    fees on 41 of the 92 days. That matches sub-project 2's all-swaps markout of +0.25 bp
    (−0.14 to 0.77): the pool's counterparties as a whole roughly break even after the full fee.
@@ -80,21 +82,27 @@ at the pool's price instead of Binance's)? Which LPs make money? And where does 
    flow: searcher swaps alone cost LPs $4.14M, and the rest of the flow gave $0.44M back. It is the
    loss against a portfolio that rebalances at Binance's price, not a loss against holding. The
    theoretical value depends on sampling: 1-minute returns give $4.33M.
-5. **Almost only just-in-time liquidity makes money.** Against a portfolio that rebalances at
-   Binance's price, after gas, the 7,874 positions active in the window lost **$1.09M**. JIT
-   positions (844, minted and burned in the same block) made +$13.9k, and most of it is negative
-   LVR, not fees: the flow they trade with loses to the pool against Binance, which adds $28.9k,
-   against $4.8k of fees and $19.8k of gas. Every other LP type lost between 1.35 and
+5. **No LP type reliably makes money against a rebalancing portfolio.** Against a portfolio that
+   rebalances at Binance's price, after gas and direct payments to block builders, the 7,874
+   positions active in the window lost **$1.10M**. Just-in-time (JIT) positions (844, minted and
+   burned in the same block) are the only type with a positive total, +$3.6k, and its 95% interval
+   spans zero. It comes from negative LVR, not fees: the flow they trade with loses to the pool
+   against Binance, which adds $28.9k, against $4.8k of fees, $19.8k of gas and $10.4k of direct
+   builder payments. Every other LP type lost between 1.35 and
    2.28 bp of position value per day, each with a 95% interval below zero: NFT positions held by
    wallets, which earned $2.57M of the $2.64M in fees, **−1.35 bp/day** (−1.77 to −1.12) and
    −$1.08M; vaults −1.58; NFT positions held by contracts −2.28; other direct positions −1.55.
    Against simply holding the deposited tokens, 24.1% of positions came out ahead within the
-   window; over their whole life, 65.7% did (median return +0.03%), and 79% of positions with a
-   life of 180 days or more.
-   *Caveat:* the benchmark assumes the LP could hedge for free at Binance's last trade; LPs' hedges
-   and other holdings are not observed, and LP gas before the window is not counted. The window
-   result against holding (−$18.2M) is mostly the window's price path, not LVR. The lifetime
-   results (65.7%, and 79% for lives of 180 days or more) depend in the same way on the price path
+   window; over their whole life, 53.5% did (median return about zero), and 78% of positions with
+   a life of 180 days or more.
+   *Caveat:* 265 of the 1,662 JIT transactions also swap in the pool, and they carry all of JIT's
+   direct builder payments, which may be for the swap rather than the liquidity. Their 298 swaps
+   lost $14.3k against Binance at 0 s, which the rebalancing benchmark takes as free; counted with
+   those swaps, the JIT operators lost about $10.7k. The benchmark assumes the LP could hedge for
+   free at Binance's last trade; LPs' hedges and other holdings are not observed. Gas and builder
+   payments are charged inside the window only, in the window and the lifetime results alike. The
+   window result against holding (−$18.2M) is mostly the window's price path, not LVR. The lifetime
+   results (53.5%, and 78% for lives of 180 days or more) depend in the same way on the price path
    over each position's own life, and so on when it opened and closed. Lifetime shares count
    positions, not dollars, and value deposits made before the window at ETHUSDT 1-minute closes.
    A vault stands for many depositors, and an NFT position's LP is its owner at close.
@@ -226,7 +234,8 @@ Every definition and formula: [`docs/methodology.md`](docs/methodology.md).
    state matches the chain at both ends of the window.
 7. **LVR and P&L:** measured LVR per swap step = the pool's token change, fee excluded, valued at
    Binance (`−(Δusdc + Δeth × P_cex)`); theoretical LVR from realised variance and the active
-   liquidity. Per position: P&L against rebalancing (fees − LVR − gas) and against holding, in bp
+   liquidity. Per position: P&L against rebalancing (fees − LVR − gas − direct builder payments)
+   and against holding, in bp
    of hourly time-weighted value per day, with 95% bootstrap intervals over positions; and a
    lifetime result against holding.
 8. **Where LVR goes:** LVR on searcher swaps → LP fees, protocol fees and the searchers' gross;
@@ -409,8 +418,10 @@ Window totals from [`results/lp_pnl.md`](results/lp_pnl.md), in USD:
 | theory, expected fees paid by arbitrage (× (1 − P_trade)) | 2,223,753.00 |
 
 The LP fees are net of the protocol's quarter, which is most of the gap: total swap fees (LP +
-protocol, summed from [`results/lvr_daily.csv`](results/lvr_daily.csv)) were 3,525,477.30, short of
-LVR by 178,319.46. That matches sub-project 2's all-swaps markout of +0.25 bp (−0.14 to 0.77) at
+protocol, `daily.total_fees_usd` in `summary.json`) were 3,525,477.30, short of LVR by 178,319.46.
+A bootstrap over the 92 days (1,000 resamples, seed 42, `daily` in `summary.json`) gives 95%
+intervals of −1,533,757.96 to −712,591.77 for LP fees − LVR and −566,463.71 to +91,433.73 for
+total fees − LVR: the first excludes zero, the second does not. That matches sub-project 2's all-swaps markout of +0.25 bp (−0.14 to 0.77) at
 0 s: the pool's counterparties as a whole roughly break even against Binance after the full fee.
 
 Measured LVR is net over every swap: positive when the trade beat Binance, negative when the pool
@@ -420,9 +431,11 @@ over the window to a relative 1e-9.
 
 ![Measured LVR on searcher swaps vs theoretical LVR, daily](results/figures/8_lvr_measured_vs_theory.png)
 
-*Chart 8. Daily measured LVR on searcher swaps against the theoretical LVR from 1-second realised
-variance (`RV × L × √P / 4`, the concentrated-liquidity form of σ²/8 × pool value), and the same
-times P_trade, the probability that a block holds an arbitrage given the 0.05% fee and 12 s blocks
+*Chart 8. Blue: daily measured LVR on searcher swaps against the theoretical LVR from 1-second
+realised variance (`RV × L × √P / 4`, the concentrated-liquidity form of σ²/8 × pool value).
+Orange: the searchers' measured gross after LP and protocol fees against the theory's expected
+arbitrage profit, the theoretical LVR times P_trade, the probability that a block holds an
+arbitrage given the 0.05% fee and 12 s blocks
 (Milionis, Moallemi, Roughgarden 2023, which supplies P_trade; the LVR formula is Milionis,
 Moallemi, Roughgarden and Zhang 2022).* The formula tracks the measured series day by day but sits
 below it on most days. With fees and discrete blocks the model expects arbitrageurs to earn $0.93M
@@ -441,55 +454,64 @@ fees plus $0.66M in protocol fees.
 | high | 31 | 0.57 | 1,251,287.82 | 1,932,463.52 | 1,699,596.37 | -681,175.69 |
 
 Fees grow with volatility, but LVR grows faster. These are LP fees, net of the protocol's quarter.
-With the protocol's fees added back (summed per regime from
-[`results/lvr_daily.csv`](results/lvr_daily.csv)), total swap fees exceed LVR on the low and mid
+With the protocol's fees added back (`total_fees_minus_lvr_usd` in
+[`results/vol_regimes.md`](results/vol_regimes.md)), total swap fees exceed LVR on the low and mid
 terciles (+31,703.62 and +54,157.72) and fall short only on the high one (−264,180.80). The same
 file splits each regime by LP type: JIT liquidity is positive in all three, wallet-held NFT
 positions negative in all three.
 
 ### Which LPs make money? (chart 10)
 
-Per window-active position: fees, LVR (0 s), gas of its own window transactions, P&L against a
-portfolio that rebalances at Binance's price (`fees − LVR − gas`) and against holding the deposited
+Per window-active position: fees, LVR (0 s), gas of its own window transactions and the direct
+payments those transactions made to the block's fee recipient, P&L against a portfolio that
+rebalances at Binance's price (`fees − LVR − gas − direct`) and against holding the deposited
 tokens, all in USD; the rate is that P&L in bp of the position's hourly time-weighted value per
 day, with a 95% bootstrap interval over positions. From
 [`results/lp_groups.md`](results/lp_groups.md) (one row per position in
 [`results/positions.csv`](results/positions.csv)):
 
-| grouping | group | positions | fees | LVR (0 s) | gas | P&L vs rebalancing | bp/day [95%] | P&L vs holding | share beating holding |
-|---|---|---|---|---|---|---|---|---|---|
-| LP type | jit | 844 | 4,752.92 | -28,934.84 | 19,771.41 | 13,916.34 | 5,629.54 [1,240.38, 10,381.09] | 13,916.34 | 0.57 |
-| | lp_vault | 111 | 12,151.37 | 15,643.43 | 176.30 | -3,668.37 | -1.58 [-3.05, -1.21] | -20,529.53 | 0.32 |
-| | nft_wallet | 5,788 | 2,572,025.84 | 3,644,992.64 | 5,495.25 | -1,078,462.06 | -1.35 [-1.77, -1.12] | -18,127,230.35 | 0.19 |
-| | nft_contract | 734 | 38,156.22 | 50,739.87 | 1,717.36 | -14,301.02 | -2.28 [-2.77, -1.91] | -74,523.43 | 0.19 |
-| | direct_other | 397 | 17,100.83 | 21,355.65 | 708.54 | -4,963.36 | -1.55 [-2.12, -1.08] | -198.55 | 0.38 |
-| range width (bp) | <50 | 1,731 | 31,534.02 | 8,612.53 | 20,158.66 | 2,762.83 | 2.20 [-10.79, 20.75] | -7,993.98 | 0.36 |
-| | 50-200 | 358 | 14,327.44 | 18,361.94 | 387.06 | -4,421.57 | -2.65 [-9.07, -0.90] | -5,679.83 | 0.19 |
-| | 200-1000 | 1,158 | 114,084.67 | 148,283.46 | 1,893.20 | -36,092.00 | -2.44 [-5.04, -1.03] | -29,441.91 | 0.26 |
-| | 1000-5000 | 2,496 | 1,909,750.05 | 2,755,449.25 | 3,682.81 | -849,382.01 | -1.73 [-3.04, -1.35] | -14,671,923.99 | 0.26 |
-| | >=5000 | 2,131 | 574,490.99 | 773,089.57 | 1,747.13 | -200,345.71 | -0.67 [-0.75, -0.61] | -3,493,525.81 | 0.12 |
-| holding in window | same_block | 844 | 4,752.92 | -28,934.84 | 19,771.41 | 13,916.34 | 5,629.54 [1,240.38, 10,381.09] | 13,916.34 | 0.57 |
-| | <1h | 364 | 5,014.81 | 6,995.75 | 717.06 | -2,698.00 | -86.77 [-153.74, -42.83] | -7,658.74 | 0.11 |
-| | 1h-1d | 982 | 47,377.64 | 91,490.69 | 1,708.17 | -45,821.22 | -34.44 [-67.84, -10.45] | -118,890.12 | 0.31 |
-| | 1d-7d | 827 | 181,924.45 | 240,008.66 | 1,614.32 | -59,698.52 | -7.57 [-9.60, -3.87] | -33,331.51 | 0.32 |
-| | >=7d | 1,784 | 1,074,902.86 | 1,453,936.54 | 3,738.48 | -382,772.16 | -2.27 [-2.87, -1.67] | -1,760,006.18 | 0.27 |
-| | whole_window | 3,073 | 1,330,214.49 | 1,940,299.96 | 319.43 | -610,404.90 | -0.97 [-1.16, -0.64] | -16,302,595.32 | 0.10 |
-| cohort | pre_window | 3,837 | 1,559,269.76 | 2,256,207.32 | 1,257.96 | -698,195.53 | -1.01 [-1.22, -0.73] | -17,415,498.80 | 0.09 |
-| | in_window | 4,037 | 1,084,917.41 | 1,447,589.44 | 26,610.90 | -389,282.93 | -3.29 [-4.42, -2.34] | -793,066.73 | 0.38 |
-| all positions | | 7,874 | | | | -1,087,478.46 | | -18,208,565.52 | 0.24 |
+| grouping | group | positions | fees | LVR (0 s) | gas | direct | P&L vs rebalancing | bp/day [95%] | P&L vs holding | share beating holding |
+|---|---|---|---|---|---|---|---|---|---|---|
+| LP type | jit | 844 | 4,752.92 | -28,934.84 | 19,771.41 | 10,353.71 | 3,562.64 | 1,441.18 [-754.71, 3,555.89] | 3,562.63 | 0.57 |
+| | lp_vault | 111 | 12,151.37 | 15,643.43 | 176.30 | 0.00 | -3,668.37 | -1.58 [-3.05, -1.21] | -20,529.53 | 0.32 |
+| | nft_wallet | 5,788 | 2,572,025.84 | 3,644,992.64 | 5,495.25 | 0.00 | -1,078,462.06 | -1.35 [-1.77, -1.12] | -18,127,230.35 | 0.19 |
+| | nft_contract | 734 | 38,156.22 | 50,739.87 | 1,717.36 | 0.06 | -14,301.08 | -2.28 [-2.77, -1.91] | -74,523.49 | 0.19 |
+| | direct_other | 397 | 17,100.83 | 21,355.65 | 708.54 | 4.09 | -4,967.46 | -1.55 [-2.12, -1.08] | -202.64 | 0.38 |
+| range width (bp) | <50 | 1,731 | 31,534.02 | 8,612.53 | 20,158.66 | 10,353.71 | -7,590.87 | -6.03 [-19.94, 2.78] | -18,347.69 | 0.36 |
+| | 50-200 | 358 | 14,327.44 | 18,361.94 | 387.06 | 0.00 | -4,421.57 | -2.65 [-9.07, -0.90] | -5,679.83 | 0.19 |
+| | 200-1000 | 1,158 | 114,084.67 | 148,283.46 | 1,893.20 | 0.00 | -36,092.00 | -2.44 [-5.04, -1.03] | -29,441.91 | 0.26 |
+| | 1000-5000 | 2,496 | 1,909,750.05 | 2,755,449.25 | 3,682.81 | 4.15 | -849,386.16 | -1.73 [-3.04, -1.35] | -14,671,928.14 | 0.26 |
+| | >=5000 | 2,131 | 574,490.99 | 773,089.57 | 1,747.13 | 0.01 | -200,345.72 | -0.67 [-0.75, -0.61] | -3,493,525.82 | 0.12 |
+| holding in window | same_block | 844 | 4,752.92 | -28,934.84 | 19,771.41 | 10,353.71 | 3,562.64 | 1,441.18 [-754.71, 3,555.89] | 3,562.63 | 0.57 |
+| | <1h | 364 | 5,014.81 | 6,995.75 | 717.06 | 1.19 | -2,699.19 | -86.81 [-153.97, -42.86] | -7,659.93 | 0.11 |
+| | 1h-1d | 982 | 47,377.64 | 91,490.69 | 1,708.17 | 2.90 | -45,824.13 | -34.44 [-67.84, -10.45] | -118,893.02 | 0.31 |
+| | 1d-7d | 827 | 181,924.45 | 240,008.66 | 1,614.32 | 0.00 | -59,698.52 | -7.57 [-9.60, -3.87] | -33,331.51 | 0.32 |
+| | >=7d | 1,784 | 1,074,902.86 | 1,453,936.54 | 3,738.48 | 0.06 | -382,772.22 | -2.27 [-2.87, -1.67] | -1,760,006.24 | 0.27 |
+| | whole_window | 3,073 | 1,330,214.49 | 1,940,299.96 | 319.43 | 0.00 | -610,404.90 | -0.97 [-1.16, -0.64] | -16,302,595.32 | 0.10 |
+| cohort | pre_window | 3,837 | 1,559,269.76 | 2,256,207.32 | 1,257.96 | 0.00 | -698,195.53 | -1.01 [-1.22, -0.73] | -17,415,498.80 | 0.09 |
+| | in_window | 4,037 | 1,084,917.41 | 1,447,589.44 | 26,610.90 | 10,357.86 | -399,640.79 | -3.38 [-4.51, -2.46] | -803,424.59 | 0.38 |
+| all positions | | 7,874 | | | 27,868.87 | 10,357.86 | -1,097,836.32 | | -18,218,923.39 | 0.24 |
 
 - **JIT** liquidity is added just before a swap and removed after it in the same block. Its LVR is
-  negative: the flow it trades with loses to the pool against Binance. Most of its +$13.9k is that
-  negative LVR (+28,934.84 to the LP), not fees (4,752.92), and gas (19,771.41) takes most of the
-  rest. Its bp/day figure is large because a JIT position counts one 12 s slot of capital. Per
-  swap ([`results/lp_pnl.md`](results/lp_pnl.md), "JIT per swap"): the 844 JIT positions were
-  active for 914 swaps (counted per position, between its mint and burn in the block), and made
-  +$15.23 per swap against rebalancing ($5.20 of fees, +$31.66 of negative LVR, −$21.63 of gas);
-  the median position made +$0.09 per swap, so a few positions carry the total.
+  negative: the flow it trades with loses to the pool against Binance. Its +$3.6k is that negative
+  LVR (+28,934.84 to the LP) plus fees (4,752.92), less gas (19,771.41) and direct builder payments
+  (10,353.71), and its interval spans zero. Its bp/day figure is large because a JIT position
+  counts one 12 s slot of capital. Per swap ([`results/lp_pnl.md`](results/lp_pnl.md), "JIT per
+  swap"): the 844 JIT positions were active for 914 swaps (counted per position, between its mint
+  and burn in the block), and made +$3.90 per swap against rebalancing ($5.20 of fees, +$31.66 of
+  negative LVR, −$21.63 of gas, −$11.33 of direct payments); the median position made +$0.09 per
+  swap, so a few positions carry the total.
+- **JIT transactions that also swap** (`jit_own_swaps` in `summary.json`): 265 of the 1,662 JIT
+  transactions also swap in the pool (298 swaps). They carry $9,805.67 of JIT gas and all
+  $10,353.71 of its direct payments, which may pay for the swap rather than the liquidity. Those
+  swaps lost $14,295.61 against Binance at 0 s; the rebalancing benchmark takes the LP's own
+  trades as free, so counting them, the JIT operators lost about $10.7k. Part of that loss is the
+  JIT positions' own negative LVR, since an operator's swap can trade against its own liquidity.
 - **Every other type loses** against rebalancing, at 1.35 to 2.28 bp/day, with intervals below
-  zero. Narrow ranges under 50 bp are the only width bucket with a positive point estimate
-  (+2.20 bp/day), but its interval spans zero, and the bucket includes the JIT positions.
-- **Shorter holdings lose more per day**: −86.77 bp/day for positions held under an hour,
+  zero. No width bucket has a positive point estimate now that direct payments count: narrow
+  ranges under 50 bp, which include the JIT positions, are at −6.03 bp/day with an interval that
+  spans zero.
+- **Shorter holdings lose more per day**: −86.81 bp/day for positions held under an hour,
   −0.97 bp/day for those open the whole window.
 - **Against holding**, the totals are much larger (−$18.2M). That gap is the window's price path:
   the rebalancing portfolio's own result against holding, which is zero on average if price moves
@@ -507,23 +529,27 @@ Over their whole life, from the first deposit to the exit (or the window end), e
 position is compared with holding its deposits, valued at the exit price; the return divides by
 the deposits valued at their own time (ETHUSDT 1-minute closes before the window). From
 [`results/lifetime.md`](results/lifetime.md): 7,874 positions, none excluded for carried owed
-tokens; **65.7% beat holding**, median return +0.03% (`summary.json`: 0.000330). Like the window
+tokens; **53.5% beat holding**, median return about zero (`summary.json`: 0.0000089). The
+position's gas and direct builder payments inside the window are charged, as in the window result;
+costs before the window are not observed. Like the window
 result against holding, these shares depend on the price path over each position's life, and so
 on when it opened and closed.
 
 | range width (bp) | positions | share beating holding | | lifetime | positions | share beating holding |
 |---|---|---|---|---|---|---|
-| <50 | 1,731 | 0.83 | | <1d | 2,167 | 0.67 |
-| 50-200 | 358 | 0.48 | | 1-7d | 757 | 0.55 |
-| 200-1000 | 1,158 | 0.50 | | 7-30d | 837 | 0.61 |
-| 1000-5000 | 2,496 | 0.56 | | 30-180d | 1,166 | 0.40 |
-| >=5000 | 2,131 | 0.75 | | >=180d | 2,947 | 0.79 |
+| <50 | 1,731 | 0.63 | | <1d | 2,167 | 0.38 |
+| 50-200 | 358 | 0.42 | | 1-7d | 757 | 0.36 |
+| 200-1000 | 1,158 | 0.40 | | 7-30d | 837 | 0.46 |
+| 1000-5000 | 2,496 | 0.44 | | 30-180d | 1,166 | 0.36 |
+| >=5000 | 2,131 | 0.67 | | >=180d | 2,947 | 0.78 |
 
-The median return (a fraction of deposits) is 0.02 for ranges of 5,000 bp or more, 0.09 for
-positions with a life of 180 days or more and −0.01 for lives of 30 to 180 days; elsewhere it
-rounds to 0.00. Within the
-window only 24.1% of positions beat holding; over a whole life the share is higher, but a share
-counts positions, not dollars.
+The median return (a fraction of deposits) is 0.01 for ranges of 5,000 bp or more, 0.09 for
+positions with a life of 180 days or more and −0.02 for lives of 30 to 180 days; elsewhere it
+rounds to 0.00. The lifetime tables are also in `summary.json` (`lifetime_by_width`,
+`lifetime_by_life`). Within the window only 24.1% of positions beat holding; over a whole life the
+share is higher, mostly through positions opened long before the window, but a share counts
+positions, not dollars. Positions that lived under a day, most of them JIT, beat holding only 38%
+of the time once their gas and builder payments count.
 
 ![Share of positions that beat holding over their lifetime](results/figures/11_lifetime_beat_holding.png)
 
@@ -651,8 +677,10 @@ payment together (34.8%) exceed the single-pool gross at 0 s (30.2%).*
   catching up over several seconds) dominate, and noise does not.
 - **LP hedging and other holdings are not observed.** P&L against rebalancing is what an LP who
   could rebalance for free at Binance's last trade would have made.
-- **LP gas** is counted only for window transactions; gas before the window and in lifetime P&L
-  is not.
+- **LP gas and builder payments** are counted only for window transactions, in the window and
+  the lifetime results alike; costs before the window are not observed. A JIT transaction that also
+  swaps may pay the builder for the swap, and the rebalancing benchmark takes the LP's own swaps as
+  free.
 - **Lifetime values before the window** use ETHUSDT 1-minute closes (quoted in USDT).
 - **Who the LP is.** An NFT position's LP is its owner at close (570 window-active positions
   changed owner while open), and a vault stands for many depositors. Only four vault addresses are
@@ -714,7 +742,7 @@ flash loan.
 already on disk. The data foundation:
 
 ```bash
-uv run ulpe fetch-logs --start 2026-07-01 --end 2026-10-01   # BigQuery pool logs (--dry-run reports bytes scanned)
+uv run ulpe fetch-logs --start 2026-07-01 --end 2026-10-01 --confirm-cost   # paid BigQuery pool logs (--dry-run reports bytes scanned)
 uv run ulpe fetch-snapshot                                   # tick book at the snapshot block (RPC)
 uv run ulpe fetch-samples                                    # on-chain state at 500 random blocks (RPC)
 uv run ulpe fetch-cex                                        # Binance ETHUSDC trades and ETHUSDT 1s candles
@@ -728,12 +756,13 @@ uv run ulpe validate                                         # checks C1-C6, wri
 Price discovery and markouts (sub-project 2):
 
 ```bash
-uv run ulpe fetch-blocks      # BigQuery: block fee recipients and base fees; logs in top-bot transactions
+uv run ulpe fetch-blocks --confirm-cost   # paid BigQuery: block fee recipients and base fees; logs in top-bot transactions
 uv run ulpe fetch-transfers   # Alchemy: internal ETH transfers sent by the top bot contracts
 uv run ulpe analyze           # checks A1-A6, then results/: tables, charts, summary.json
 ```
 
-`fetch-blocks` takes `--dry-run` to report bytes scanned. `fetch-transfers` calls
+`fetch-logs` and `fetch-blocks` run billable queries only with `--confirm-cost`; `--dry-run`
+reports bytes scanned for free. `fetch-transfers` calls
 `alchemy_getAssetTransfers`, so for that step `ETH_RPC_URL` must be an Alchemy endpoint; it caches
 one file per bot contract and skips contracts already fetched. `analyze` refuses to run unless
 validation passed on exactly the interim files now on disk; if a gated check (A1–A4) fails it exits

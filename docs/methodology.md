@@ -599,11 +599,13 @@ enforces the identity over the window: 3,703,796.7592831883 USD from the steps a
 3,703,796.7592831957 USD from the markouts (relative tolerance 1e-9).
 
 **LP fees vs total fees.** The headline `fees_minus_lvr_usd` (−1,059,609.59 USD) uses LP fees, net
-of the protocol's quarter (881,290.13 USD). The quarter is most of that gap. Summed from
-[`results/lvr_daily.csv`](../results/lvr_daily.csv) (`fees_usd + protocol_fee_usd`), total swap
-fees are 3,525,477.30 USD, short of LVR by 178,319.46 USD. By volatility tercile, total fees − LVR
-is +31,703.62 (low), +54,157.72 (mid) and −264,180.80 USD (high), and LVR exceeds total fees on 41
-of the 92 days (against 79 for LP fees). This matches the sub-project 2 all-swaps trader markout of
+of the protocol's quarter (881,290.13 USD). The quarter is most of that gap. Total swap fees
+(`daily` in `summary.json`, summed from `fees_usd + protocol_fee_usd` of
+[`results/lvr_daily.csv`](../results/lvr_daily.csv)) are 3,525,477.30 USD, short of LVR by
+178,319.46 USD, with a 95% day-bootstrap interval of −566,463.71 to +91,433.73 (section 13). By
+volatility tercile (`total_fees_minus_lvr_usd` in [`results/vol_regimes.md`](../results/vol_regimes.md)),
+total fees − LVR is +31,703.62 (low), +54,157.72 (mid) and −264,180.80 USD (high), and LVR exceeds
+total fees on 41 of the 92 days (against 79 for LP fees). This matches the sub-project 2 all-swaps trader markout of
 +0.25 bp at 0 s (95% interval −0.14 to 0.77, section 3): by the identity above, the counterparties'
 total markout is LVR minus total fees.
 
@@ -654,11 +656,17 @@ Per window-active position, in USD ([`results/positions.csv`](../results/positio
   decrease, poke): `receipt_gas_used × receipt_effective_gas_price / 10¹⁸ × P_cex` at its block,
   split equally across the positions it touched. A transaction without a receipt, a block without a
   price, or a null gas field stops the run rather than costing 0.
-- **Against rebalancing:** `pnl_rebal = fees − lvr_0 − gas` (and `pnl_rebal_12` with `lvr_12`).
+- `direct`: direct ETH payments to the block's fee recipient in those same transactions (the
+  `pool_tx_direct_payments` builder table of section 15), split and priced the same way. The
+  priority fee inside `gas` is one half of a builder payment and a direct payment the other, so
+  both are LP costs. A transaction that also swaps in the pool may pay for the swap rather than
+  for the liquidity; `jit_own_swaps` below reports such transactions.
+- **Against rebalancing:** `pnl_rebal = fees − lvr_0 − gas − direct` (and `pnl_rebal_12` with
+  `lvr_12`).
 - **Against holding:** everything the LP got out minus everything put in, all at the Binance price
   at the position's exit (its last removal, or the window end):
-  `pnl_hold = V_exit + fees + Σ withdrawn − Σ deposited − gas`. Deposits and withdrawals are token
-  amounts; a position open at the window start deposits, at that moment, the token amounts it held
+  `pnl_hold = V_exit + fees + Σ withdrawn − Σ deposited − gas − direct`. Deposits and withdrawals
+  are token amounts; a position open at the window start deposits, at that moment, the token amounts it held
   at the snapshot pool price. This compares the LP with holding the deposited tokens.
 - **Rate:** `bp_per_day = pnl_rebal / (twv × days) × 10⁴` (and `bp_per_day_hold` with `pnl_hold`).
   `twv`, the time-weighted value, is the mean of the position's USD value at each UTC hour start in
@@ -667,20 +675,34 @@ Per window-active position, in USD ([`results/positions.csv`](../results/positio
   value of its first in-window deposit (or of its start holdings) at that block's price. `days` is
   `(t_exit − t_start) / 86,400 s`; a `jit` position counts one 12 s slot.
 - **Groups** ([`results/lp_groups.md`](../results/lp_groups.md)), by LP type, range width, holding
-  time and cohort: count, Σ fees, Σ LVR, Σ gas, Σ `pnl_rebal`, Σ `pnl_hold`, the share with
+  time and cohort: count, Σ fees, Σ LVR, Σ gas, Σ direct, Σ `pnl_rebal`, Σ `pnl_hold`, the share
+  with
   `pnl_hold > 0`, and `bp_per_day = Σ pnl_rebal / Σ (twv × days) × 10⁴`, i.e. weighted by
   value × time, with a 95% interval from a bootstrap over positions (1,000 resamples, seed 42,
   2.5th to 97.5th percentile of the same ratio).
 - **JIT per swap** (spec section 6; `jit_per_swap` in `summary.json` and
   [`results/lp_pnl.md`](../results/lp_pnl.md)): a `jit` position is active for the swaps of its
   block that lie, in log order, between its first liquidity add and its last removal. The jit
-  totals of fees, LVR, gas and both P&Ls are divided by the number of such position-swap pairs:
-  844 positions, 826 of them with at least one swap, 914 pairs; +15.23 USD per swap against
-  rebalancing (fees 5.20, LVR −31.66, gas 21.63). The median over positions with a swap is
-  +0.09 USD per swap.
+  totals of fees, LVR, gas, direct payments and both P&Ls are divided by the number of such
+  position-swap pairs: 844 positions, 826 of them with at least one swap, 914 pairs; +3.90 USD per
+  swap against rebalancing (fees 5.20, LVR −31.66, gas 21.63, direct 11.33). The median over
+  positions with a swap is +0.09 USD per swap.
+- **JIT transactions that also swap** (`jit_own_swaps` in `summary.json`): the transactions of
+  `jit` positions that also hold a pool swap: 265 of 1,662, with 298 swaps whose 0 s trader
+  markout sums to −14,295.61 USD. The `jit` positions in them carry 9,805.67 USD of gas and
+  10,353.71 USD of direct payments (all of JIT's). Such a payment may be for the swap, and the
+  rebalancing benchmark takes the operator's own swaps as free: JIT's 3,562.64 USD against
+  rebalancing becomes about −10,733 USD with the swaps' markout added. Part of that markout is the
+  same positions' negative LVR, when the operator's swap trades against its own liquidity.
 - **Daily series** ([`results/lvr_daily.md`](../results/lvr_daily.md)): per UTC day, LP fees,
-  protocol fees, measured LVR at 0 s and 12 s, the searcher part, realised variance, `σ_annual`,
-  the theoretical values and the regime.
+  protocol fees, measured LVR at 0 s and 12 s, the searcher part (LVR, LP fees and protocol fees on
+  searcher swaps), realised variance, `σ_annual`, the theoretical values and the regime.
+- **Day bootstrap** (spec section 6: the pool-level daily series keep sub-project 2's day
+  bootstrap; `daily` in `summary.json`): the window total of a daily series is resampled by drawing
+  92 days with replacement, 1,000 times (seed 42), and the interval is the 2.5th to 97.5th
+  percentile of the resampled totals. LP fees − LVR: −1,059,609.59 USD, 95% interval
+  −1,533,757.96 to −712,591.77. Total fees − LVR: −178,319.46 USD, interval −566,463.71 to
+  +91,433.73. As in section 3.3, days are treated as independent.
 
 Headline totals (`lp_fees_usd`, `lvr_0_usd`, `lvr_12_usd`, and the accrued-only
 `lvr_0_searcher_usd`, `lp_fees_searcher_usd`) sum accrued steps only: a step with no liquidity in
@@ -710,7 +732,9 @@ beat_hold     = pnl_hold_life > 0
 - Positions flagged `carry_in` or `carry_out` (section 9.2) are left out of every share and median;
   `n_excluded_carry` reports how many (0 here). Lifetime holding buckets: `<1d`, `1-7d`,
   `7-30d`, `30-180d`, `>=180d`.
-- LP gas is not counted in lifetime P&L.
+- The position's window costs (`gas + direct`, section 13) are subtracted from `pnl_hold_life`, so
+  the window and lifetime results charge the same costs; gas and builder payments before the
+  window are not observed and not charged.
 
 ## 15. Where LVR goes
 
@@ -856,8 +880,9 @@ What they prove and what they do not:
 - **LP hedging and other holdings are not observed.** P&L against rebalancing is what an LP who
   rebalanced at Binance's price would have made; a hedged LP's real result also depends on the
   hedge's own costs.
-- **LP gas** is counted only for window transactions; gas before the window and in lifetime P&L
-  is not.
+- **LP gas and direct builder payments** are counted only for window transactions, in the window
+  and lifetime results alike; costs before the window are not observed. In JIT transactions that
+  also swap, a direct payment may be for the swap (section 13).
 - **Lifetime values before the window** use ETHUSDT 1-minute closes (USDT, not USDC).
 - **Who the LP is.** An NFT position's LP is its owner at close (570 window-active positions changed
   owner while open), and a vault stands for many depositors. Only four vault addresses are labelled;
@@ -873,8 +898,8 @@ What they prove and what they do not:
   over 1% are such blocks). With the paid-block share the proposer gets 0.1540 of searcher LVR
   instead of 0.1905 and the builder margin 0.1943 instead of 0.1578; their sum does not move.
   Proper payment detection needs a new query (sub-project 4).
-- **Path dependence.** P&L against holding, in the window and over a lifetime (65.7% of positions
-  beat holding; 79% of those with a life of 180 days or more), depends on the price path over each
+- **Path dependence.** P&L against holding, in the window and over a lifetime (53.5% of positions
+  beat holding; 78% of those with a life of 180 days or more), depends on the price path over each
   position's life, and so on when it opened and closed.
 - **Fees net of the protocol.** "Fees do not cover LVR" holds for LP fees; total swap fees fall
   short of LVR by much less (section 11).
@@ -925,7 +950,8 @@ Reviewed rulings during implementation changed several definitions in the design
 | L6 fee tolerance | 1 raw unit per step | Also one per window flow and two per position, never above the pool's (Ruling 13) |
 | Owner code | `has_code` from `eth_getCode` | EIP-7702 delegated EOAs (code `0xef0100` + delegate) are wallets, not contracts: 861 of the 4,112 addresses read are delegated, 287 are real contracts |
 | LP vault labels | Web-verified vaults and managers | Only addresses Etherscan names as vaults or managers: 4 addresses, with sources in `labels/lp_addresses.csv` |
-| LP gas | Gas of window mint/burn/collect transactions | A missing receipt, block price or gas field stops the run instead of costing 0 |
+| LP gas | Gas of window mint/burn/collect transactions | A missing receipt, block price or gas field stops the run instead of costing 0. Direct payments to the fee recipient in the same transactions are charged too (`direct`), as the other half of a builder payment (pre-merge review) |
+| Lifetime costs | Not specified | The position's window gas and direct payments are subtracted, so window and lifetime results charge the same costs (pre-merge review) |
 | Time-weighted value | Averaged over the position's blocks | Sampled at UTC hour starts (Ruling 5); a position open at no hour start is valued at its first in-window deposit, not the sum of its deposits |
 | Lifetime prices | ETHUSDT 1-minute closes | A close older than 3,600 s before a deposit stops the run (a missing month file or a data gap) |
 | Headline totals | Sums over steps | Fee and LVR totals sum accrued steps only; the destination counts every searcher step, so its keys are named apart (`lvr_on_searcher_swaps_usd`, …) from `lvr_0_searcher_usd`. Identical in this window (no step without liquidity) |
