@@ -7,6 +7,7 @@ from pathlib import Path
 from matplotlib.figure import Figure
 
 from uniswap_lp_economics import config
+from uniswap_lp_economics.viz import what_is_lvr
 from uniswap_lp_economics.viz.data import Results, load_results
 from uniswap_lp_economics.viz.style import MODES, save_svg, theme
 
@@ -14,8 +15,11 @@ FigureFn = Callable[[Results], Figure]
 ExtraFn = Callable[[Results, Path], list[Path]]
 
 # (file stem, figure function), in README order; each chapter task appends its entries.
-FIGURES: list[tuple[str, FigureFn]] = []
-EXTRAS: list[ExtraFn] = []
+FIGURES: list[tuple[str, FigureFn]] = [
+    ("01_what_is_lvr", what_is_lvr.concept),
+    ("02_stale_pool_episode", what_is_lvr.episode),
+]
+EXTRAS: list[ExtraFn] = [what_is_lvr.episode_gif]
 FIGURE_SUFFIXES = {".svg", ".png", ".gif"}
 PREVIEW_DPI = 110
 
