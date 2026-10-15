@@ -312,3 +312,24 @@ def test_input_hashes_cover_every_input(tmp_path: Path) -> None:
     hashes = input_hashes(raw, interim)
     assert set(hashes) == {p.relative_to(tmp_path).as_posix() for p in names}
     assert all(len(h) == 16 for h in hashes.values())
+
+
+def test_report_shows_reported_checks_as_reported_and_does_not_gate_on_them(
+    tmp_path: Path,
+) -> None:
+    status = write_report(
+        [
+            CheckResult("L1 gated", True, {"n": 1}),
+            CheckResult("R1 relays (reported)", True, {"n": 2}, reported=True),
+        ],
+        tmp_path,
+        {},
+    )
+    assert status == "PASS"
+    md = (tmp_path / "validation_report.md").read_text(encoding="utf-8")
+    assert "| L1 gated | PASS | n=1 |" in md
+    assert "| R1 relays (reported) | reported | n=2 |" in md
+    body = json.loads((tmp_path / "validation_report.json").read_text(encoding="utf-8"))
+    assert [c["reported"] for c in body["checks"]] == [False, True]
+    only_reported = write_report([CheckResult("R1", True, {}, reported=True)], tmp_path / "r", {})
+    assert only_reported == "FAIL"  # nothing gated: no PASS from reported checks alone

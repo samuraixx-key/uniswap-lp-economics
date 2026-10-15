@@ -617,7 +617,8 @@ r            = ln(P_cex(t + Δ) / P_cex(t))
 lvr_theory   = r² × L_dec × √P_cex(t) / 4          L_dec = L_raw × 10⁻¹²
 ```
 
-`L_raw` is the active liquidity at the start of the block in force at `t`. For a full-range position
+`L_raw` is the active liquidity in force at `t`: the end-of-block liquidity of the last block at or
+before `t` (the state the next block's arbitrage trades against). For a full-range position
 this reduces to the textbook `σ²/8 ×` pool value. Per UTC day, `RV_day = Σ r²` of the 1 s returns,
 `σ_annual = √(365 × RV_day)` and `σ = √(RV_day / 86,400)` per √second.
 
@@ -630,13 +631,14 @@ theory_arb      = theory_1s × P_trade           expected arbitrage profit
 theory_arb_fees = theory_1s × (1 − P_trade)     expected fees paid by arbitrage
 ```
 
-Window totals ([`results/lp_pnl.md`](../results/lp_pnl.md)): theory 3,158,845.51 USD with 1 s
-returns and 4,333,659.24 USD with 1-minute returns, against measured 3,703,796.76 USD;
-`theory_arb` 933,257.67 USD and `theory_arb_fees` 2,225,587.84 USD. The model assumes geometric
+Window totals ([`results/lp_pnl.md`](../results/lp_pnl.md)): theory 3,155,610.48 USD with 1 s
+returns and 4,325,747.96 USD with 1-minute returns, against measured 3,703,796.76 USD;
+`theory_arb` 931,857.47 USD and `theory_arb_fees` 2,223,753.00 USD. The model assumes geometric
 Brownian motion and blocks arriving as a Poisson process with rate λ, while Ethereum slots are a
-fixed 12 s; the 1 s realised variance of Binance's last trade also contains order-flow noise and
-stale stretches. The 1-minute total is about a third higher than the 1 s one, so the sampling
-choice matters as much as the model.
+fixed 12 s. The 1-minute total is about a third higher than the 1 s one, so the sampling choice
+matters as much as the model. Order-flow noise in Binance's last trade would push the 1 s
+realised variance above the 1-minute one; it comes out below, so at 1 s stale stretches (the last
+trade catching up with the price over several seconds) dominate, and noise does not.
 
 **Volatility regimes.** The 92 days are ranked by `σ_annual` (ordinal rank) and split into terciles:
 rank ≤ n/3 is `low` (30 days), ≤ 2n/3 `mid` (31), else `high` (31)
@@ -669,6 +671,13 @@ Per window-active position, in USD ([`results/positions.csv`](../results/positio
   `pnl_hold > 0`, and `bp_per_day = Σ pnl_rebal / Σ (twv × days) × 10⁴`, i.e. weighted by
   value × time, with a 95% interval from a bootstrap over positions (1,000 resamples, seed 42,
   2.5th to 97.5th percentile of the same ratio).
+- **JIT per swap** (spec section 6; `jit_per_swap` in `summary.json` and
+  [`results/lp_pnl.md`](../results/lp_pnl.md)): a `jit` position is active for the swaps of its
+  block that lie, in log order, between its first liquidity add and its last removal. The jit
+  totals of fees, LVR, gas and both P&Ls are divided by the number of such position-swap pairs:
+  844 positions, 826 of them with at least one swap, 914 pairs; +15.23 USD per swap against
+  rebalancing (fees 5.20, LVR −31.66, gas 21.63). The median over positions with a swap is
+  +0.09 USD per swap.
 - **Daily series** ([`results/lvr_daily.md`](../results/lvr_daily.md)): per UTC day, LP fees,
   protocol fees, measured LVR at 0 s and 12 s, the searcher part, realised variance, `σ_annual`,
   the theoretical values and the regime.
@@ -712,7 +721,7 @@ window has about 110 M transactions):
 R_b = Σ_tx gas_used × (effective_gas_price − base_fee)     (transactions not sent by the fee recipient)
     + Σ successful trace payments to the fee recipient
 Q_b = value of the block's last transaction if it is sent by the fee recipient;
-      otherwise R_b (the fee recipient is the proposer: a self-built block)
+      otherwise R_b (taken to be self-built: the fee recipient is the proposer; primary method)
 proposer_share_b = Q_b / R_b      (0 when R_b = 0; above 1 when the builder subsidises)
 ```
 
@@ -743,9 +752,46 @@ at 0 s (3,703,796.76 USD) → minus the other flows (−440,321.24) → LVR on s
 (1,509,258.29); gross = multi-pool gross (257,681.73) + single-pool gross (1,251,576.57); single-pool
 gross = gas burned (9,715.89) + builder margin (654,139.41) + proposer (789,291.15) + kept
 (−201,569.88). Shares are of the LVR on searcher steps: 0.4769, 0.1590, 0.0622, 0.0023, 0.1578,
-0.1905 and −0.0486. This section counts every searcher step, also any with no liquidity in range,
+0.1905 and −0.0486 (builder margin and proposer by the primary split; the sensitivity below
+divides their sum differently). This section counts every searcher step, also any with no liquidity in range,
 so its keys are named apart from the accrued-only totals of section 13. No swap needed a fallback:
 0 swaps without an other-logs row, 0 in a block missing from the split, 0 with null costs.
+
+**The self-built fallback, and a sensitivity.** 105,536 of the 659,799 window blocks (16.0%)
+have no last transaction from the fee recipient, so the primary method gives their proposer all
+of the builder revenue. R1 (section 16) shows this is mostly wrong: every sampled block with a
+payment transaction that a relay delivered (699) matches the relay within 1 wei, and every
+"self-built" one (70) differs by more than 1%. For all 70 the relay names a proposer fee
+recipient other than the block's fee recipient, so they are MEV-Boost blocks, and the relay
+payment is 0.5561 of `R_b` on the median (0.6345 for the paid blocks). Their builders paid the
+proposer some other way: a payment that is not the block's last transaction, or one sent from a
+separate payout address. Detecting those needs a new query over each block's transactions to the
+proposer's fee recipient, planned for sub-project 4.
+
+These blocks carry 297,357.38 USD (0.2060) of the 1,443,430.55 USD of single-pool builder
+payments (11,432 swaps), and 0.3767 of the primary proposer total. The sensitivity
+(`sensitivity_self_built` in `summary.json`, second table of `results/lvr_destination.md`) gives
+them the paid blocks' proposer share instead of 1:
+
+```
+self_built_proposer_share = Σ Q_b / Σ R_b over paid blocks = 0.4915
+```
+
+Revenue-weighted, because what is split is a sum of dollars: each wei of builder revenue counts
+once, and a block with almost no revenue, whose per-block share can be very large when the
+builder subsidises the proposer, cannot pull it. The median per-block share of the paid blocks
+(0.6240) is reported beside it. Result, with shares of LVR on searcher steps:
+
+| | primary (self-built share 1) | sensitivity (share 0.4915) |
+|---|---|---|
+| proposer, USD | 789,291.15 (0.1905) | 638,079.53 (0.1540) |
+| builder margin, USD | 654,139.41 (0.1578) | 805,351.02 (0.1943) |
+
+Their sum (0.3483), gas, kept and every other figure are the same under both. Builder margin
+exceeds the proposer payment for any share below 0.77 in these blocks, so the ordering does not
+depend on choosing the weighted ratio over the median. The primary method stays the published
+one (it is what the data identify directly, and chart 12 shows it); the sensitivity is the better
+estimate of the split.
 
 Required limitation text (also in the README and `results/lvr_destination.md`):
 
@@ -763,18 +809,19 @@ single-pool transactions only, not every searcher.
 
 Written to [`results/lp_checks.md`](../results/lp_checks.md) (and `.json`). L1–L7 are gated: `ulpe
 lp` computes everything, then writes the checks and, only if all pass, the results (`summary.json`
-last). R1–R5 are reported. All pass in this run.
+last). R1–R5 are reported, never gate, and show "reported" in the Result column. All of L1–L7
+pass in this run.
 
 | Check | Rule | Result |
 |---|---|---|
-| L1 swap reproduction | Every swap bit-exact in one of the three modes (section 10) | 534,377 swaps, 0 unreproduced; 496,936 exact input, 25,846 exact output, 11,595 to price |
+| L1 swap reproduction | Every swap bit-exact in one of the three modes (section 10), and none that the LP engine's own replay fails to reproduce | 534,377 swaps, 0 unreproduced; 496,936 exact input, 25,846 exact output, 11,595 to price; 0 unmatched in the engine |
 | L2 fee accumulators vs chain | At each of the 500 sample blocks, `feeGrowthGlobal0/1` and the sampled ticks' `feeGrowthOutside0/1` equal the engine's exactly | 500 blocks, 18,125 values, 0 mismatches |
 | L3 positions vs chain | The contract mirror's liquidity, `feeGrowthInside0/1LastX128` and `tokensOwed0/1` equal the chain's for every open pool key and NPM token at the window's last block, and the start state matches the rebuilt positions | 12,263 compared, 0 mismatches, 0 start mismatches |
 | L4 fees vs Collect | For every position opened, closed and fully collected in the window (the chain owes nothing at the end), engine fees = collected − withdrawn principal, exactly in raw units. Positions that received carried owed tokens, or handed theirs on to a re-mint (section 9.2), are skipped | 3,428 positions, 0 mismatches |
 | L5 start state | Σ liquidity of the positions open at the snapshot, per tick, equals the snapshot tick book (`liquidity_net` and `liquidity_gross`), and active liquidity matches | 3,837 positions, 1,557 ticks, 0 mismatches |
 | L6 identities | Σ position fees ≤ pool LP fees, short by at most one raw unit per accrued step, one per window flow and two per position (Ruling 13); Σ position LVR = pool LVR and pool LVR = the markout identity (section 11), relative error ≤ 1e-9 | Pool LP fees 1,337,421,456,289 raw USDC and 618,857,678,632,566,990,117 wei; positions short by 4,870 and 5,011 (tolerance 620,992) |
 | L7 history complete | The history's window `Mint`/`Burn` events equal `events.parquet`, each belongs to exactly one position, and every NPM event of our tokens matches a pool event | 21,850 liquidity events, 0 missing, 0 extra, 0 unassigned; 8 no-op zero collects |
-| R1 relays | Relay-reported proposer payment vs `Q_b`, on 1,000 random window blocks | 769 found on a relay; 699 of them match within 1 wei (the same 699 within 1%) |
+| R1 relays | Relay-reported proposer payment vs `Q_b`, on 1,000 random window blocks, by block type (paid / self-built) | 769 found on a relay; 699 of them match within 1 wei (the same 699 within 1%): all 699 found paid blocks, none of the 70 found self-built ones. Not found: 190 with a relay unchecked, 41 answered by every relay |
 | R2 traces vs Alchemy | Top-bot payments to the fee recipient from sub-project 2's Alchemy transfers vs the trace payments, on transactions touching our pool | 56,724 of 56,724 equal |
 | R3 LP-type coverage | Positions and fees by LP type | Table in `lp_checks.md`; 111 `lp_vault` positions |
 | R4 transferred | NFT positions whose owner changed while open | 570 of 7,874 |
@@ -791,18 +838,21 @@ What they prove and what they do not:
   or invalid JSON after retries) on 3 consecutive blocks is skipped for the rest of the run, and
   later blocks count as not checked on it. bloXroute max-profit timed out from the start and was
   skipped; Flashbots was skipped after about 600 blocks. 769 of the 1,000 blocks were found on a
-  relay; of the 231 not found, 190 have at least one relay that was not checked (per-relay counts
-  from `relays.parquet`, not in `results/`). 70 of the 769 (9.1%) differ by more than 1%, for a
-  reason not established here. The match rate, 699 / 769 = 90.9%, only just clears the plan's
-  threshold: below 90%, the method or a join was to be investigated before the write-up.
+  relay; of the 231 not found, 190 have at least one relay that was not checked and 41 were
+  answered by every relay queried. R1 breaks the sample down by block type: 824 sampled blocks
+  have a payment transaction (699 found, all 699 matching within 1 wei) and 176 do not (70 found,
+  none matching within 1%). So the 70 mismatches are the self-built fallback of section 15, not
+  a problem with the paid blocks, where the method agrees with the relays exactly. The overall
+  match rate, 699 / 769 = 90.9%, only just clears the plan's 90% threshold, and this breakdown is
+  the investigation that threshold asked for.
 
 ## 17. Limitations of sub-project 3
 
 - **Reference = last Binance ETHUSDC trade**, as in sub-project 2; measured LVR, fees in USD and
   every P&L move with it. Sub-project 4 tests a mid price and OKX.
 - **Theory** assumes geometric Brownian motion and Poisson blocks, while Ethereum slots are a
-  fixed 12 s; 1 s realised variance of last trades includes order-flow noise. The 1-minute version
-  is about a third higher than the 1 s one.
+  fixed 12 s. The 1-minute version is about a third higher than the 1 s one: stale stretches of
+  the last trade dominate the 1 s realised variance, not order-flow noise (section 12).
 - **LP hedging and other holdings are not observed.** P&L against rebalancing is what an LP who
   rebalanced at Binance's price would have made; a hedged LP's real result also depends on the
   hedge's own costs.
@@ -817,8 +867,12 @@ What they prove and what they do not:
 - **Direct keys with carried owed tokens** shift principal and fees between two positions of the
   same key; flagged positions are excluded from lifetime statistics (none among the window-active
   positions in this run), but a carry of fees only (principal fully collected) is not flagged.
-- **Where LVR goes:** the limitation text of section 15; `kept` is an upper bound. The relay
-  cross-check disagrees on 70 of 769 blocks (9.1%) by more than 1%, unexplained.
+- **Where LVR goes:** the limitation text of section 15; `kept` is an upper bound. The
+  proposer/builder split is uncertain: the 16.0% of blocks without a last-transaction payment are
+  treated as self-built, which the relay sample shows is mostly wrong (all 70 relay mismatches
+  over 1% are such blocks). With the paid-block share the proposer gets 0.1540 of searcher LVR
+  instead of 0.1905 and the builder margin 0.1943 instead of 0.1578; their sum does not move.
+  Proper payment detection needs a new query (sub-project 4).
 - **Path dependence.** P&L against holding, in the window and over a lifetime (65.7% of positions
   beat holding; 79% of those with a life of 180 days or more), depends on the price path over each
   position's life, and so on when it opened and closed.
@@ -877,4 +931,7 @@ Reviewed rulings during implementation changed several definitions in the design
 | Headline totals | Sums over steps | Fee and LVR totals sum accrued steps only; the destination counts every searcher step, so its keys are named apart (`lvr_on_searcher_swaps_usd`, …) from `lvr_0_searcher_usd`. Identical in this window (no step without liquidity) |
 | Builder data (D5) | Download every window transaction and value trace (dry runs 32 GB and 288 GB) | Aggregated inside BigQuery into three tables (Ruling 4); trace payments exclude transactions sent by the fee recipient and `delegatecall`/`callcode`/`staticcall` traces; the other-logs target is `COALESCE(to_address, contract created)` and covers every pool transaction. The three queries scanned about 661 GB, against the spec's estimate of about 320 GB, mostly because of the joins that exclude the fee recipient's own transactions |
 | R2 | All top-bot payments vs traces | Restricted to transactions that touch our pool, the population the trace table covers |
+| Theoretical LVR liquidity | Active liquidity `L_b` at block start | The end-of-block liquidity of the last block at or before the interval start: the state in force during the interval, which the next block's arbitrage trades against. Theory with 1 s returns moved from 3,158,845.51 to 3,155,610.48 USD |
+| JIT per swap | "Reported in USD per swap" (no definition) | P&L over the swaps between the position's first add and last removal in its block, per position-swap pair (section 13) |
+| Builder tables | `fetch-builders` (no flag) | A billable run needs `--confirm-cost`, like `fetch-history`; a dry run is free and needs none |
 | Relay sample (R1) | Retries, cached | A circuit breaker skips a relay after 3 consecutive failed blocks: bloXroute max-profit timed out and was skipped, Flashbots was skipped after about 600 blocks; 769 of 1,000 blocks found, and 190 of the not-found blocks have relays that were not checked |

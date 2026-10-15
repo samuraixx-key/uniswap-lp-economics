@@ -6,8 +6,7 @@ from typing import Any
 import polars as pl
 
 from uniswap_lp_economics import flows
-from uniswap_lp_economics.align import US
-from uniswap_lp_economics.config import HORIZONS_S
+from uniswap_lp_economics.config import HORIZONS_S, US
 from uniswap_lp_economics.markouts import STALE_S
 from uniswap_lp_economics.replay import iter_swaps_with_pre_state, required
 from uniswap_lp_economics.tickbook import TickBook

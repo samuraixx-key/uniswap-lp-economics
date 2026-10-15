@@ -13,8 +13,10 @@ if TYPE_CHECKING:
     from uniswap_lp_economics.lp.ledger import Ledger
 
 
-def check_l1(swap_fees: pl.DataFrame) -> CheckResult:
-    """Every swap re-simulated bit-exactly in one of the reproduction modes."""
+def check_l1(swap_fees: pl.DataFrame, engine_unmatched: int = 0) -> CheckResult:
+    """Every swap re-simulated bit-exactly in one of the reproduction modes, both in
+    `swap_fees` (sub-project 2's replay) and in the LP engine's own replay (`engine_unmatched`:
+    swaps the engine could not reproduce from its state, which would accrue no fees)."""
     modes = swap_fees.group_by("mode").len().drop_nulls("mode")
     counts: dict[str, Any] = dict(zip(modes["mode"].to_list(), modes["len"].to_list(), strict=True))
     bad = swap_fees.filter(pl.col("mode").is_null())
@@ -24,8 +26,13 @@ def check_l1(swap_fees: pl.DataFrame) -> CheckResult:
     ]
     return CheckResult(
         "L1 every swap reproduced bit-exactly",
-        bad.height == 0 and swap_fees.height > 0,
-        {"swaps": swap_fees.height, "unreproduced": bad.height, "by_mode": counts},
+        bad.height == 0 and engine_unmatched == 0 and swap_fees.height > 0,
+        {
+            "swaps": swap_fees.height,
+            "unreproduced": bad.height,
+            "by_mode": counts,
+            "engine_unmatched": engine_unmatched,
+        },
         listed,
     )
 
@@ -310,16 +317,60 @@ def check_l6(
     )
 
 
+def _relay_matches(found: pl.DataFrame) -> tuple[int, int]:
+    """(within 1 wei, within 1% of the relay value) of found rows joined with the split."""
+    if not found.height:
+        return 0, 0
+    diff = (found["value_wei"] - found["payment_wei"]).abs()
+    within = diff.cast(pl.Float64) <= 0.01 * found["value_wei"].cast(pl.Float64)
+    return int((diff <= 1).sum()), int(within.sum())
+
+
 def check_r1_relays(relays: pl.DataFrame, split: pl.DataFrame) -> CheckResult:
+    """Relay-reported proposer payment vs Q_b, with a breakdown by block type: `paid` (the last
+    transaction is from the fee recipient) and `self_built` (it is not, so Q_b = R_b). Not-found
+    blocks are split by whether some relay gave no answer (`relays_unchecked`); both counts are
+    None for a relay file written before that column existed."""
     found = relays.filter(pl.col("found"))
     both = found.join(split.select("block_number", "payment_wei"), on="block_number", how="inner")
-    diff = (both["value_wei"] - both["payment_wei"]).abs()
-    exact = int((diff <= 1).sum()) if both.height else 0
-    within = (
-        int((diff.cast(pl.Float64) <= 0.01 * both["value_wei"].cast(pl.Float64)).sum())
-        if both.height
-        else 0
+    exact, within = _relay_matches(both)
+    typed = relays.join(
+        split.select("block_number", "miner", "revenue_wei", "payment_wei", "self_built"),
+        on="block_number",
+        how="inner",
     )
+    has_recipient = "proposer_fee_recipient" in relays.columns
+    by_type: dict[str, dict[str, Any]] = {}
+    for name, flag in (("paid", False), ("self_built", True)):
+        rows = typed.filter(pl.col("self_built") == flag)
+        hits = rows.filter(pl.col("found"))
+        m1, m1pct = _relay_matches(hits)
+        with_revenue = hits.filter(pl.col("revenue_wei") > 0)
+        ratio = with_revenue["value_wei"].cast(pl.Float64) / with_revenue["revenue_wei"].cast(
+            pl.Float64
+        )
+        by_type[name] = {
+            "sampled": rows.height,
+            "found": hits.height,
+            "match_within_1_wei": m1,
+            "match_within_1pct": m1pct,
+            # Relay-reported payment / on-chain builder revenue R_b, and found blocks whose relay
+            # names a proposer fee recipient other than the block's fee recipient.
+            "median_relay_value_over_revenue": (
+                float(ratio.median()) if with_revenue.height else None  # type: ignore[arg-type]
+            ),
+            "relay_recipient_not_fee_recipient": (
+                int((hits["proposer_fee_recipient"] != hits["miner"]).sum())
+                if has_recipient
+                else None
+            ),
+        }
+    not_found = relays.filter(~pl.col("found"))
+    unchecked: int | None = None
+    answered: int | None = None
+    if "relays_unchecked" in relays.columns:
+        unchecked = int(not_found["relays_unchecked"].is_not_null().sum())
+        answered = not_found.height - unchecked
     return CheckResult(
         "R1 relay vs on-chain proposer payment (reported)",
         True,
@@ -329,7 +380,11 @@ def check_r1_relays(relays: pl.DataFrame, split: pl.DataFrame) -> CheckResult:
             "compared_with_on_chain": both.height,
             "match_within_1_wei": exact,
             "match_within_1pct": within,
+            "by_block_type": by_type,
+            "not_found_unchecked": unchecked,
+            "not_found_all_answered": answered,
         },
+        reported=True,
     )
 
 
@@ -353,12 +408,15 @@ def check_r2_traces_vs_alchemy(
         "R2 traces vs Alchemy builder payments, top bots (reported)",
         True,
         {"alchemy_pool_txs_with_payment": alchemy.height, "same_amount_in_traces": same},
+        reported=True,
     )
 
 
 def check_r3_lp_types(positions: pl.DataFrame) -> CheckResult:
     by = positions.group_by("lp_type").agg(positions=pl.len(), fee_usd=pl.col("fee_usd").sum())
-    return CheckResult("R3 LP-type coverage (reported)", True, {"by_lp_type": by.to_dicts()})
+    return CheckResult(
+        "R3 LP-type coverage (reported)", True, {"by_lp_type": by.to_dicts()}, reported=True
+    )
 
 
 def check_r4_transferred(positions_table: pl.DataFrame, active_ids: list[str]) -> CheckResult:
@@ -367,6 +425,7 @@ def check_r4_transferred(positions_table: pl.DataFrame, active_ids: list[str]) -
         "R4 NFT positions transferred while open (reported)",
         True,
         {"window_active": active.height, "transferred": int(active["transferred"].sum())},
+        reported=True,
     )
 
 
@@ -375,4 +434,5 @@ def check_r5_null_12s(null_12s_steps: int, steps: pl.DataFrame) -> CheckResult:
         "R5 steps without a 12 s reference (reported)",
         True,
         {"steps": steps.height, "without_12s_reference": null_12s_steps},
+        reported=True,
     )

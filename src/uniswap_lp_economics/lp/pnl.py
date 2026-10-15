@@ -16,7 +16,7 @@ import numpy as np
 import polars as pl
 from numpy.typing import NDArray
 
-from uniswap_lp_economics.config import BLOCK_TIME_S, DECIMALS0, DECIMALS1
+from uniswap_lp_economics.config import BLOCK_TIME_S, DAY_S, DECIMALS0, DECIMALS1, HOUR_US, US
 from uniswap_lp_economics.v3math import get_sqrt_ratio_at_tick
 from uniswap_lp_economics.v3swap import get_amount0_delta, get_amount1_delta
 
@@ -27,9 +27,6 @@ COHORTS = ("pre_window", "in_window")
 LP_LABEL_COLUMNS = ["address", "name", "category", "source_url", "notes"]
 N_BOOT = 1000
 SEED = 42
-US = 1_000_000
-HOUR_US = 3600 * US
-DAY_S = 86_400
 _ADDRESS = re.compile(r"^0x[0-9a-f]{40}$")
 
 
@@ -103,20 +100,20 @@ def usd(amount0: float, amount1: float, price: float) -> float:
     return amount0 / int(10**DECIMALS0) + amount1 / int(10**DECIMALS1) * price
 
 
+def tx_receipts(events: pl.DataFrame) -> pl.DataFrame:
+    """One row per transaction: tx_hash, receipt_gas_used, receipt_effective_gas_price (every
+    log of a transaction carries the same receipt columns)."""
+    return events.group_by("tx_hash").agg(
+        pl.col("receipt_gas_used").first(), pl.col("receipt_effective_gas_price").first()
+    )
+
+
 def gas_by_position(
     flows_window: pl.DataFrame, events: pl.DataFrame, prices: dict[int, tuple[int, float]]
 ) -> dict[str, float]:
     """Gas of each window transaction that changed a position, split equally across the
     positions it touched, at the Binance price of its block."""
-    receipts = {
-        tx: (g, p)
-        for tx, g, p in events.group_by("tx_hash")
-        .agg(
-            pl.col("receipt_gas_used").first(),
-            pl.col("receipt_effective_gas_price").first(),
-        )
-        .iter_rows()
-    }
+    receipts = {tx: (g, p) for tx, g, p in tx_receipts(events).iter_rows()}
     touched = flows_window.group_by("tx_hash").agg(
         pl.col("position_id").unique(), pl.col("block_number").first()
     )
@@ -313,6 +310,62 @@ def window_pnl(
             }
         )
     return pl.DataFrame(rows, schema=PNL_SCHEMA)
+
+
+JIT_PER_SWAP = {  # summary key -> positions column
+    "fee_usd_per_swap": "fee_usd",
+    "lvr_0_usd_per_swap": "lvr_0",
+    "gas_usd_per_swap": "gas_usd",
+    "pnl_rebal_usd_per_swap": "pnl_rebal_usd",
+    "pnl_hold_usd_per_swap": "pnl_hold_usd",
+}
+
+
+def jit_per_swap(
+    positions: pl.DataFrame, flows_window: pl.DataFrame, swaps: pl.DataFrame
+) -> dict[str, Any]:
+    """JIT P&L in USD per swap (spec section 6). A jit position is active for the swaps of its
+    block that lie, in log order, between its first liquidity add and its last removal; the
+    totals of the jit positions are divided by the number of such position-swap pairs. Also the
+    median per-position P&L per swap over jit positions with at least one swap. `swaps`:
+    block_number and log_index of every swap."""
+    jit = positions.filter(pl.col("lp_type") == "jit")
+    spans = (
+        flows_window.join(jit.select("position_id"), on="position_id", how="semi")
+        .group_by("position_id")
+        .agg(
+            block=pl.col("block_number").first(),
+            first_add=pl.col("pool_log_index").filter(pl.col("liquidity_delta") > 0).min(),
+            last_remove=pl.col("pool_log_index").filter(pl.col("liquidity_delta") < 0).max(),
+        )
+    )
+    counts = (
+        spans.join(
+            swaps.select("block_number", "log_index"), left_on="block", right_on="block_number"
+        )
+        .filter(
+            (pl.col("log_index") > pl.col("first_add"))
+            & (pl.col("log_index") < pl.col("last_remove"))
+        )
+        .group_by("position_id")
+        .agg(swaps=pl.len())
+    )
+    per = jit.join(counts, on="position_id", how="left").with_columns(pl.col("swaps").fill_null(0))
+    n = int(per["swaps"].sum()) if per.height else 0
+    out: dict[str, Any] = {
+        "positions": jit.height,
+        "positions_with_swaps": int((per["swaps"] > 0).sum()) if per.height else 0,
+        "swaps": n,
+    }
+    for key, col in JIT_PER_SWAP.items():
+        out[key] = float(per[col].sum()) / n if n else None
+    with_swaps = per.filter(pl.col("swaps") > 0)
+    out["median_pnl_rebal_usd_per_swap"] = (
+        float((with_swaps["pnl_rebal_usd"] / with_swaps["swaps"]).median())  # type: ignore[arg-type]
+        if with_swaps.height
+        else None
+    )
+    return out
 
 
 def bootstrap_ratio(

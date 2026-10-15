@@ -324,6 +324,11 @@ def oracle(events: pl.DataFrame, npm: pl.DataFrame) -> tuple[Ledger, Any]:
     return ledger, run
 
 
+def world_end_us() -> int:
+    """End of the world's Binance data: an hour past its last block."""
+    return int(ts(12).timestamp()) * US + 3_700 * US
+
+
 def world_inputs() -> LpInputs:
     first, _ = build()
     ledger, _ = oracle(*frames(first))
@@ -391,6 +396,7 @@ def world_inputs() -> LpInputs:
         )
     for i in range(len(blocks)):
         rows[i]["end_sqrt_price_x96"] = rows[i + 1]["sqrt_price_x96"]
+        rows[i]["end_liquidity"] = rows[i + 1]["liquidity"]
     state_rows = rows[: len(blocks)]
     blocks_state = pl.DataFrame(
         state_rows,
@@ -399,13 +405,14 @@ def world_inputs() -> LpInputs:
             "sqrt_price_x96": pl.Int128,
             "liquidity": pl.Int128,
             "end_sqrt_price_x96": pl.Int128,
+            "end_liquidity": pl.Int128,
         },
     ).with_columns(
         ts_us=pl.Series([int(ts(b).timestamp()) * US for b in blocks]),
         p_cex=pl.Series([sqrt_price_x96_to_eth_price(r["sqrt_price_x96"]) for r in state_rows]),
     )
     t_lo = int(ts(SNAP).timestamp()) * US - 60 * US
-    t_hi = int(ts(12).timestamp()) * US + 3_700 * US
+    t_hi = world_end_us()
     seconds = list(range(t_lo, t_hi, US))
     trades = pl.DataFrame(
         {
@@ -513,5 +520,4 @@ def world_inputs() -> LpInputs:
                 "value_wei": pl.Int128,
             }
         ),
-        window_end_us=t_hi,
     )

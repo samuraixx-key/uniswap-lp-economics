@@ -128,7 +128,7 @@ def test_fetch_builders_writes_three_typed_tables_then_skips(
 ) -> None:
     fake = FakeClient()
     monkeypatch.setattr(builders.bigquery, "Client", lambda project: fake)
-    builders.fetch_builders(tmp_path, START, END)
+    builders.fetch_builders(tmp_path, START, END, confirm_cost=True)
     assert len(fake.paid) == 3
     assert all(cap == builders.MAX_GB_BILLED * 10**9 for _, cap in fake.paid)
     rev, direct, other = builders.load_builders(tmp_path)
@@ -138,7 +138,7 @@ def test_fetch_builders_writes_three_typed_tables_then_skips(
     assert direct["direct_wei"].to_list() == [7]
     assert other.schema["other_logs"] == pl.Int64 and other["logs"].to_list() == [5]
     assert not list((tmp_path / builders.BUILDERS_DIR).glob("*.part"))
-    builders.fetch_builders(tmp_path, START, END)
+    builders.fetch_builders(tmp_path, START, END, confirm_cost=True)
     assert len(fake.paid) == 3  # existing files are not re-queried
 
 
@@ -152,13 +152,35 @@ def test_fetch_builders_dry_run_runs_no_paid_query(
     assert not list((tmp_path / builders.BUILDERS_DIR).glob("*.parquet"))
 
 
+def test_fetch_builders_without_the_flag_refuses_before_any_query(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake = FakeClient()
+    monkeypatch.setattr(builders.bigquery, "Client", lambda project: fake)
+    with pytest.raises(SystemExit, match="--confirm-cost"):
+        builders.fetch_builders(tmp_path, START, END)
+    assert fake.dry == [] and fake.paid == []
+    builders.fetch_builders(tmp_path, START, END, dry_run=True)  # a dry run needs no flag
+    assert len(fake.dry) == 3 and fake.paid == []
+
+
+def test_fetch_builders_without_the_flag_skips_tables_on_disk(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake = FakeClient()
+    monkeypatch.setattr(builders.bigquery, "Client", lambda project: fake)
+    builders.fetch_builders(tmp_path, START, END, confirm_cost=True)
+    builders.fetch_builders(tmp_path, START, END)  # nothing missing: nothing to bill, no refusal
+    assert len(fake.paid) == 3
+
+
 def test_fetch_builders_turns_a_billing_error_into_help(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     fake = FakeClient(fail=RuntimeError("Billing has not been enabled"))
     monkeypatch.setattr(builders.bigquery, "Client", lambda project: fake)
     with pytest.raises(SystemExit, match="billing"):
-        builders.fetch_builders(tmp_path, START, END)
+        builders.fetch_builders(tmp_path, START, END, confirm_cost=True)
 
 
 def test_trace_payments_exclude_the_fee_recipients_own_transactions() -> None:
@@ -187,7 +209,7 @@ def test_an_oversized_estimate_stops_before_any_paid_job(
     fake.scanned = (builders.MAX_GB_BILLED + 1) * 10**9
     monkeypatch.setattr(builders.bigquery, "Client", lambda project: fake)
     with pytest.raises(SystemExit, match="cap"):
-        builders.fetch_builders(tmp_path, START, END)
+        builders.fetch_builders(tmp_path, START, END, confirm_cost=True)
     assert fake.paid == []
     assert not list((tmp_path / builders.BUILDERS_DIR).glob("*.parquet"))
 

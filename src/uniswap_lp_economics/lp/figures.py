@@ -65,10 +65,20 @@ def regime_chart(summary: pl.DataFrame, path: Path) -> None:
 
 
 def group_chart(groups: pl.DataFrame, path: Path) -> None:
-    """Chart 10: bp of position value per day by LP type and by range width, with 95% intervals."""
-    fig, axes = plt.subplots(1, 2, figsize=(13, 5))
-    for ax, grouping in zip(axes, ("lp_type", "width_bucket"), strict=True):
-        g = groups.filter(pl.col("grouping") == grouping) if groups.height else groups
+    """Chart 10: bp of position value per day by LP type and by range width, with 95% intervals.
+    JIT gets its own panel: one 12 s slot of capital makes its rate thousands of bp per day,
+    which would flatten the other LP types on a shared axis."""
+    fig, axes = plt.subplots(
+        1, 3, figsize=(15, 5), gridspec_kw={"width_ratios": [4, 1.3, 5]}, layout="constrained"
+    )
+    is_jit = pl.col("group") == "jit"
+    panels = (
+        ("lp_type", ~is_jit, "by LP type (without JIT)"),
+        ("lp_type", is_jit, "JIT (own scale)"),
+        ("width_bucket", pl.lit(True), "by range width"),
+    )
+    for ax, (grouping, keep, title) in zip(axes, panels, strict=True):
+        g = groups.filter((pl.col("grouping") == grouping) & keep) if groups.height else groups
         if g.height:
             y = np.array(floats(g["bp_per_day"]))
             lo = np.maximum(y - np.array(floats(g["ci_lo_bp"])), 0)
@@ -78,7 +88,7 @@ def group_chart(groups: pl.DataFrame, path: Path) -> None:
         else:
             no_data(ax)
         ax.axhline(0.0, color="grey", lw=0.8)
-        ax.set_title(f"P&L vs rebalancing by {grouping.replace('_', ' ')}")
+        ax.set_title(f"P&L vs rebalancing, {title}", fontsize=10)
         ax.set_ylabel("bp of position value per day")
     save_figure(fig, path)
 
@@ -122,6 +132,7 @@ def destination_waterfall(d: dict[str, float], path: Path) -> None:
         no_data(ax)
     else:
         level = 0.0
+        tops, bottoms = [0.0], [0.0]
         for i, (key, _label, kind, share_key) in enumerate(DESTINATION_STEPS):
             v = d.get(key, 0.0) / 1e3
             before = level
@@ -131,6 +142,8 @@ def destination_waterfall(d: dict[str, float], path: Path) -> None:
             else:
                 ax.bar(i, -v, bottom=level, color="tab:grey" if i == 1 else "tab:red")
                 level -= v
+            tops.append(max(before, level))
+            bottoms.append(min(before, level))
             text = f"{v:,.1f}"
             if share_key is not None and share_key in d:
                 text += f"\n{d[share_key]:.1%}"
@@ -142,7 +155,10 @@ def destination_waterfall(d: dict[str, float], path: Path) -> None:
                 fontsize=8,
             )
         ax.set_xticks(range(len(DESTINATION_STEPS)), [s[1] for s in DESTINATION_STEPS])
+        # Headroom for the two-line value labels above the tallest bar, clear of the title.
+        span = max(max(tops) - min(bottoms), 1e-9)
+        ax.set_ylim(min(bottoms) - 0.05 * span, max(tops) + 0.2 * span)
     ax.axhline(0.0, color="grey", lw=0.8)
     ax.set_ylabel("USD thousands")
-    ax.set_title("Where LVR goes: fees, gas, builders, proposers, searchers")
+    ax.set_title("Where LVR goes: fees, gas, builders, proposers, searchers (primary split)")
     save_figure(fig, path)

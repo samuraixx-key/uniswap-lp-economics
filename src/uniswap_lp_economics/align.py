@@ -4,9 +4,7 @@ from datetime import UTC, datetime, time
 
 import polars as pl
 
-from uniswap_lp_economics.config import HORIZONS_S, WINDOW_END
-
-US = 1_000_000
+from uniswap_lp_economics.config import HORIZONS_S, US, WINDOW_END
 
 
 def window_end_us() -> int:

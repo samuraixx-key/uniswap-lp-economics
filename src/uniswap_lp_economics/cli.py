@@ -230,7 +230,9 @@ def fetch_builders(confirm_cost: bool) -> None:
         return
     if not confirm_cost:
         refuse_paid_query("builder revenue and payment tables", "fetch-builders")
-    builders.fetch_builders(config.RAW_DIR, config.WINDOW_START, config.WINDOW_END)
+    builders.fetch_builders(
+        config.RAW_DIR, config.WINDOW_START, config.WINDOW_END, confirm_cost=confirm_cost
+    )
 
 
 # The whole pipeline, in order. fetch-chain-state appears twice: its fee-state part runs before
@@ -325,9 +327,13 @@ def main() -> None:
     hist.add_argument("--dry-run", action="store_true", help="only report bytes scanned")
     hist.add_argument("--confirm-cost", action="store_true", help="allow the paid stage-1 query")
     builders_cmd = sub.add_parser(
-        "fetch-builders", help="aggregated builder revenue and payment tables (BigQuery)"
+        "fetch-builders",
+        help="aggregated builder revenue and payment tables (paid BigQuery; needs --confirm-cost)",
     )
     builders_cmd.add_argument("--dry-run", action="store_true", help="only report bytes scanned")
+    builders_cmd.add_argument(
+        "--confirm-cost", action="store_true", help="allow the paid BigQuery queries"
+    )
     sub.add_parser("fetch-relays", help="relay-reported proposer payments for a block sample")
     sub.add_parser("build", help="decode raw data into interim tables")
     sub.add_parser("validate", help="run checks C1-C6 and write data_validation/validation_report")
@@ -369,7 +375,7 @@ def main() -> None:
         )
     elif args.command == "fetch-builders":
         builders.fetch_builders(
-            config.RAW_DIR, config.WINDOW_START, config.WINDOW_END, args.dry_run
+            config.RAW_DIR, config.WINDOW_START, config.WINDOW_END, args.dry_run, args.confirm_cost
         )
     elif args.command == "fetch-relays":
         fetch_relays()

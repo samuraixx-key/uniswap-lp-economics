@@ -15,9 +15,11 @@ from uniswap_lp_economics.lp.pnl import (
     gas_by_position,
     group_table,
     hold_bucket,
+    jit_per_swap,
     load_lp_labels,
     position_amounts,
     time_weighted_value,
+    tx_receipts,
     usd,
     width_bp,
     width_bucket,
@@ -414,3 +416,53 @@ def test_time_weighted_value_reads_the_last_change_at_a_timestamp() -> None:
     twv = dict(time_weighted_value(path, spans, grid).iter_rows())
     unit = usd(*position_amounts(L, -10, 10, sqrt_at(0)), 2000.0)
     assert twv["p"] == pytest.approx(unit * (2 + 2 + 4 + 4) / 4, rel=1e-9)
+
+
+def test_jit_per_swap_counts_the_swaps_between_mint_and_burn() -> None:
+    positions = pl.DataFrame(
+        {
+            "position_id": ["a", "b", "d", "c"],
+            "lp_type": ["jit", "jit", "jit", "nft_wallet"],
+            "fee_usd": [1.0, 0.5, 0.0, 9.0],
+            "lvr_0": [-6.0, 1.0, 0.0, 9.0],
+            "gas_usd": [1.0, 0.5, 2.0, 9.0],
+            "pnl_rebal_usd": [6.0, -1.0, -2.0, 9.0],
+            "pnl_hold_usd": [6.5, -1.0, -2.0, 9.0],
+        }
+    )
+    flows = pl.DataFrame(
+        {
+            "position_id": ["a", "a", "a", "b", "b", "d", "d", "c"],
+            "block_number": [5] * 8,
+            "pool_log_index": [1, 4, 5, 7, 9, 10, 11, 0],
+            "liquidity_delta": [10, -10, 0, 3, -3, 2, -2, 50],
+        },
+        schema_overrides={"liquidity_delta": pl.Int128},
+    )
+    swaps = pl.DataFrame(
+        {"block_number": [5, 5, 5, 5, 6], "log_index": [2, 3, 6, 8, 2]}
+    )  # a covers 2 and 3, b covers 8, d none; 6 and block 6 fall outside every JIT span
+    j = jit_per_swap(positions, flows, swaps)
+    assert j["positions"] == 3 and j["positions_with_swaps"] == 2 and j["swaps"] == 3
+    assert j["fee_usd_per_swap"] == pytest.approx(0.5)
+    assert j["lvr_0_usd_per_swap"] == pytest.approx(-5.0 / 3)
+    assert j["gas_usd_per_swap"] == pytest.approx(3.5 / 3)
+    assert j["pnl_rebal_usd_per_swap"] == pytest.approx(1.0)
+    assert j["pnl_hold_usd_per_swap"] == pytest.approx(3.5 / 3)
+    assert j["median_pnl_rebal_usd_per_swap"] == pytest.approx(1.0)  # a: 6/2 = 3, b: -1/1
+    none = jit_per_swap(positions.filter(pl.col("lp_type") != "jit"), flows, swaps)
+    assert none["positions"] == 0 and none["swaps"] == 0
+    assert none["pnl_rebal_usd_per_swap"] is None
+
+
+def test_tx_receipts_keeps_one_row_per_transaction() -> None:
+    events = pl.DataFrame(
+        {
+            "tx_hash": ["0x1", "0x1", "0x2"],
+            "receipt_gas_used": [10, 10, 20],
+            "receipt_effective_gas_price": [3, 3, 4],
+        }
+    )
+    r = tx_receipts(events).sort("tx_hash")
+    assert r.columns == ["tx_hash", "receipt_gas_used", "receipt_effective_gas_price"]
+    assert r.rows() == [("0x1", 10, 3), ("0x2", 20, 4)]

@@ -11,6 +11,7 @@ from typing import Any
 import polars as pl
 
 from uniswap_lp_economics.align import reference_at
+from uniswap_lp_economics.config import DAY_S, US
 from uniswap_lp_economics.lp.pnl import (
     WIDTH_BUCKETS,
     Edge,
@@ -21,8 +22,6 @@ from uniswap_lp_economics.lp.pnl import (
 )
 
 LIFE_BUCKETS = ("<1d", "1-7d", "7-30d", "30-180d", ">=180d")
-US = 1_000_000
-DAY_S = 86_400
 LIFE_SCHEMA: dict[str, Any] = {
     "position_id": pl.String,
     "kind": pl.String,

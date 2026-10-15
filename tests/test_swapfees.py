@@ -79,3 +79,11 @@ def test_l1_fails_on_an_unreproducible_swap() -> None:
     assert not bad.passed
     assert bad.summary["unreproduced"] == 1
     assert bad.mismatches[0]["block"] == 1
+
+
+def test_l1_fails_when_the_engine_could_not_match_a_swap() -> None:
+    fees = build_swap_fees(events(), book(), 0)
+    ok = check_l1(fees, engine_unmatched=0)
+    assert ok.passed and ok.summary["engine_unmatched"] == 0
+    bad = check_l1(fees, engine_unmatched=2)
+    assert not bad.passed and bad.summary["engine_unmatched"] == 2

@@ -29,11 +29,18 @@ def test_full_range_theory_is_sigma2_over_8_times_value() -> None:
     liq, price = 10**24, 2000.0  # raw liquidity; L_dec = 1e12
     grid = pl.DataFrame({"ts_us": [0, US, 2 * US], "price": [price, price * 1.001, price]})
     state = pl.DataFrame(
-        {"block_number": [1], "ts_us": [0], "liquidity": [liq], "p_cex": [price]},
+        {
+            "block_number": [1],
+            "ts_us": [0],
+            "liquidity": [1],  # at block start; the interval uses the state after the block
+            "end_liquidity": [liq],
+            "p_cex": [price],
+        },
         schema={
             "block_number": pl.Int64,
             "ts_us": pl.Int64,
             "liquidity": pl.Int128,
+            "end_liquidity": pl.Int128,
             "p_cex": pl.Float64,
         },
     )
@@ -51,6 +58,32 @@ def test_full_range_theory_is_sigma2_over_8_times_value() -> None:
         float(t["r2"].head(1).item()) / 8 * value
     )
     assert r2 > 0
+
+
+def test_interval_theory_uses_the_liquidity_in_force_after_the_block() -> None:
+    # Block 1 at t = 0 changes liquidity from 1 to 3; block 2 at t = 2 s from 3 to 5. The
+    # interval starting at 1 s lies after block 1, so it has block 1's end liquidity (3).
+    grid = pl.DataFrame({"ts_us": [0, US, 2 * US, 3 * US], "price": [1.0, 1.1, 1.0, 1.1]})
+    state = pl.DataFrame(
+        {
+            "block_number": [1, 2],
+            "ts_us": [0, 2 * US],
+            "liquidity": [1, 3],
+            "end_liquidity": [3, 5],
+        },
+        schema={
+            "block_number": pl.Int64,
+            "ts_us": pl.Int64,
+            "liquidity": pl.Int128,
+            "end_liquidity": pl.Int128,
+        },
+    )
+    t = interval_theory(grid, state)
+    liq = [lvr / (r2 * 1e-12 * math.sqrt(p) / 4) for lvr, r2, p in zip(
+        t["lvr_theory"].to_list(), t["r2"].to_list(), [1.0, 1.1, 1.0], strict=True
+    )]  # fmt: skip
+    assert liq == pytest.approx([3.0, 3.0, 5.0])
+    assert t["block_number"].to_list() == [1, 1, 2]
 
 
 def test_daily_theory_and_regimes() -> None:

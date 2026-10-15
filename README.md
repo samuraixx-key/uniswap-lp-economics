@@ -98,19 +98,28 @@ at the pool's price instead of Binance's)? Which LPs make money? And where does 
    over each position's own life, and so on when it opened and closed. Lifetime shares count
    positions, not dollars, and value deposits made before the window at ETHUSDT 1-minute closes.
    A vault stands for many depositors, and an NFT position's LP is its owner at close.
-6. **Where LVR goes: back to LPs as fees, then to proposers and builders; searchers keep nothing
-   measurable at block time.** Of the $4.14M of LVR on searcher swaps, 47.7% went to LPs as fees,
-   15.9% to the protocol, 19.0% to block proposers and 15.8% to builders (margin after paying the
-   proposer); 6.2% is the gross of multi-pool transactions (not split), 0.2% gas burned, and the
-   searchers kept **−4.9%** (−$0.20M).
-   *Caveat:* the builder/proposer split applies each block's ratio of proposer payment to builder
-   revenue, not how a builder priced each transaction. On-chain proposer payments match relay
-   data on 699 of the 769 sampled blocks found on a relay (90.9%, just above the 90% below which
-   the method would have been investigated); the other 70 (9.1%) differ by more than 1% for a
-   reason not established. Kept is negative because builder margin plus proposer payment (34.8% of
-   searcher LVR) exceeds the single-pool gross at 0 s (30.2%). It is an upper bound (payments
-   outside the transaction are missed) and, as in finding 3, a small difference of large totals
-   measured at the block time; sub-project 2's positive kept at 12 s covers the top 4 bots only.
+6. **Where LVR goes: back to LPs as fees, then to block builders and proposers; searchers keep
+   nothing measurable at block time.** Of the $4.14M of LVR on searcher swaps, 47.7% went to LPs as
+   fees, 15.9% to the protocol and **34.8% to builders and proposers together**; 6.2% is the gross
+   of multi-pool transactions (not split), 0.2% gas burned, and the searchers kept **−4.9%**
+   (−$0.20M). How the 34.8% divides between proposers and builders is not settled: 19.0% to
+   proposers and 15.8% to builders by the primary method, 15.4% and 19.4% in a sensitivity that
+   corrects a known bias of that method.
+   *Caveat:* a proposer payment is found as the block's last transaction, sent by the block's fee
+   recipient. 16.0% of window blocks have none; the primary method takes them to be self-built and
+   gives the proposer all of their builder revenue. The relay sample shows this is mostly wrong: the
+   70 sampled blocks (of 769 found on a relay) whose relay payment differs from the on-chain one by
+   more than 1% are all such blocks, MEV-Boost blocks whose relay names a proposer other than the
+   fee recipient and reports a payment of 0.56 of builder revenue on the median; all 699 blocks with
+   a payment transaction match within 1 wei. These blocks carry 20.6% of searchers' builder
+   payments ($0.30M, 37.7% of the primary proposer total). The sensitivity gives them the proposer
+   share of the paid blocks (49.1% of builder revenue, volume-weighted). Finding those payments
+   directly (not in the last transaction, or sent from a separate payout address) needs a new
+   query, planned for sub-project 4. The 34.8%, gas and kept do not depend on the split. Kept is
+   negative because the 34.8% exceeds the single-pool gross at 0 s (30.2% of searcher LVR). It is
+   an upper bound (payments outside the transaction are missed) and, as in finding 3, a small
+   difference of large totals measured at the block time; sub-project 2's positive kept at 12 s
+   covers the top 4 bots only.
 
 ![Daily LP fees vs measured LVR at 0 s and 12 s](results/figures/7_lp_fees_vs_lvr_daily.png)
 
@@ -229,7 +238,9 @@ Every definition and formula: [`docs/methodology.md`](docs/methodology.md).
 Everything below is written by `uv run ulpe analyze` into [`results/`](results/) (headline numbers
 in [`results/summary.json`](results/summary.json)), and only after checks A1–A6
 ([`results/analysis_checks.md`](results/analysis_checks.md)) pass: every historical swap is
-re-simulated within tolerance (496,936 of 534,377 bit-exact), the block series is complete
+re-simulated within tolerance (A1 replays each swap as exact input only, which reproduces 496,936
+of 534,377 bit-exactly; sub-project 3's check L1 adds the exact-output and to-price modes and
+reproduces all 534,377, see [LP P&L](#lp-pl)), the block series is complete
 (659,799 blocks), and trader + LP + protocol markouts sum to zero on every swap (largest residual
 about 2e-11 USD).
 
@@ -393,9 +404,9 @@ Window totals from [`results/lp_pnl.md`](results/lp_pnl.md), in USD:
 | measured LVR, 12 s | 4,089,325.49 |
 | **LP fees − LVR (0 s)** | **−1,059,609.59** |
 | LVR on searcher swaps / LP fees on searcher swaps | 4,144,118.00 / 1,976,144.85 |
-| theoretical LVR, 1 s returns / 1-minute returns | 3,158,845.51 / 4,333,659.24 |
-| theory, expected arbitrage profit (× P_trade) | 933,257.67 |
-| theory, expected fees paid by arbitrage (× (1 − P_trade)) | 2,225,587.84 |
+| theoretical LVR, 1 s returns / 1-minute returns | 3,155,610.48 / 4,325,747.96 |
+| theory, expected arbitrage profit (× P_trade) | 931,857.47 |
+| theory, expected fees paid by arbitrage (× (1 − P_trade)) | 2,223,753.00 |
 
 The LP fees are net of the protocol's quarter, which is most of the gap: total swap fees (LP +
 protocol, summed from [`results/lvr_daily.csv`](results/lvr_daily.csv)) were 3,525,477.30, short of
@@ -415,7 +426,7 @@ times P_trade, the probability that a block holds an arbitrage given the 0.05% f
 (Milionis, Moallemi, Roughgarden 2023, which supplies P_trade; the LVR formula is Milionis,
 Moallemi, Roughgarden and Zhang 2022).* The formula tracks the measured series day by day but sits
 below it on most days. With fees and discrete blocks the model expects arbitrageurs to earn $0.93M
-gross and pay $2.23M in fees; measured, searchers' 0 s gross was $1.51M and they paid $1.98M in LP
+gross and pay $2.22M in fees; measured, searchers' 0 s gross was $1.51M and they paid $1.98M in LP
 fees plus $0.66M in protocol fees.
 
 ![Fees minus LVR by volatility tercile](results/figures/9_lvr_by_volatility_regime.png)
@@ -425,9 +436,9 @@ fees plus $0.66M in protocol fees.
 
 | regime | days | mean σ, annualised | LP fees | LVR (0 s) | theory (1 s) | fees − LVR |
 |---|---|---|---|---|---|---|
-| low | 30 | 0.24 | 550,621.71 | 702,456.41 | 544,918.30 | -151,834.70 |
-| mid | 31 | 0.39 | 842,277.63 | 1,068,876.83 | 911,278.11 | -226,599.20 |
-| high | 31 | 0.57 | 1,251,287.82 | 1,932,463.52 | 1,702,649.11 | -681,175.69 |
+| low | 30 | 0.24 | 550,621.71 | 702,456.41 | 545,231.48 | -151,834.70 |
+| mid | 31 | 0.39 | 842,277.63 | 1,068,876.83 | 910,782.63 | -226,599.20 |
+| high | 31 | 0.57 | 1,251,287.82 | 1,932,463.52 | 1,699,596.37 | -681,175.69 |
 
 Fees grow with volatility, but LVR grows faster. These are LP fees, net of the protocol's quarter.
 With the protocol's fees added back (summed per regime from
@@ -470,7 +481,11 @@ day, with a 95% bootstrap interval over positions. From
 - **JIT** liquidity is added just before a swap and removed after it in the same block. Its LVR is
   negative: the flow it trades with loses to the pool against Binance. Most of its +$13.9k is that
   negative LVR (+28,934.84 to the LP), not fees (4,752.92), and gas (19,771.41) takes most of the
-  rest. Its bp/day figure is large because a JIT position counts one 12 s slot of capital.
+  rest. Its bp/day figure is large because a JIT position counts one 12 s slot of capital. Per
+  swap ([`results/lp_pnl.md`](results/lp_pnl.md), "JIT per swap"): the 844 JIT positions were
+  active for 914 swaps (counted per position, between its mint and burn in the block), and made
+  +$15.23 per swap against rebalancing ($5.20 of fees, +$31.66 of negative LVR, −$21.63 of gas);
+  the median position made +$0.09 per swap, so a few positions carry the total.
 - **Every other type loses** against rebalancing, at 1.35 to 2.28 bp/day, with intervals below
   zero. Narrow ranges under 50 bp are the only width bucket with a positive point estimate
   (+2.20 bp/day), but its interval spans zero, and the bucket includes the JIT positions.
@@ -483,9 +498,8 @@ day, with a 95% bootstrap interval over positions. From
 
 ![bp per day by LP type and range width, with 95% intervals](results/figures/10_lp_pnl_by_group.png)
 
-*Chart 10. P&L against rebalancing in bp of position value per day, by LP type (left) and range
-width (right), with 95% bootstrap intervals. The JIT bar dwarfs the others on the left; their
-values are in the table above.*
+*Chart 10. P&L against rebalancing in bp of position value per day, by LP type without JIT
+(left), JIT on its own scale (middle) and by range width (right), with 95% bootstrap intervals.*
 
 ### Lifetime: did window-active positions beat holding? (chart 11)
 
@@ -519,7 +533,8 @@ counts positions, not dollars.
 ## Where LVR goes
 
 From [`results/lvr_destination.md`](results/lvr_destination.md), in USD and as shares of the LVR
-on searcher swaps:
+on searcher swaps (builder margin and proposer payment by the primary method; the sensitivity
+below splits them differently):
 
 | Step | USD | share |
 |---|---|---|
@@ -543,22 +558,51 @@ on searcher swaps:
 - Searcher swaps carry more LVR than the whole pool (share 1.1189): the other flows trade at
   prices worse than Binance's and give part of it back.
 - LPs recover about half of the searcher LVR as fees and the protocol about a sixth; most of the
-  rest goes to the block's proposer and builder.
+  rest goes to the block's builder and proposer (34.8% together).
 - **Why kept is negative.** Builder margin plus proposer payment (0.1578 + 0.1905 = 0.3483 of
   searcher LVR) is more than the single-pool gross at 0 s (1,251,576.57, 0.3020 of searcher LVR).
   Gross is measured at the block time against Binance's last trade, so this is a small difference
   of large totals, as in finding 3. Sub-project 2's positive kept at 12 s (+$0.06M) covers the
   top 4 bots only, not every searcher.
-- Proposer payments are matched against relays on a sample: of 1,000 random blocks, 769 were found
-  on a relay and 699 of those (90.9%) match the on-chain payment within 1 wei. That is just above
-  the 90% below which the plan said to investigate the method. The other 70 (9.1%) differ by more
-  than 1%, for a reason not established here.
+- **Proposer versus builder: a known bias, and a sensitivity.** The primary method finds the
+  proposer payment as the block's last transaction, sent by the fee recipient; a block without one
+  is taken to be self-built, with the fee recipient as proposer (proposer share 1). That is 105,536
+  of the 659,799 window blocks (16.0%). The relay check (R1 in
+  [`results/lp_checks.md`](results/lp_checks.md)) shows what these blocks are: of 1,000 random
+  blocks, 769 were found on a relay; all 699 found blocks with a payment transaction match the
+  on-chain payment within 1 wei, and all 70 found "self-built" blocks differ by more than 1%. For
+  each of those 70 the relay names a proposer fee recipient other than the block's fee recipient,
+  so they are MEV-Boost blocks, not self-built; the relay payment is 0.56 of the block's builder
+  revenue on the median (0.63 for the paid blocks). The builder paid the proposer some other way
+  (a payment that is not the last transaction, or one sent from a separate payout address), which
+  the builder tables do not identify. Of the 231 sampled blocks not found on a relay, 190 have a
+  relay that gave no answer and 41 had an answer from every relay queried.
+- These blocks carry 297,357.38 USD (20.6%) of the 1,443,430.55 USD that single-pool searcher
+  transactions paid builders, and so 37.7% of the primary proposer total. The sensitivity gives
+  them the proposer share of the paid blocks instead: Σ payment / Σ builder revenue over the
+  554,263 paid blocks, 0.4915. A revenue-weighted ratio is used rather than the median per-block
+  share (0.6240, reported beside it), because what is split is a sum of dollars, and a per-block
+  share can be very large when a builder subsidises the proposer in a block with almost no
+  revenue. The ordering does not hang on that choice: builder margin exceeds the proposer payment
+  for any share below 0.77 in these blocks (half of 1,443,430.55, less the 491,933.77 the paid
+  blocks give proposers, over 297,357.38), and both ratios are below it.
+
+  | | primary (self-built share 1) | sensitivity (self-built share 0.4915) |
+  |---|---|---|
+  | proposer payment | 789,291.15 (0.1905) | 638,079.53 (0.1540) |
+  | builder margin | 654,139.41 (0.1578) | 805,351.02 (0.1943) |
+  | together | 1,443,430.55 (0.3483) | 1,443,430.55 (0.3483) |
+
+  The primary method stays the published one, because it is what the data identify directly;
+  the sensitivity is the better estimate of the split, and with it builders keep more than
+  proposers receive. Finding the payment directly needs a new query and is planned for
+  sub-project 4. Nothing else in this section depends on the split.
 
 ![Waterfall from pool LVR to fees, gas, builders, proposers and searchers](results/figures/12_lvr_destination.png)
 
 *Chart 12. From pool LVR at 0 s to LVR on searcher swaps, then to LP fees, protocol fees,
-multi-pool gross, gas burned, builder margin, proposer payment and what searchers kept, in USD
-thousands with shares of searcher LVR. Kept ends below zero because builder margin and proposer
+multi-pool gross, gas burned, builder margin, proposer payment (primary split) and what searchers
+kept, in USD thousands with shares of searcher LVR. Kept ends below zero because builder margin and proposer
 payment together (34.8%) exceed the single-pool gross at 0 s (30.2%).*
 
 > The split of builder payments between builder and proposer uses each block's ratio of proposer payment to builder revenue; how a builder prices an individual transaction is not observed. Proposer payments are identified as the block's last transaction from the fee recipient and cross-checked against relay data on a sample of blocks only.
@@ -601,8 +645,10 @@ payment together (34.8%) exceed the single-pool gross at 0 s (30.2%).*
 - **Reference price.** Measured LVR, fees in USD and every P&L use Binance's last ETHUSDC trade, as
   above. Sub-project 4 tests a mid price and OKX.
 - **Theory** assumes geometric Brownian motion and blocks arriving as a Poisson process, while
-  Ethereum slots are a fixed 12 s; the 1-second realised variance of last trades includes
-  order-flow noise. The 1-minute version gives about a third more LVR than the 1-second one.
+  Ethereum slots are a fixed 12 s. The 1-minute version gives about a third more LVR than the
+  1-second one. Order-flow noise in last trades would push 1-second realised variance above the
+  1-minute one; it comes out below, so at 1 s stale stretches of the last trade (the price
+  catching up over several seconds) dominate, and noise does not.
 - **LP hedging and other holdings are not observed.** P&L against rebalancing is what an LP who
   could rebalance for free at Binance's last trade would have made.
 - **LP gas** is counted only for window transactions; gas before the window and in lifetime P&L
@@ -618,10 +664,14 @@ payment together (34.8%) exceed the single-pool gross at 0 s (30.2%).*
   hands them to the next position, and such positions are left out of the lifetime statistics (none
   among the window-active positions).
 - **Where LVR goes:** "kept" is an upper bound (builder payments outside the transaction and
-  failed transactions are missed). The relay cross-check found 769 of 1,000 sampled blocks, and
-  some relays were skipped after repeated time-outs. Of the 769, 70 (9.1%) disagree with the
-  on-chain proposer payment by more than 1% for a reason not established; the 90.9% match rate
-  only just clears the plan's 90% threshold for investigating the method.
+  failed transactions are missed). The proposer/builder split is uncertain: the primary method
+  treats the 16.0% of blocks without a last-transaction payment as self-built, and the relay
+  sample shows they are mostly MEV-Boost blocks that paid the proposer another way (all 70 relay
+  mismatches over 1% are such blocks; all 699 paid blocks found match within 1 wei). Giving them
+  the paid-block share moves the proposer share from 19.0% to 15.4% of searcher LVR and the
+  builder margin from 15.8% to 19.4%; their sum (34.8%) does not move. Proper detection needs a
+  new query (sub-project 4). The relay sample itself found 769 of 1,000 blocks, and some relays
+  were skipped after repeated time-outs.
 - **Statistics:** the P&L intervals bootstrap positions and treat them as independent, though many
   positions share an LP.
 
@@ -698,13 +748,14 @@ uv run ulpe fetch-history --dry-run            # free: prints the size of the pa
 uv run ulpe fetch-history --confirm-cost       # BigQuery, paid: pool and position-manager history since 2021
 uv run ulpe fetch-chain-state                  # again: position state at both ends of the window, LP code (RPC)
 uv run ulpe fetch-price-history                # Binance ETHUSDT 1-minute candles since 2021
-uv run ulpe fetch-builders                     # BigQuery, paid: builder revenue and payments (--dry-run reports bytes)
+uv run ulpe fetch-builders --dry-run          # free: prints the size of the three paid builder queries
+uv run ulpe fetch-builders --confirm-cost     # BigQuery, paid (about 661 GB): builder revenue and payments
 uv run ulpe fetch-relays                       # relay data APIs: proposer payments for 1,000 sampled blocks
 uv run ulpe lp                                 # checks L1-L7, then results/: tables, charts 7-12, summary.json["lp"]
 ```
 
-`fetch-chain-state` runs twice because its position part needs the history. `fetch-builders` stops
-before querying if a dry run exceeds its 700 GB cap. `fetch-relays` is resumable and skips a relay
+`fetch-chain-state` runs twice because its position part needs the history. `fetch-builders` refuses
+to query without `--confirm-cost` and stops before querying if a dry run exceeds its 700 GB cap. `fetch-relays` is resumable and skips a relay
 after three consecutive failed blocks. `lp` refuses to run unless validation passed on the interim
 files on disk and the `analyze` outputs exist; if a check L1–L7 fails it writes the checks file
 and no results.

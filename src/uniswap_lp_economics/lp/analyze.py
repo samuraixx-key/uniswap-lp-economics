@@ -61,6 +61,18 @@ DESTINATION_NOTE = (
     "the accrued-only `*_searcher_usd` totals in lp_pnl.md and summary.json do not. Shares are "
     "of LVR on searcher steps."
 )
+SENSITIVITY_NOTE = (
+    "The primary split treats a block whose last transaction is not from its fee recipient as "
+    "self-built (proposer share 1). The relay sample shows that most such blocks are MEV-Boost "
+    "blocks that paid the proposer some other way, so the sensitivity gives those blocks the "
+    "volume-weighted proposer share of the paid blocks instead. Only proposer and builder margin "
+    "move; their sum, and every other figure, is the same under both."
+)
+JIT_NOTE = (
+    "JIT per swap: P&L of the jit positions divided by the swaps each was active for (swaps in "
+    "its block between its first liquidity add and its last removal, in log order), summed over "
+    "position-swap pairs; the median is over jit positions with at least one swap."
+)
 PNL_NOTE = (
     "P&L against rebalancing = fees - LVR (0 s) - LP gas; against holding = everything the LP got "
     "out minus everything put in, at the exit price. bp_per_day = P&L / (hourly time-weighted "
@@ -92,7 +104,6 @@ class LpInputs:
     tx_other_logs: pl.DataFrame
     relays: pl.DataFrame
     bot_transfers: pl.DataFrame
-    window_end_us: int = 0
 
 
 def _need(path: Path, command: str) -> Path:
@@ -133,16 +144,15 @@ def load_lp_inputs(raw: Path, interim: Path, processed: Path, lp_labels_csv: Pat
         tx_other_logs=tx_other_logs,
         relays=read_exact(_need(raw / relays.RELAY_FILE, "fetch-relays")),  # wei: Int128
         bot_transfers=transfers.load_bot_transfers(raw, top_bots),
-        window_end_us=align.window_end_us(),
     )
 
 
 def hourly_grid(blocks_state: pl.DataFrame, start_us: int, end_us: int) -> pl.DataFrame:
     """UTC hour starts in [start, end) with the pool price and Binance price in force (plan
     Ruling 5): ts_us, sqrt (sqrtPrice / 2^96 as a float) and p_cex."""
-    first = -(-start_us // pnl.HOUR_US) * pnl.HOUR_US
+    first = -(-start_us // config.HOUR_US) * config.HOUR_US
     hours = pl.DataFrame(
-        {"ts_us": list(range(first, end_us, pnl.HOUR_US))}, schema={"ts_us": pl.Int64}
+        {"ts_us": list(range(first, end_us, config.HOUR_US))}, schema={"ts_us": pl.Int64}
     )
     return hours.join_asof(
         blocks_state.select("ts_us", "sqrt_price_x96", "p_cex"), on="ts_us", strategy="backward"
@@ -176,7 +186,7 @@ def lp_analysis(
     accounts = ledger.accounts_frame()
     flows_window = data.flows.filter(pl.col("block_number") > snap)
     results = [
-        check_l1(inp.swap_fees),
+        check_l1(inp.swap_fees, len(run.unmatched)),
         check_l2(run.captures, inp.sample_fees),
         check_l3(ledger, inp.end_positions),
         check_l4(ledger, inp.end_positions, snap),
@@ -273,6 +283,7 @@ def lp_analysis(
     accrued = steps.filter(pl.col("accrued"))  # steps with no liquidity in range earn no one
     searcher = accrued.filter(pl.col("flow_label") == "searcher")
     shortfalls = data.collect_shortfalls
+    jit = pnl.jit_per_swap(positions, flows_window, inp.aligned)
     totals: dict[str, Any] = {
         "lp_fees_usd": float(accrued["fee_usd"].sum()),
         "protocol_fees_usd": float(inp.aligned["protocol_fee_usd"].sum()),
@@ -313,6 +324,7 @@ def lp_analysis(
         **totals,
         "regimes": regime_summary.to_dicts(),
         "groups": groups.to_dicts(),
+        "jit_per_swap": jit,
         "lifetime": life_overall,
         "checks": {r.name: r.summary for r in results},
     }
@@ -321,7 +333,7 @@ def lp_analysis(
     costs = destination.searcher_costs(
         inp.aligned, inp.events, inp.blocks, inp.tx_direct, inp.tx_other_logs, split
     )
-    dest = destination.destination(steps, inp.aligned, costs)
+    dest = destination.destination(steps, inp.aligned, costs, split)
     reported = [
         check_r1_relays(inp.relays, split),
         check_r2_traces_vs_alchemy(inp.tx_direct, inp.bot_transfers, inp.blocks, inp.tx_other_logs),
@@ -355,8 +367,9 @@ def lp_analysis(
         [
             ("Window totals", report.metrics_table(totals)),
             ("By LP type", groups.filter(pl.col("grouping") == "lp_type")),
+            ("JIT per swap", report.metrics_table(jit)),
         ],
-        notes=[PNL_NOTE],
+        notes=[PNL_NOTE, JIT_NOTE],
     )
     report.write_table(daily, out, "lvr_daily", "Daily fees, LVR and theory")
     report.write_markdown(
@@ -381,8 +394,19 @@ def lp_analysis(
         out,
         "lvr_destination",
         "Where LVR goes",
-        [("Totals", report.metrics_table(dest))],
-        notes=[DESTINATION_NOTE, destination.LIMITATION_TEXT],
+        [
+            (
+                "Totals (primary split)",
+                report.metrics_table(
+                    {k: v for k, v in dest.items() if k != "sensitivity_self_built"}
+                ),
+            ),
+            (
+                "Sensitivity: self-built blocks at the paid-block proposer share",
+                report.metrics_table(dest["sensitivity_self_built"]),
+            ),
+        ],
+        notes=[DESTINATION_NOTE, SENSITIVITY_NOTE, destination.LIMITATION_TEXT],
     )
     figs = out / "figures"
     figures.fees_vs_lvr_daily(daily, figs / LP_FIGURES["daily"])

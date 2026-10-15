@@ -87,11 +87,15 @@ def test_missing_builders_without_the_flag_stop_before_any_query(
 def test_missing_builders_with_the_flag_are_fetched(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    calls: list[tuple[Path, date, date]] = []
+    calls: list[tuple[Any, ...]] = []
     monkeypatch.setattr(config, "RAW_DIR", tmp_path)
-    monkeypatch.setattr(builders, "fetch_builders", lambda raw, s, e: calls.append((raw, s, e)))
+    monkeypatch.setattr(
+        builders,
+        "fetch_builders",
+        lambda raw, s, e, confirm_cost=False: calls.append((raw, s, e, confirm_cost)),
+    )
     assert cli.run_step("fetch-builders", True) == "OK"
-    assert calls == [(tmp_path, config.WINDOW_START, config.WINDOW_END)]
+    assert calls == [(tmp_path, config.WINDOW_START, config.WINDOW_END, True)]  # flag passed on
 
 
 def test_builders_on_disk_are_skipped_without_bigquery(
@@ -161,3 +165,25 @@ def test_bot_tx_logs_missing_or_stale_without_the_flag_stop_before_any_query(
     monkeypatch.setattr(bq_blocks, "fetch_bot_tx_logs", _no_query)
     with pytest.raises(SystemExit, match="logs in top-bot transactions.*--confirm-cost"):
         cli.run_step("fetch-blocks", False)
+
+
+@pytest.mark.parametrize(
+    ("argv", "expected"),
+    [
+        (["fetch-builders"], (False, False)),
+        (["fetch-builders", "--dry-run"], (True, False)),
+        (["fetch-builders", "--confirm-cost"], (False, True)),
+    ],
+)
+def test_standalone_fetch_builders_passes_dry_run_and_the_flag(
+    monkeypatch: pytest.MonkeyPatch, argv: list[str], expected: tuple[bool, bool]
+) -> None:
+    calls: list[tuple[bool, bool]] = []
+
+    def fake(raw: Path, s: date, e: date, dry_run: bool, confirm_cost: bool) -> None:
+        calls.append((dry_run, confirm_cost))
+
+    monkeypatch.setattr(builders, "fetch_builders", fake)
+    monkeypatch.setattr(sys, "argv", ["ulpe", *argv])
+    cli.main()
+    assert calls == [expected]

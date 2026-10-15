@@ -28,6 +28,7 @@ class CheckResult:
     passed: bool
     summary: dict[str, Any]
     mismatches: list[dict[str, Any]] = field(default_factory=list)
+    reported: bool = False  # a reported check is shown as "reported" and never gates
 
 
 @dataclass
@@ -278,13 +279,20 @@ def write_report(
     stem: str = "validation_report",
     title: str = "Validation report",
 ) -> str:
-    status = "PASS" if results and all(r.passed for r in results) else "FAIL"
+    gated = [r for r in results if not r.reported]
+    status = "PASS" if gated and all(r.passed for r in gated) else "FAIL"
     out_dir.mkdir(parents=True, exist_ok=True)
     body = {
         "status": status,
         **extra,
         "checks": [
-            {"name": r.name, "passed": r.passed, "summary": r.summary, "mismatches": r.mismatches}
+            {
+                "name": r.name,
+                "passed": r.passed,
+                "reported": r.reported,
+                "summary": r.summary,
+                "mismatches": r.mismatches,
+            }
             for r in results
         ],
     }
@@ -293,7 +301,7 @@ def write_report(
     lines += [f"- {k}: `{v}`" for k, v in extra.items()]
     lines += ["", "| Check | Result | Summary |", "|---|---|---|"]
     lines += [
-        f"| {r.name} | {'PASS' if r.passed else 'FAIL'} | "
+        f"| {r.name} | {'reported' if r.reported else 'PASS' if r.passed else 'FAIL'} | "
         + ", ".join(f"{k}={v}" for k, v in r.summary.items())
         + " |"
         for r in results

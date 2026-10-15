@@ -151,9 +151,19 @@ def _run(client: bigquery.Client, query: str, dry_run: bool) -> pl.DataFrame | N
     return df
 
 
-def fetch_builders(raw_dir: Path, start: date, end: date, dry_run: bool = False) -> None:
-    """Download the three aggregated tables; files that exist are skipped."""
+def fetch_builders(
+    raw_dir: Path, start: date, end: date, dry_run: bool = False, confirm_cost: bool = False
+) -> None:
+    """Download the three aggregated tables; files that exist are skipped. The queries are billed
+    (about 661 GB together), so a real run with a table missing needs `confirm_cost`; a dry run
+    (free: it only reports the bytes each query would scan) does not."""
     out = raw_dir / BUILDERS_DIR
+    names = (BLOCK_REVENUE, TX_DIRECT, TX_OTHER_LOGS)
+    if not (dry_run or confirm_cost) and not all((out / n).exists() for n in names):
+        raise SystemExit(
+            "this is a paid BigQuery query; check its size with `ulpe fetch-builders --dry-run`, "
+            "then run `ulpe fetch-builders --confirm-cost`"
+        )
     out.mkdir(parents=True, exist_ok=True)
     client = bigquery.Client(project=GCP_PROJECT)
     jobs: list[tuple[str, str, list[str], dict[str, Any]]] = [

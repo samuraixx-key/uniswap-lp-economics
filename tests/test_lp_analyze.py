@@ -4,14 +4,14 @@ from typing import Any
 
 import polars as pl
 import pytest
-from lpworld import T0, US, WALLET, D, J, L, T, world_inputs
+from lpworld import T0, US, WALLET, D, J, L, T, world_end_us, world_inputs
 
+from uniswap_lp_economics.config import HOUR_US
 from uniswap_lp_economics.lp import analyze as lp
 from uniswap_lp_economics.lp import destination
 from uniswap_lp_economics.lp.analyze import LpInputs
 from uniswap_lp_economics.lp.checks import check_l6
 from uniswap_lp_economics.lp.pnl import (
-    HOUR_US,
     Edge,
     liquidity_path,
     position_amounts,
@@ -25,9 +25,7 @@ def test_lp_analysis_end_to_end(tmp_path: Path) -> None:
     results, processed = tmp_path / "results", tmp_path / "processed"
     results.mkdir()
     (results / "summary.json").write_text(json.dumps({"swaps": 4, "lp": {"stale": 1}}))
-    status = lp.lp_analysis(
-        inp, results, processed, {"git_commit": "test"}, end_us=inp.window_end_us
-    )
+    status = lp.lp_analysis(inp, results, processed, {"git_commit": "test"}, end_us=world_end_us())
     assert status == "PASS", (results / "lp_checks.md").read_text(encoding="utf-8")
     for name in (
         "lp_pnl.md",
@@ -54,6 +52,19 @@ def test_lp_analysis_end_to_end(tmp_path: Path) -> None:
     assert summary["lp"]["destination_limitation"] == destination.LIMITATION_TEXT
     checks_text = (results / "lp_checks.md").read_text(encoding="utf-8")
     assert all(f"R{i}" in checks_text for i in range(1, 6))
+    rows = [line for line in checks_text.splitlines() if line.startswith("| ")]
+    assert all("| reported |" in r for r in rows if r.startswith("| R"))  # not gated
+    assert all("| PASS |" in r for r in rows if r.startswith("| L"))
+    l1 = next(v for k, v in summary["lp"]["checks"].items() if k.startswith("L1"))
+    assert l1["engine_unmatched"] == 0
+    r1 = next(v for k, v in summary["lp"]["checks"].items() if k.startswith("R1"))
+    assert r1["by_block_type"]["paid"]["found"] == 1  # the world's relay row: block 7, paid
+    jit = summary["lp"]["jit_per_swap"]
+    assert jit["positions"] == 1 and jit["swaps"] >= 1
+    assert jit["pnl_rebal_usd_per_swap"] == pytest.approx(
+        positions_jit_rebal(results) / jit["swaps"]
+    )
+    assert "JIT per swap" in (results / "lp_pnl.md").read_text(encoding="utf-8")
     dest = summary["lp"]["destination"]
     # Chain (0 s): LVR on searcher steps = LP fees + protocol fees + searchers' gross markout.
     assert dest["lvr_on_searcher_swaps_usd"] == pytest.approx(
@@ -72,6 +83,11 @@ def test_lp_analysis_end_to_end(tmp_path: Path) -> None:
         sum(1e-4 * p for p in inp.aligned["p_cex_0"].to_list())
     )
     assert dest["builder_margin_usd"] == pytest.approx(0.0)
+    sens = dest["sensitivity_self_built"]  # every world block is paid: the split does not move
+    assert sens["self_built_blocks"] == 0 and sens["builder_paid_self_built_usd"] == 0.0
+    assert sens["proposer_usd"] == pytest.approx(dest["proposer_usd"])
+    dest_text = (results / "lvr_destination.md").read_text(encoding="utf-8")
+    assert "Sensitivity" in dest_text and "primary" in dest_text
     assert dest["searcher_kept_usd"] == pytest.approx(
         dest["single_pool_gross_usd"] - dest["gas_burned_usd"]
     )
@@ -86,6 +102,11 @@ def test_lp_analysis_end_to_end(tmp_path: Path) -> None:
         "lp_blocks.parquet",
     ):
         assert (processed / name).exists(), name
+
+
+def positions_jit_rebal(results: Path) -> float:
+    positions = pl.read_csv(results / "positions.csv")
+    return float(positions.filter(pl.col("lp_type") == "jit")["pnl_rebal_usd"].sum())
 
 
 def _assert_world_numbers(inp: LpInputs, summary: dict[str, Any], positions: pl.DataFrame) -> None:
@@ -135,9 +156,7 @@ def test_failed_gate_writes_no_lp_results(tmp_path: Path) -> None:
     inp = world_inputs()
     inp.end_positions = inp.end_positions.with_columns(tokens_owed0=pl.lit(1, dtype=pl.Int128))
     results, processed = tmp_path / "results", tmp_path / "processed"
-    status = lp.lp_analysis(
-        inp, results, processed, {"git_commit": "test"}, end_us=inp.window_end_us
-    )
+    status = lp.lp_analysis(inp, results, processed, {"git_commit": "test"}, end_us=world_end_us())
     assert status == "FAIL"
     assert "L3" in (results / "lp_checks.md").read_text(encoding="utf-8")
     assert not (results / "lp_pnl.md").exists() and not processed.exists()
@@ -207,7 +226,7 @@ def test_missing_summary_stops_before_any_write(tmp_path: Path) -> None:
     inp = world_inputs()
     results, processed = tmp_path / "results", tmp_path / "processed"
     with pytest.raises(FileNotFoundError, match="ulpe analyze"):
-        lp.lp_analysis(inp, results, processed, {"git_commit": "test"}, end_us=inp.window_end_us)
+        lp.lp_analysis(inp, results, processed, {"git_commit": "test"}, end_us=world_end_us())
     assert not (results / "lp_checks.md").exists() and not processed.exists()
 
 

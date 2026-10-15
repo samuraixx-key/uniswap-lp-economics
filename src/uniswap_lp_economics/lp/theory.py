@@ -13,12 +13,10 @@ import math
 import polars as pl
 
 from uniswap_lp_economics.align import reference_at
-from uniswap_lp_economics.config import BLOCK_TIME_S, DECIMALS0, DECIMALS1, FEE_PIPS
+from uniswap_lp_economics.config import BLOCK_TIME_S, DAY_S, DECIMALS0, DECIMALS1, FEE_PIPS, US
 
 GAMMA = math.log1p(FEE_PIPS / 1_000_000)
 LAMBDA = 1 / BLOCK_TIME_S
-US = 1_000_000
-DAY_S = 86_400
 L_DEC = 10.0 ** (-(DECIMALS0 + DECIMALS1) / 2)  # raw liquidity -> sqrt(USDC x WETH) units
 REGIMES = ("low", "mid", "high")
 
@@ -44,14 +42,15 @@ def _day(col: str) -> pl.Expr:
 
 def interval_theory(grid: pl.DataFrame, blocks_state: pl.DataFrame) -> pl.DataFrame:
     """Per grid interval: r^2 of the price and r^2 x L_dec x sqrt(p) / 4, with the active
-    liquidity of the block in force at the interval start."""
+    liquidity in force at the interval start: the end-of-block liquidity of the last block at or
+    before it (the state the next block's arbitrage trades against)."""
     g = (
         grid.sort("ts_us")
         .with_columns(r=(pl.col("price").shift(-1) / pl.col("price")).log())
         .filter(pl.col("r").is_not_null() & pl.col("r").is_finite())
     )
     state = blocks_state.select(
-        "ts_us", "block_number", liq=pl.col("liquidity").cast(pl.Float64)
+        "ts_us", "block_number", liq=pl.col("end_liquidity").cast(pl.Float64)
     ).sort("ts_us")
     j = g.join_asof(state, on="ts_us", strategy="backward")
     return j.select(

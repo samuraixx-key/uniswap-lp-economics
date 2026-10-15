@@ -19,7 +19,11 @@ WETH_ADDRESS = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
 NPM_ADDRESS = "0xc36442b4a4522e871399cd717abdd847ab11fe88"  # NonfungiblePositionManager
 POOL_CREATED = date(2021, 5, 4)
 BLOCK_TIME_S = 12
-LVR_HORIZONS_S = (0, 12)  # 0 s primary, 12 s sensitivity
+
+# Time units: timestamps are integer microseconds since the epoch.
+US = 1_000_000  # microseconds per second
+HOUR_US = 3600 * US
+DAY_S = 86_400
 
 GCP_PROJECT = os.getenv("GCP_PROJECT", "uniswap-lp-economics")
 ETH_RPC_URL = os.getenv("ETH_RPC_URL")
