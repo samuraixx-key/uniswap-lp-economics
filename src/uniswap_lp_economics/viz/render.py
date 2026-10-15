@@ -9,6 +9,7 @@ from matplotlib.figure import Figure
 from uniswap_lp_economics import config
 from uniswap_lp_economics.viz import bots, fees_vs_lvr, what_is_lvr, who_pays
 from uniswap_lp_economics.viz import discovery as viz_discovery
+from uniswap_lp_economics.viz import jit_block as viz_jit_block
 from uniswap_lp_economics.viz import markouts as viz_markouts
 from uniswap_lp_economics.viz.data import Results, load_results
 from uniswap_lp_economics.viz.style import MODES, save_svg, theme
@@ -28,6 +29,7 @@ FIGURES: list[tuple[str, FigureFn]] = [
     ("08_bots_keep", bots.bots_keep),
     ("09_every_position", who_pays.every_position),
     ("10_pnl_by_group", who_pays.pnl_by_group),
+    ("11_jit_block", viz_jit_block.jit_block),
     ("12_lifetime", who_pays.lifetime),
 ]
 EXTRAS: list[ExtraFn] = [what_is_lvr.episode_gif]
