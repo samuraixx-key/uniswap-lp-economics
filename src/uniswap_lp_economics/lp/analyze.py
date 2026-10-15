@@ -218,8 +218,8 @@ def lp_analysis(
     end = pnl.Edge(
         last["block_number"], last["ts_us"], int(last["end_sqrt_price_x96"]), last["p_cex"]
     )
-    gas = pnl.gas_by_position(flows_window, inp.events, prices)
-    direct = pnl.direct_by_position(flows_window, inp.tx_direct, prices)
+    shares = pnl.cost_shares(flows_window, inp.events, inp.tx_direct, prices)
+    gas, direct = pnl.by_position(shares, "gas"), pnl.by_position(shares, "direct")
     grid = hourly_grid(bs, start.ts_us, end.ts_us)
     spans = pnl.position_spans(data.positions, accounts, flows_window, start, end)
     twv = (
@@ -338,7 +338,7 @@ def lp_analysis(
         "regimes": regime_summary.to_dicts(),
         "groups": groups.to_dicts(),
         "jit_per_swap": jit,
-        "jit_own_swaps": pnl.jit_own_swaps(positions, flows_window, inp.aligned),
+        "jit_own_swaps": pnl.jit_own_swaps(positions, flows_window, inp.aligned, shares),
         "daily": daily_stats,
         "lifetime": life_overall,
         "lifetime_by_width": life_width.to_dicts(),

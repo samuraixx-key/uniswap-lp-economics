@@ -12,6 +12,8 @@ from uniswap_lp_economics.lp.pnl import (
     PNL_COLUMNS,
     Edge,
     bootstrap_ratio,
+    by_position,
+    cost_shares,
     direct_by_position,
     gas_by_position,
     group_table,
@@ -320,28 +322,71 @@ def test_direct_by_position_rejects_a_paying_block_without_a_price() -> None:
         direct_by_position(flows, tx_direct, PRICES)
 
 
-def test_jit_own_swaps_counts_jit_transactions_that_also_swap() -> None:
+def test_jit_own_swaps_counts_costs_per_transaction() -> None:
+    # JIT position a mints in t1 (which also swaps) and burns in t1b (which does not): only t1's
+    # costs count. b is a one-transaction JIT position without a swap; c is not JIT.
     positions = pl.DataFrame(
+        {"position_id": ["a", "b", "c"], "lp_type": ["jit", "jit", "nft_wallet"]}
+    )
+    flows = pl.DataFrame(
+        {"position_id": ["a", "a", "b", "c"], "tx_hash": ["t1", "t1b", "t2", "t3"]}
+    )
+    shares = pl.DataFrame(
         {
-            "position_id": ["a", "b", "c"],
-            "lp_type": ["jit", "jit", "nft_wallet"],
-            "gas_usd": [1.0, 2.0, 4.0],
-            "direct_usd": [0.5, 0.0, 8.0],
+            "tx_hash": ["t1", "t1b", "t1", "t1b", "t2", "t3"],
+            "position_id": ["a", "a", "a", "a", "b", "c"],
+            "cost": ["gas", "gas", "direct", "direct", "gas", "gas"],
+            "usd": [1.0, 0.7, 0.5, 0.2, 2.0, 4.0],
         }
     )
-    flows = pl.DataFrame({"position_id": ["a", "a", "b", "c"], "tx_hash": ["t1", "t1", "t2", "t3"]})
     swaps = pl.DataFrame(
         {"tx_hash": ["t1", "t1", "t3", "t9"], "markout_usd_0": [-3.0, -1.0, -50.0, 7.0]}
     )
-    out = jit_own_swaps(positions, flows, swaps)
+    out = jit_own_swaps(positions, flows, swaps, shares)
     assert out == {
-        "jit_txs": 2,
+        "jit_txs": 3,
         "jit_txs_with_own_swaps": 1,
         "own_swaps": 2,
         "own_swap_markout_usd_0": pytest.approx(-4.0),
         "gas_usd_in_txs_with_own_swaps": pytest.approx(1.0),
         "direct_usd_in_txs_with_own_swaps": pytest.approx(0.5),
+        "direct_usd_jit": pytest.approx(0.7),
     }
+
+
+def test_cost_shares_sum_to_the_per_position_costs() -> None:
+    flows = pl.DataFrame(
+        [
+            flow("nft:1", 20, "increase", L, 1, 1),
+            flow("direct:j", 20, "mint", L, 1, 1),
+            flow("nft:1", 30, "decrease", -L, 1, 1),
+        ],
+        schema=FLOW_SCHEMA,
+    )
+    events = pl.DataFrame(
+        {
+            "tx_hash": [f"0x{20:064x}", f"0x{30:064x}"],
+            "block_number": [20, 30],
+            "receipt_gas_used": [100_000, 50_000],
+            "receipt_effective_gas_price": [20 * 10**9] * 2,
+        }
+    )
+    tx_direct = pl.DataFrame(
+        {"tx_hash": [f"0x{30:064x}"], "direct_wei": [10**15]},
+        schema={"tx_hash": pl.String, "direct_wei": pl.Decimal(38, 0)},
+    )
+    shares = cost_shares(flows, events, tx_direct, PRICES)
+    assert shares.columns == ["tx_hash", "position_id", "cost", "usd"]
+    got = {(r[0][-2:], r[1], r[2]): r[3] for r in shares.iter_rows()}
+    assert got == {
+        ("14", "nft:1", "gas"): pytest.approx(2.0),
+        ("14", "direct:j", "gas"): pytest.approx(2.0),
+        ("1e", "nft:1", "gas"): pytest.approx(2.1),
+        ("1e", "nft:1", "direct"): pytest.approx(2.1),
+    }
+    gas = gas_by_position(flows, events, PRICES)
+    direct = direct_by_position(flows, tx_direct, PRICES)
+    assert by_position(shares, "gas") == gas and by_position(shares, "direct") == direct
 
 
 def test_position_closed_inside_the_window_is_priced_at_its_exit_block() -> None:

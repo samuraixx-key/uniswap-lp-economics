@@ -109,17 +109,28 @@ def tx_receipts(events: pl.DataFrame) -> pl.DataFrame:
     )
 
 
-def gas_by_position(
-    flows_window: pl.DataFrame, events: pl.DataFrame, prices: dict[int, tuple[int, float]]
-) -> dict[str, float]:
-    """Gas of each window transaction that changed a position, split equally across the
-    positions it touched, at the Binance price of its block."""
-    receipts = {tx: (g, p) for tx, g, p in tx_receipts(events).iter_rows()}
-    touched = flows_window.group_by("tx_hash").agg(
-        pl.col("position_id").unique(), pl.col("block_number").first()
+SHARE_SCHEMA: dict[str, Any] = {
+    "tx_hash": pl.String,
+    "position_id": pl.String,
+    "cost": pl.String,
+    "usd": pl.Float64,
+}
+
+
+def _touched(flows_window: pl.DataFrame) -> list[tuple[str, list[str], int]]:
+    """(tx_hash, positions it changed, block) per window transaction, in a stable order."""
+    t = flows_window.group_by("tx_hash").agg(
+        pl.col("position_id").unique().sort(), pl.col("block_number").first()
     )
-    out: dict[str, float] = {}
-    for tx, pids, block in touched.iter_rows():
+    return [(tx, pids, block) for tx, pids, block in t.sort("tx_hash").iter_rows()]
+
+
+def _gas_shares(
+    flows_window: pl.DataFrame, events: pl.DataFrame, prices: dict[int, tuple[int, float]]
+) -> list[tuple[str, str, str, float]]:
+    receipts = {tx: (g, p) for tx, g, p in tx_receipts(events).iter_rows()}
+    rows = []
+    for tx, pids, block in _touched(flows_window):
         where = f"transaction {tx} (block {block})"
         if tx not in receipts:
             raise ValueError(f"{where} has no receipt row in the events")
@@ -129,38 +140,68 @@ def gas_by_position(
         if gas_used is None or gas_price is None:
             raise ValueError(f"{where} has a null gas-used or effective-gas-price")
         share = int(gas_used) * int(gas_price) / 1e18 * prices[block][1] / len(pids)
-        for pid in pids:
-            out[pid] = out.get(pid, 0.0) + share
-    return out
+        rows += [(tx, pid, "gas", share) for pid in pids]
+    return rows
 
 
-def direct_by_position(
+def _direct_shares(
     flows_window: pl.DataFrame, tx_direct: pl.DataFrame, prices: dict[int, tuple[int, float]]
-) -> dict[str, float]:
-    """Direct ETH payments to the block's fee recipient (`pool_tx_direct_payments`) of each window
-    transaction that changed a position, split equally across the positions it touched, at the
-    Binance price of its block. The other half of a builder payment, beside the priority fee that
-    `gas_by_position` already counts. A transaction that also swaps may pay for the swap: the
-    caller reports such transactions (`jit_own_swaps`)."""
+) -> list[tuple[str, str, str, float]]:
     paid = {
         tx: int(w)
         for tx, w in tx_direct.group_by("tx_hash").agg(pl.col("direct_wei").sum()).iter_rows()
         if w
     }
-    touched = flows_window.group_by("tx_hash").agg(
-        pl.col("position_id").unique(), pl.col("block_number").first()
-    )
-    out: dict[str, float] = {}
-    for tx, pids, block in touched.iter_rows():
+    rows = []
+    for tx, pids, block in _touched(flows_window):
         wei = paid.get(tx, 0)
         if not wei:
             continue
         if block not in prices:
             raise ValueError(f"transaction {tx} (block {block}) has no price for its block")
         share = wei / 1e18 * prices[block][1] / len(pids)
-        for pid in pids:
-            out[pid] = out.get(pid, 0.0) + share
-    return out
+        rows += [(tx, pid, "direct", share) for pid in pids]
+    return rows
+
+
+def cost_shares(
+    flows_window: pl.DataFrame,
+    events: pl.DataFrame,
+    tx_direct: pl.DataFrame,
+    prices: dict[int, tuple[int, float]],
+) -> pl.DataFrame:
+    """LP costs per (transaction, position): `gas`, the gas of each window transaction that
+    changed a position, and `direct`, its direct ETH payments to the block's fee recipient
+    (`pool_tx_direct_payments`, the other half of a builder payment beside the priority fee in
+    gas). Each is split equally across the positions the transaction touched and valued at the
+    Binance price of its block. A transaction that also swaps may pay the builder for the swap;
+    `jit_own_swaps` reports such transactions."""
+    rows = _gas_shares(flows_window, events, prices) + _direct_shares(
+        flows_window, tx_direct, prices
+    )
+    return pl.DataFrame(rows, schema=SHARE_SCHEMA, orient="row")
+
+
+def by_position(shares: pl.DataFrame, cost: str) -> dict[str, float]:
+    """USD of one cost (`gas` or `direct`) per position, from `cost_shares`."""
+    g = shares.filter(pl.col("cost") == cost).group_by("position_id").agg(pl.col("usd").sum())
+    return dict(g.iter_rows())
+
+
+def gas_by_position(
+    flows_window: pl.DataFrame, events: pl.DataFrame, prices: dict[int, tuple[int, float]]
+) -> dict[str, float]:
+    """Gas per position (see `cost_shares`)."""
+    shares = pl.DataFrame(_gas_shares(flows_window, events, prices), SHARE_SCHEMA, orient="row")
+    return by_position(shares, "gas")
+
+
+def direct_by_position(
+    flows_window: pl.DataFrame, tx_direct: pl.DataFrame, prices: dict[int, tuple[int, float]]
+) -> dict[str, float]:
+    """Direct builder payments per position (see `cost_shares`)."""
+    rows = _direct_shares(flows_window, tx_direct, prices)
+    return by_position(pl.DataFrame(rows, SHARE_SCHEMA, orient="row"), "direct")
 
 
 def time_weighted_value(
@@ -406,38 +447,32 @@ def jit_per_swap(
 
 
 def jit_own_swaps(
-    positions: pl.DataFrame, flows_window: pl.DataFrame, swaps: pl.DataFrame
+    positions: pl.DataFrame, flows_window: pl.DataFrame, swaps: pl.DataFrame, shares: pl.DataFrame
 ) -> dict[str, Any]:
     """JIT transactions that also swap in the pool: how many, the swaps' 0 s markout (the
     swapper's, so negative when the JIT operator's own trade lost at Binance's price), and the gas
-    and direct payments charged to JIT positions in them. Such a payment may be for the swap, and
-    the rebalancing benchmark takes the operator's own trades as free. `swaps`: tx_hash and
-    markout_usd_0 of every swap."""
-    jit = positions.filter(pl.col("lp_type") == "jit").select(
-        "position_id", "gas_usd", "direct_usd"
-    )
-    pos_tx = (
-        flows_window.join(jit.select("position_id"), on="position_id", how="semi")
-        .select("position_id", "tx_hash")
-        .unique()
-    )
-    txs = pos_tx.select("tx_hash").unique()
+    and direct payments charged to JIT positions in those transactions (a JIT position usually
+    has two transactions, mint and burn; only the swapping ones count). Such a payment may be for
+    the swap, and the rebalancing benchmark takes the operator's own trades as free. `swaps`:
+    tx_hash and markout_usd_0 of every swap; `shares`: `cost_shares`."""
+    jit = positions.filter(pl.col("lp_type") == "jit").select("position_id")
+    txs = flows_window.join(jit, on="position_id", how="semi").select("tx_hash").unique()
     own = swaps.join(txs, on="tx_hash", how="semi")
     mixed = own.select("tx_hash").unique()
-    # gas and direct payments are per position; a position's costs count once if any of its
-    # transactions also swaps (a JIT position lives in one block, almost always one transaction)
-    mixed_pos = jit.join(
-        pos_tx.join(mixed, on="tx_hash", how="semi").select("position_id").unique(),
-        on="position_id",
-        how="semi",
-    )
+    jit_shares = shares.join(jit, on="position_id", how="semi")
+    in_mixed = jit_shares.join(mixed, on="tx_hash", how="semi")
+
+    def total(frame: pl.DataFrame, cost: str) -> float:
+        return float(frame.filter(pl.col("cost") == cost)["usd"].sum())
+
     return {
         "jit_txs": txs.height,
         "jit_txs_with_own_swaps": mixed.height,
         "own_swaps": own.height,
         "own_swap_markout_usd_0": float(own["markout_usd_0"].sum()),
-        "gas_usd_in_txs_with_own_swaps": float(mixed_pos["gas_usd"].sum()),
-        "direct_usd_in_txs_with_own_swaps": float(mixed_pos["direct_usd"].sum()),
+        "gas_usd_in_txs_with_own_swaps": total(in_mixed, "gas"),
+        "direct_usd_in_txs_with_own_swaps": total(in_mixed, "direct"),
+        "direct_usd_jit": total(jit_shares, "direct"),
     }
 
 
