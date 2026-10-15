@@ -65,19 +65,26 @@ and payments to block builders?
 **And for the liquidity providers.** Do the fees they earn cover LVR (what they lose by trading
 at the pool's price instead of Binance's)? Which LPs make money? And where does the LVR go?
 
-4. **Fees do not cover LVR.** Over the window LPs earned **$2.64M** in fees (after the protocol's
-   quarter, which took $0.88M) and lost **$3.70M** to LVR measured at the block time ($4.09M at
-   12 s): fees − LVR = **−$1.06M**. Fees fell short in every volatility tercile of days: −$0.15M
-   on the 30 calmest days, −$0.23M on the middle 31 and −$0.68M on the 31 most volatile. The
-   Milionis–Moallemi–Roughgarden formula with 1-second Binance returns gives $3.16M of LVR.
-   *Caveat:* LVR here is measured swap by swap against Binance's last trade at the block time, net
-   of all flow: searcher swaps alone cost LPs $4.14M, and the rest of the flow gave $0.44M back. It
-   is the loss against a portfolio that rebalances at Binance's price, not a loss against holding.
-   The theoretical value depends on sampling: 1-minute returns give $4.33M.
+4. **LPs' fees, after the protocol's quarter, do not cover LVR.** Over the window LPs earned
+   **$2.64M** in fees net of the protocol's quarter (which took $0.88M) and lost **$3.70M** to LVR
+   measured at the block time ($4.09M at 12 s): LP fees − LVR = **−$1.06M**. LP fees fell short in
+   every volatility tercile of days: −$0.15M on the 30 calmest days, −$0.23M on the middle 31 and
+   −$0.68M on the 31 most volatile. The LVR formula of Milionis, Moallemi, Roughgarden and Zhang
+   (2022), with 1-second Binance returns, gives $3.16M.
+   *Caveat:* the protocol's quarter is most of the gap. Before it, total swap fees ($3.53M) fell
+   short of LVR by only $0.18M, and all of that on the most volatile third of days (−$264k); on the
+   calm and middle thirds total fees exceeded LVR (+$31.7k and +$54.2k), and LVR exceeded total
+   fees on 41 of the 92 days. That matches sub-project 2's all-swaps markout of +0.25 bp
+   (−0.14 to 0.77): the pool's counterparties as a whole roughly break even after the full fee.
+   LVR here is measured swap by swap against Binance's last trade at the block time, net of all
+   flow: searcher swaps alone cost LPs $4.14M, and the rest of the flow gave $0.44M back. It is the
+   loss against a portfolio that rebalances at Binance's price, not a loss against holding. The
+   theoretical value depends on sampling: 1-minute returns give $4.33M.
 5. **Almost only just-in-time liquidity makes money.** Against a portfolio that rebalances at
    Binance's price, after gas, the 7,874 positions active in the window lost **$1.09M**. JIT
-   positions (844, minted and burned in the same block) made +$13.9k: they earn fees on flow that
-   loses to the pool, so their LVR is negative (−$28.9k). Every other LP type lost between 1.35 and
+   positions (844, minted and burned in the same block) made +$13.9k, and most of it is negative
+   LVR, not fees: the flow they trade with loses to the pool against Binance, which adds $28.9k,
+   against $4.8k of fees and $19.8k of gas. Every other LP type lost between 1.35 and
    2.28 bp of position value per day, each with a 95% interval below zero: NFT positions held by
    wallets, which earned $2.57M of the $2.64M in fees, **−1.35 bp/day** (−1.77 to −1.12) and
    −$1.08M; vaults −1.58; NFT positions held by contracts −2.28; other direct positions −1.55.
@@ -86,25 +93,32 @@ at the pool's price instead of Binance's)? Which LPs make money? And where does 
    life of 180 days or more.
    *Caveat:* the benchmark assumes the LP could hedge for free at Binance's last trade; LPs' hedges
    and other holdings are not observed, and LP gas before the window is not counted. The window
-   result against holding (−$18.2M) is mostly the window's price path, not LVR. Lifetime shares
-   count positions, not dollars, and value deposits made before the window at ETHUSDT 1-minute
-   closes. A vault stands for many depositors, and an NFT position's LP is its owner at close.
+   result against holding (−$18.2M) is mostly the window's price path, not LVR. The lifetime
+   results (65.7%, and 79% for lives of 180 days or more) depend in the same way on the price path
+   over each position's own life, and so on when it opened and closed. Lifetime shares count
+   positions, not dollars, and value deposits made before the window at ETHUSDT 1-minute closes.
+   A vault stands for many depositors, and an NFT position's LP is its owner at close.
 6. **Where LVR goes: back to LPs as fees, then to proposers and builders; searchers keep nothing
    measurable at block time.** Of the $4.14M of LVR on searcher swaps, 47.7% went to LPs as fees,
    15.9% to the protocol, 19.0% to block proposers and 15.8% to builders (margin after paying the
    proposer); 6.2% is the gross of multi-pool transactions (not split), 0.2% gas burned, and the
    searchers kept **−4.9%** (−$0.20M).
    *Caveat:* the builder/proposer split applies each block's ratio of proposer payment to builder
-   revenue, not how a builder priced each transaction, and on-chain proposer payments match relay
-   data on 699 of the 769 sampled blocks found on a relay. "Kept" is an upper bound (payments
+   revenue, not how a builder priced each transaction. On-chain proposer payments match relay
+   data on 699 of the 769 sampled blocks found on a relay (90.9%, just above the 90% below which
+   the method would have been investigated); the other 70 (9.1%) differ by more than 1% for a
+   reason not established. Kept is negative because builder margin plus proposer payment (34.8% of
+   searcher LVR) exceeds the single-pool gross at 0 s (30.2%). It is an upper bound (payments
    outside the transaction are missed) and, as in finding 3, a small difference of large totals
-   measured at the block time.
+   measured at the block time; sub-project 2's positive kept at 12 s covers the top 4 bots only.
 
 ![Daily LP fees vs measured LVR at 0 s and 12 s](results/figures/7_lp_fees_vs_lvr_daily.png)
 
 *Chart 7. LP fees (after the protocol's quarter) and measured LVR per UTC day, in USD thousands.
-LVR at 0 s is above fees on 79 of the 92 days (counted from
-[`results/lvr_daily.csv`](results/lvr_daily.csv)), and far above on the most volatile ones.*
+LVR at 0 s is above LP fees on 79 of the 92 days (counted from
+[`results/lvr_daily.csv`](results/lvr_daily.csv)), and far above on the most volatile ones. Added
+back, the protocol's quarter changes this: LVR is above total swap fees (LP + protocol) on 41 of
+the 92 days.*
 
 ## Contents
 
@@ -377,10 +391,16 @@ Window totals from [`results/lp_pnl.md`](results/lp_pnl.md), in USD:
 | protocol fees | 881,290.13 |
 | measured LVR, 0 s | 3,703,796.76 |
 | measured LVR, 12 s | 4,089,325.49 |
-| **fees − LVR (0 s)** | **−1,059,609.59** |
+| **LP fees − LVR (0 s)** | **−1,059,609.59** |
 | LVR on searcher swaps / LP fees on searcher swaps | 4,144,118.00 / 1,976,144.85 |
 | theoretical LVR, 1 s returns / 1-minute returns | 3,158,845.51 / 4,333,659.24 |
-| theory × P_trade: expected arbitrage profit / fees paid by arbitrage | 933,257.67 / 2,225,587.84 |
+| theory, expected arbitrage profit (× P_trade) | 933,257.67 |
+| theory, expected fees paid by arbitrage (× (1 − P_trade)) | 2,225,587.84 |
+
+The LP fees are net of the protocol's quarter, which is most of the gap: total swap fees (LP +
+protocol, summed from [`results/lvr_daily.csv`](results/lvr_daily.csv)) were 3,525,477.30, short of
+LVR by 178,319.46. That matches sub-project 2's all-swaps markout of +0.25 bp (−0.14 to 0.77) at
+0 s: the pool's counterparties as a whole roughly break even against Binance after the full fee.
 
 Measured LVR is net over every swap: positive when the trade beat Binance, negative when the pool
 did. Summed over a swap's steps it equals the sub-project 2 trader markout plus the swap fee, so on
@@ -392,10 +412,11 @@ over the window to a relative 1e-9.
 *Chart 8. Daily measured LVR on searcher swaps against the theoretical LVR from 1-second realised
 variance (`RV × L × √P / 4`, the concentrated-liquidity form of σ²/8 × pool value), and the same
 times P_trade, the probability that a block holds an arbitrage given the 0.05% fee and 12 s blocks
-(Milionis, Moallemi, Roughgarden 2023).* The formula tracks the measured series day by day but
-sits below it on most days. With fees and discrete blocks the model expects arbitrageurs to keep
-$0.93M and pay $2.23M in fees; measured, searchers' 0 s gross was $1.51M and they paid $1.98M in
-LP fees plus $0.66M in protocol fees.
+(Milionis, Moallemi, Roughgarden 2023, which supplies P_trade; the LVR formula is Milionis,
+Moallemi, Roughgarden and Zhang 2022).* The formula tracks the measured series day by day but sits
+below it on most days. With fees and discrete blocks the model expects arbitrageurs to earn $0.93M
+gross and pay $2.23M in fees; measured, searchers' 0 s gross was $1.51M and they paid $1.98M in LP
+fees plus $0.66M in protocol fees.
 
 ![Fees minus LVR by volatility tercile](results/figures/9_lvr_by_volatility_regime.png)
 
@@ -408,8 +429,12 @@ LP fees plus $0.66M in protocol fees.
 | mid | 31 | 0.39 | 842,277.63 | 1,068,876.83 | 911,278.11 | -226,599.20 |
 | high | 31 | 0.57 | 1,251,287.82 | 1,932,463.52 | 1,702,649.11 | -681,175.69 |
 
-Fees grow with volatility, but LVR grows faster. The same file splits each regime by LP type: JIT
-liquidity is positive in all three, wallet-held NFT positions negative in all three.
+Fees grow with volatility, but LVR grows faster. These are LP fees, net of the protocol's quarter.
+With the protocol's fees added back (summed per regime from
+[`results/lvr_daily.csv`](results/lvr_daily.csv)), total swap fees exceed LVR on the low and mid
+terciles (+31,703.62 and +54,157.72) and fall short only on the high one (−264,180.80). The same
+file splits each regime by LP type: JIT liquidity is positive in all three, wallet-held NFT
+positions negative in all three.
 
 ### Which LPs make money? (chart 10)
 
@@ -443,8 +468,9 @@ day, with a 95% bootstrap interval over positions. From
 | all positions | | 7,874 | | | | -1,087,478.46 | | -18,208,565.52 | 0.24 |
 
 - **JIT** liquidity is added just before a swap and removed after it in the same block. Its LVR is
-  negative: the flow it trades with loses to the pool against Binance. Its bp/day figure is large
-  because a JIT position counts one 12 s slot of capital; in USD it is $13.9k over the quarter.
+  negative: the flow it trades with loses to the pool against Binance. Most of its +$13.9k is that
+  negative LVR (+28,934.84 to the LP), not fees (4,752.92), and gas (19,771.41) takes most of the
+  rest. Its bp/day figure is large because a JIT position counts one 12 s slot of capital.
 - **Every other type loses** against rebalancing, at 1.35 to 2.28 bp/day, with intervals below
   zero. Narrow ranges under 50 bp are the only width bucket with a positive point estimate
   (+2.20 bp/day), but its interval spans zero, and the bucket includes the JIT positions.
@@ -467,7 +493,9 @@ Over their whole life, from the first deposit to the exit (or the window end), e
 position is compared with holding its deposits, valued at the exit price; the return divides by
 the deposits valued at their own time (ETHUSDT 1-minute closes before the window). From
 [`results/lifetime.md`](results/lifetime.md): 7,874 positions, none excluded for carried owed
-tokens; **65.7% beat holding**, median return +0.03% (`summary.json`: 0.000330).
+tokens; **65.7% beat holding**, median return +0.03% (`summary.json`: 0.000330). Like the window
+result against holding, these shares depend on the price path over each position's life, and so
+on when it opened and closed.
 
 | range width (bp) | positions | share beating holding | | lifetime | positions | share beating holding |
 |---|---|---|---|---|---|---|
@@ -515,15 +543,23 @@ on searcher swaps:
 - Searcher swaps carry more LVR than the whole pool (share 1.1189): the other flows trade at
   prices worse than Binance's and give part of it back.
 - LPs recover about half of the searcher LVR as fees and the protocol about a sixth; most of the
-  rest goes to the block's proposer and builder. Proposer payments are matched against relays on a
-  sample: of 1,000 random blocks, 769 were found on a relay and 699 of those match the on-chain
-  payment within 1 wei.
+  rest goes to the block's proposer and builder.
+- **Why kept is negative.** Builder margin plus proposer payment (0.1578 + 0.1905 = 0.3483 of
+  searcher LVR) is more than the single-pool gross at 0 s (1,251,576.57, 0.3020 of searcher LVR).
+  Gross is measured at the block time against Binance's last trade, so this is a small difference
+  of large totals, as in finding 3. Sub-project 2's positive kept at 12 s (+$0.06M) covers the
+  top 4 bots only, not every searcher.
+- Proposer payments are matched against relays on a sample: of 1,000 random blocks, 769 were found
+  on a relay and 699 of those (90.9%) match the on-chain payment within 1 wei. That is just above
+  the 90% below which the plan said to investigate the method. The other 70 (9.1%) differ by more
+  than 1%, for a reason not established here.
 
 ![Waterfall from pool LVR to fees, gas, builders, proposers and searchers](results/figures/12_lvr_destination.png)
 
 *Chart 12. From pool LVR at 0 s to LVR on searcher swaps, then to LP fees, protocol fees,
 multi-pool gross, gas burned, builder margin, proposer payment and what searchers kept, in USD
-thousands with shares of searcher LVR.*
+thousands with shares of searcher LVR. Kept ends below zero because builder margin and proposer
+payment together (34.8%) exceed the single-pool gross at 0 s (30.2%).*
 
 > The split of builder payments between builder and proposer uses each block's ratio of proposer payment to builder revenue; how a builder prices an individual transaction is not observed. Proposer payments are identified as the block's last transaction from the fee recipient and cross-checked against relay data on a sample of blocks only.
 
@@ -582,8 +618,10 @@ thousands with shares of searcher LVR.*
   hands them to the next position, and such positions are left out of the lifetime statistics (none
   among the window-active positions).
 - **Where LVR goes:** "kept" is an upper bound (builder payments outside the transaction and
-  failed transactions are missed); the relay cross-check found 769 of 1,000 sampled blocks, and
-  some relays were skipped after repeated time-outs.
+  failed transactions are missed). The relay cross-check found 769 of 1,000 sampled blocks, and
+  some relays were skipped after repeated time-outs. Of the 769, 70 (9.1%) disagree with the
+  on-chain proposer payment by more than 1% for a reason not established; the 90.9% match rate
+  only just clears the plan's 90% threshold for investigating the method.
 - **Statistics:** the P&L intervals bootstrap positions and treat them as independent, though many
   positions share an LP.
 

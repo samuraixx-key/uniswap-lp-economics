@@ -1,8 +1,10 @@
+import json
 import sys
 from datetime import date
 from pathlib import Path
 from typing import Any
 
+import polars as pl
 import pytest
 
 from uniswap_lp_economics import cli, config
@@ -141,4 +143,21 @@ def test_missing_blocks_without_the_flag_stop_before_any_query(
     monkeypatch.setattr(bq_blocks, "fetch_blocks", _no_query)
     monkeypatch.setattr(bq_blocks, "fetch_bot_tx_logs", _no_query)
     with pytest.raises(SystemExit, match="--confirm-cost"):
+        cli.run_step("fetch-blocks", False)
+
+
+@pytest.mark.parametrize("fetched_for", [None, ["0xotherbot"]], ids=["missing", "stale"])
+def test_bot_tx_logs_missing_or_stale_without_the_flag_stop_before_any_query(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fetched_for: list[str] | None
+) -> None:
+    (tmp_path / bq_blocks.BLOCKS_FILE).write_bytes(b"")
+    if fetched_for is not None:  # logs on disk, but fetched for other bots
+        (tmp_path / bq_blocks.OTHER_LOGS_FILE).write_bytes(b"")
+        (tmp_path / bq_blocks.OTHER_LOGS_META).write_text(json.dumps({"bots": fetched_for}))
+    monkeypatch.setattr(config, "RAW_DIR", tmp_path)
+    monkeypatch.setattr(cli, "labelled_swaps", lambda: pl.DataFrame())
+    monkeypatch.setattr(cli.flows, "top_bots", lambda swaps: ["0xbot"])
+    monkeypatch.setattr(bq_blocks, "fetch_blocks", _no_query)
+    monkeypatch.setattr(bq_blocks, "fetch_bot_tx_logs", _no_query)
+    with pytest.raises(SystemExit, match="logs in top-bot transactions.*--confirm-cost"):
         cli.run_step("fetch-blocks", False)

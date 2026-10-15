@@ -598,6 +598,15 @@ and therefore LP fees − LVR on a swap equals its sub-project 2 LP markout at 0
 enforces the identity over the window: 3,703,796.7592831883 USD from the steps against
 3,703,796.7592831957 USD from the markouts (relative tolerance 1e-9).
 
+**LP fees vs total fees.** The headline `fees_minus_lvr_usd` (−1,059,609.59 USD) uses LP fees, net
+of the protocol's quarter (881,290.13 USD). The quarter is most of that gap. Summed from
+[`results/lvr_daily.csv`](../results/lvr_daily.csv) (`fees_usd + protocol_fee_usd`), total swap
+fees are 3,525,477.30 USD, short of LVR by 178,319.46 USD. By volatility tercile, total fees − LVR
+is +31,703.62 (low), +54,157.72 (mid) and −264,180.80 USD (high), and LVR exceeds total fees on 41
+of the 92 days (against 79 for LP fees). This matches the sub-project 2 all-swaps trader markout of
++0.25 bp at 0 s (95% interval −0.14 to 0.77, section 3): by the identity above, the counterparties'
+total markout is LVR minus total fees.
+
 ## 12. Theoretical LVR
 
 For each interval `[t, t + Δ)` of a grid of Binance reference prices over the window, `Δ` = 1 s
@@ -744,7 +753,11 @@ Required limitation text (also in the README and `results/lvr_destination.md`):
 
 `kept` is still an upper bound, as in section 5: payments outside the transaction (a separate
 transaction in the bundle, off-chain agreements) are missed, and failed transactions are not
-seen.
+seen. It is negative because builder margin plus proposer payment (0.1578 + 0.1905 = 0.3483 of
+the LVR on searcher steps) exceeds the single-pool gross at 0 s (1,251,576.57 / 4,144,118.00 =
+0.3020). Gross is measured at the block time, so kept is a small difference of large totals.
+Sub-project 2's positive kept at 12 s (`kept_12s_usd`, +59,529.77 USD) covers the top 4 bots'
+single-pool transactions only, not every searcher.
 
 ## 16. Checks L1–L7 and R1–R5
 
@@ -779,8 +792,9 @@ What they prove and what they do not:
   later blocks count as not checked on it. bloXroute max-profit timed out from the start and was
   skipped; Flashbots was skipped after about 600 blocks. 769 of the 1,000 blocks were found on a
   relay; of the 231 not found, 190 have at least one relay that was not checked (per-relay counts
-  from `relays.parquet`, not in `results/`). Why 70 of the 769 differ by more than 1% is not
-  established here.
+  from `relays.parquet`, not in `results/`). 70 of the 769 (9.1%) differ by more than 1%, for a
+  reason not established here. The match rate, 699 / 769 = 90.9%, only just clears the plan's
+  threshold: below 90%, the method or a join was to be investigated before the write-up.
 
 ## 17. Limitations of sub-project 3
 
@@ -803,7 +817,13 @@ What they prove and what they do not:
 - **Direct keys with carried owed tokens** shift principal and fees between two positions of the
   same key; flagged positions are excluded from lifetime statistics (none among the window-active
   positions in this run), but a carry of fees only (principal fully collected) is not flagged.
-- **Where LVR goes:** the limitation text of section 15; `kept` is an upper bound.
+- **Where LVR goes:** the limitation text of section 15; `kept` is an upper bound. The relay
+  cross-check disagrees on 70 of 769 blocks (9.1%) by more than 1%, unexplained.
+- **Path dependence.** P&L against holding, in the window and over a lifetime (65.7% of positions
+  beat holding; 79% of those with a life of 180 days or more), depends on the price path over each
+  position's life, and so on when it opened and closed.
+- **Fees net of the protocol.** "Fees do not cover LVR" holds for LP fees; total swap fees fall
+  short of LVR by much less (section 11).
 - **Scope:** one pool and one quarter.
 
 ## Changes in sub-project 3
