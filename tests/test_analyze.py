@@ -113,7 +113,9 @@ def test_analyze_fixture_end_to_end(tmp_path: Path) -> None:
         "bot_profit.md",
     ):
         assert (results / name).exists(), name
-    assert len(list((results / "figures").glob("*.png"))) == 6
+    assert not (results / "figures").exists()  # `ulpe figures` draws; analyze writes data only
+    hist = pl.read_csv(results / "figure_data" / "basis_hist.csv")
+    assert hist.columns == ["bin_lo_bp", "bin_hi_bp", "blocks"] and hist.height == 200
     summary = json.loads((results / "summary.json").read_text(encoding="utf-8"))
     assert summary["swaps"] == inp.swaps.height
     assert summary["git_commit"] == "test"

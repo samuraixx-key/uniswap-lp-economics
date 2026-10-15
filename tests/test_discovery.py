@@ -10,6 +10,7 @@ import pytest
 from uniswap_lp_economics.discovery import (
     ar1_half_life,
     available_vs_captured,
+    basis_histogram,
     basis_stats,
     build_block_series,
     cross_correlation,
@@ -255,3 +256,14 @@ def test_available_vs_captured_by_day() -> None:
     out = available_vs_captured(series, aligned)
     assert out.row(0, named=True)["available_usd"] == pytest.approx(7.0)
     assert out.row(0, named=True)["captured_usd"] == pytest.approx(2.5)
+
+
+def test_basis_histogram_bins_and_clips() -> None:
+    series = pl.DataFrame({"basis_bp": [0.1, 0.2, -0.3, 80.0, -90.0, None, float("nan")]})
+    h = basis_histogram(series)
+    assert h.columns == ["bin_lo_bp", "bin_hi_bp", "blocks"]
+    assert h.height == 200 and h["bin_lo_bp"][0] == -50.0 and h["bin_hi_bp"][-1] == 50.0
+    assert int(h["blocks"].sum()) == 5  # null and NaN dropped; +80/-90 clipped into the edges
+    assert int(h["blocks"][0]) == 1 and int(h["blocks"][-1]) == 1
+    zero = h.filter(pl.col("bin_lo_bp") == 0.0).row(0, named=True)
+    assert zero["blocks"] == 2  # 0.1 and 0.2 fall in [0, 0.5)

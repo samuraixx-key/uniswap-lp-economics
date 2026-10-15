@@ -309,3 +309,24 @@ def available_vs_captured(series: pl.DataFrame, aligned: pl.DataFrame) -> pl.Dat
         .with_columns(pl.col("captured_usd").fill_null(0.0))
         .sort("day")
     )
+
+
+BASIS_HIST_RANGE_BP = 50.0
+BASIS_HIST_BINS = 200
+
+
+def basis_histogram(series: pl.DataFrame) -> pl.DataFrame:
+    """Counts of the block-start basis in 0.5 bp bins over [-50, 50] bp, for figure 3. Values
+    outside the range are clipped into the edge bins; null and NaN are dropped."""
+    b = (
+        series["basis_bp"]
+        .drop_nulls()
+        .drop_nans()
+        .clip(-BASIS_HIST_RANGE_BP, BASIS_HIST_RANGE_BP)
+        .to_numpy()
+    )
+    edges = np.linspace(-BASIS_HIST_RANGE_BP, BASIS_HIST_RANGE_BP, BASIS_HIST_BINS + 1)
+    counts, _ = np.histogram(b, bins=edges)
+    return pl.DataFrame(
+        {"bin_lo_bp": edges[:-1], "bin_hi_bp": edges[1:], "blocks": counts.astype(np.int64)}
+    )

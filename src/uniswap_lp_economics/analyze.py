@@ -13,7 +13,6 @@ from uniswap_lp_economics import (
     checks,
     config,
     discovery,
-    figures,
     flows,
     markouts,
     report,
@@ -34,14 +33,6 @@ MARKOUT_NOTE = (
     "mean_bp is notional-weighted (sum markout / sum notional); "
     "ci = 95% bootstrap over UTC days (1,000 resamples, seed 42)."
 )
-FIGURES = {
-    "markouts": "1_markouts_by_flow.png",
-    "basis": "2_basis_histogram.png",
-    "episodes": "3_gap_episodes.png",
-    "waterfall": "4_arbitrage_waterfall.png",
-    "leadlag": "5_lead_lag.png",
-    "bots": "6_bot_gross_vs_kept.png",
-}
 
 
 @dataclass
@@ -178,7 +169,6 @@ def _write_results(
     out: Path,
     provenance: dict[str, Any],
 ) -> None:
-    figs = out / "figures"
 
     # Markouts (spec 5) and robustness.
     tables = markouts.markout_tables(aligned)
@@ -201,7 +191,6 @@ def _write_results(
     report.write_table(
         robustness, out, "markouts_robustness", "Markout robustness by flow label", [MARKOUT_NOTE]
     )
-    figures.markout_curves(by_label, figs / FIGURES["markouts"])
 
     # Labels.
     coverage = flows.label_coverage(labelled)
@@ -224,7 +213,9 @@ def _write_results(
     report.write_markdown(
         out, "basis", "Pool vs Binance basis", [("", report.metrics_table(basis))]
     )
-    figures.basis_histogram(series, figs / FIGURES["basis"], discovery.FEE_BAND_BP)
+    fig_data = out / "figure_data"
+    fig_data.mkdir(parents=True, exist_ok=True)
+    write_text_atomic(fig_data / "basis_hist.csv", discovery.basis_histogram(series).write_csv())
     episodes = {
         k: discovery.find_episodes(series, labelled, k) for k in discovery.EPISODE_THRESHOLDS_BP
     }
@@ -240,8 +231,6 @@ def _write_results(
         "Gap episodes and who closes them",
         [(f"|basis| > {k:g} bp", s) for k, s in summaries.items()],
     )
-    primary_k = discovery.EPISODE_THRESHOLDS_BP[0]
-    figures.episode_chart(episodes[primary_k], summaries[primary_k], figs / FIGURES["episodes"])
     xc = discovery.cross_correlation(series)
     ar1 = discovery.ar1_half_life(series)
     report.write_markdown(
@@ -254,7 +243,6 @@ def _write_results(
         ],
         digits=4,
     )
-    figures.cross_correlation_chart(xc, figs / FIGURES["leadlag"])
 
     # Available vs captured vs kept (spec 5.5, 6.5).
     w = arbprofit.waterfall(series, aligned)
@@ -281,12 +269,10 @@ def _write_results(
         [("Totals", report.metrics_table({**w, **ratios})), ("By day", daily)],
         notes=[report.LIMITATION_TEXT],
     )
-    figures.waterfall_chart(w, figs / FIGURES["waterfall"])
     bot_profit = arbprofit.bot_profit_table(aligned)
     report.write_table(
         bot_profit, out, "bot_profit", "Top bots: gross vs kept", [report.LIMITATION_TEXT]
     )
-    figures.bot_profit_chart(bot_profit, figs / FIGURES["bots"])
 
     total = bot_profit.filter(pl.col("sender") == "TOTAL").to_dicts()
     report.write_summary(
