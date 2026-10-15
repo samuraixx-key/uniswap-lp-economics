@@ -145,6 +145,7 @@ def fixture_frames() -> dict[str, Any]:
             "tx_hash": ["c", "c", "z", "c", "c"],
             "amount_usdc": [1000.0, 50_000.0, 20_000.0, -50_000.0, -1000.0],
             "amount_eth": [0.0, 25.0, 0.0, -25.0, 0.0],
+            "pool_price_before": [1990.0, 2001.0, 2001.0, 2004.0, 2004.0],
             "pool_price_after": [2001.0, 2001.0, 2004.0, 2004.0, 2002.0],
             "notional_usd": [1000.0, None, 20_000.0, None, 1000.0],
             "markout_usd_0": [-2.0, None, -8.0, None, -1.0],

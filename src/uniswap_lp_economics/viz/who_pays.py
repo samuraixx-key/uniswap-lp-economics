@@ -107,11 +107,18 @@ def every_position(r: Results) -> Figure:
     ax.set_ylabel("P&L vs rebalancing at Binance (symlog)")
     lose = float((pos_all["pnl_rebal_usd"] < 0).mean()) if pos_all.height else 0.0  # type: ignore[arg-type]
     plural = "position" if hidden == 1 else "positions"
+    jit_all = pos_all.filter(pl.col("lp_type") == "jit")
+    jit_win = (
+        float((jit_all["pnl_rebal_usd"] > 0).mean())  # type: ignore[arg-type]
+        if jit_all.height
+        else -1.0
+    )
     frame(
         fig,
-        "Almost every LP lost to arbitrage; JIT is a coin flip",
+        f"{pct(lose)} of LPs lost money against rebalancing"
+        + ("; JIT is a coin flip" if 0.35 <= jit_win <= 0.65 else ""),
         f"Each dot is one of the {pos_all.height:,} positions active in the window. {pct(lose)} "
-        "lost money after fees, gas and builder payments;\nthe losses scale with size. JIT "
+        "lost money after fees, gas and builder payments; the losses scale with size. JIT "
         "positions are large but live for a single block.",
         f"{PNL_SOURCE} Symlog axis: linear within ±$10.\n{hidden:,} {plural} worth under "
         f"${MIN_VALUE_USD:.0f} not drawn; the group totals on the right include them.",
@@ -187,7 +194,10 @@ def pnl_by_group(r: Results) -> Figure:
     )
     frame(
         fig,
-        "Every LP type except JIT lost money, and JIT's result could be luck",
+        "Every LP type except JIT lost money, and JIT's result could be luck"
+        if all(row["ci_hi_bp"] < 0 for row in types)
+        and all(row["ci_lo_bp"] <= 0 <= row["ci_hi_bp"] for row in jit)
+        else "P&L against rebalancing by LP type and range width",
         "P&L against rebalancing at Binance, in USD per $10,000 of time-weighted position value "
         f"per 30 days. {lead}",
         f"{PNL_SOURCE} 95% intervals: bootstrap over positions. Hollow dot: the interval spans "
@@ -234,7 +244,9 @@ def lifetime(r: Results) -> Figure:
     tail = f"; {pct(old['share_beat_hold'])} of those that lived 180 days or more" if old else ""
     frame(
         fig,
-        "Over their whole life, about half of LPs beat simply holding",
+        "Over their whole life, about half of LPs beat simply holding"
+        if 0.4 <= o["share_beat_hold"] <= 0.6
+        else f"Over their whole life, {pct(o['share_beat_hold'])} of LPs beat simply holding",
         f"Share of window-active positions whose lifetime result beat holding the deposited "
         f"tokens: {pct(o['share_beat_hold'])} overall{tail}. Numbers in brackets: positions.",
         "Gas and builder payments inside the window are charged; costs before it are not "

@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import polars as pl
 import pytest
 from vizfix import fixture_frames, write_results
 
@@ -75,3 +76,25 @@ def test_cli_figures_turns_a_missing_input_into_a_clean_exit(
     monkeypatch.setattr(cli.config, "RESULTS_DIR", tmp_path)
     with pytest.raises(SystemExit, match="ulpe analyze"):
         cli.run_step("figures", False)
+
+
+@pytest.mark.parametrize("stem", [stem for stem, _ in render.FIGURES])
+def test_subtitles_leave_no_stranded_words(tmp_path: Path, stem: str) -> None:
+    r = data.load_results(write_results(tmp_path, fixture_frames()))
+    with style.theme("light"):
+        fig = dict(render.FIGURES)[stem](r)
+        [subtitle] = [t for t in fig.texts if t.get_gid() == "subtitle"]
+        lines = subtitle.get_text().split("\n")
+        style.svg_bytes(fig)
+    assert all(len(line) >= 30 for line in lines[:-1]), (stem, lines)
+
+
+def test_header_only_tables_keep_their_types(tmp_path: Path) -> None:
+    frames = fixture_frames()
+    for key in ("episodes", "episode_blocks", "episode_cex", "jit_block", "bot_profit"):
+        frames[key] = frames[key].head(0)
+    r = data.load_results(write_results(tmp_path, frames))
+    assert r.episodes["threshold_bp"].dtype == pl.Float64
+    for stem, fn in render.FIGURES:
+        with style.theme("light"):
+            style.svg_bytes(fn(r)), stem

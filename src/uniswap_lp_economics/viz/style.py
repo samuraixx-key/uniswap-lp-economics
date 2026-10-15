@@ -176,9 +176,27 @@ def frame(fig: Figure, title: str, subtitle: str, source: str) -> None:
     """Headline stating the finding, a muted subtitle with the key numbers, a source line. Long
     subtitle and source lines wrap to the canvas width."""
     p = pal()
-    fig.text(0.012, 0.975, title, fontsize=15.5, fontweight="bold", va="top", color=p.ink)
-    fig.text(0.012, 0.92, _wrap(subtitle, SUBTITLE_CHARS), fontsize=10.5, va="top", color=p.muted)
-    fig.text(0.012, 0.012, _wrap(source, SOURCE_CHARS), fontsize=8.3, va="bottom", color=p.faint)
+    fig.text(
+        0.012, 0.975, title, fontsize=15.5, fontweight="bold", va="top", color=p.ink, gid="title"
+    )
+    fig.text(
+        0.012,
+        0.92,
+        _wrap(subtitle, SUBTITLE_CHARS),
+        fontsize=10.5,
+        va="top",
+        color=p.muted,
+        gid="subtitle",
+    )
+    fig.text(
+        0.012,
+        0.012,
+        _wrap(source, SOURCE_CHARS),
+        fontsize=8.3,
+        va="bottom",
+        color=p.faint,
+        gid="source",
+    )
 
 
 def usd(x: float) -> str:

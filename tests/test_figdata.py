@@ -126,8 +126,9 @@ def test_jit_block_table_lists_the_block_in_log_order_with_roles() -> None:
     steps = pl.DataFrame(
         {"block_number": [8, 8], "log_index": [2, 2], "fee_usd": [0.3, 0.1], "lvr_0": [-1.0, -0.5]}
     )
+    start = int(Q96 * (1e12 / 1990.0) ** 0.5)  # the block starts at 1990; the first swap moves it
     state = pl.DataFrame(
-        {"block_number": [8], "sqrt_price_x96": [sqrt]},
+        {"block_number": [8], "sqrt_price_x96": [start]},
         schema_overrides={"sqrt_price_x96": pl.Int128},
     )
     t = figdata.jit_block_table(positions, flows, aligned, events, steps, state)
@@ -138,6 +139,9 @@ def test_jit_block_table_lists_the_block_in_log_order_with_roles() -> None:
     assert served["fee_usd"] == pytest.approx(0.4) and served["lvr_0_usd"] == pytest.approx(-1.5)
     assert served["notional_usd"] == 2.0
     assert t["pool_price_after"][1] == pytest.approx(2000.0, rel=1e-9)
+    before = t["pool_price_before"].to_list()
+    assert before[0] == pytest.approx(1990.0, rel=1e-9)  # block start, before the operator's swap
+    assert before[1:] == pytest.approx(t["pool_price_after"].to_list()[:-1], rel=1e-12)
     empty = figdata.jit_block_table(
         positions.filter(pl.col("lp_type") != "jit"), flows, aligned, events, steps, state
     )

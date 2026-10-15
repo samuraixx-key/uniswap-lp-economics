@@ -63,12 +63,21 @@ def markouts(r: Results) -> Figure:
         ax.set_xlim(-0.8, len(HORIZONS_S) - 0.6)
     axes[0].set_ylabel("Trader markout vs Binance (bp of notional)")
     s0 = by.filter((pl.col("flow_label") == "searcher") & (pl.col("horizon_s") == 0))
+    others0 = by.filter((pl.col("flow_label") != "searcher") & (pl.col("horizon_s") == 0))
+    claim = (
+        s0.height > 0
+        and float(s0["mean_bp"][0]) > 0
+        and others0.height > 0
+        and float((others0["mean_bp"] < 0).mean()) > 0.5  # type: ignore[arg-type]
+    )
     a0 = everyone.filter(pl.col("horizon_s") == 0)
     s_txt = f"searchers {float(s0['mean_bp'][0]):+.2f} bp" if s0.height else "no searcher flow"
     a_txt = f"all swaps {float(a0['mean_bp'][0]):+.2f} bp" if a0.height else ""
     frame(
         fig,
-        "Searchers win against the pool; most other flow pays",
+        "Searchers win against the pool; most other flow pays"
+        if claim
+        else "Trader markouts by flow type",
         f"Notional-weighted trader markout after the swap fee, 0 s to 1 h after the block. "
         f"At 0 s: {s_txt}; {a_txt}.",
         "Positive = the swap beat Binance's last trade at that horizon. Bands: 95% bootstrap "

@@ -153,7 +153,7 @@ def _subtitle(b: pl.DataFrame) -> str:
     total = float(b["lvr_0_usd"].sum())
     return (
         f"{day}: Binance moves first; the pool's price changes only when a block lands, and the "
-        f"arbitrage in each block\ntrades it back to Binance. Over these {b.height} blocks "
+        f"arbitrage in each block trades it back to Binance. Over these {b.height} blocks "
         f"({minutes:.0f} min) LPs lost {usd(total)} to arbitrage."
     )
 

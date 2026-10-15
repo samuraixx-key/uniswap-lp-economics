@@ -10,7 +10,7 @@ from matplotlib.figure import Figure
 from matplotlib.patches import PathPatch, Rectangle
 from matplotlib.path import Path as MplPath
 
-from uniswap_lp_economics.viz.data import Results
+from uniswap_lp_economics.viz.data import Results, window_label
 from uniswap_lp_economics.viz.style import CANVAS, Palette, frame, pal, pct, theme, usd
 
 Node = tuple[str, float, str]
@@ -192,7 +192,7 @@ def hero(r: Results, size: tuple[float, float] = CANVAS) -> Figure:
     frame(
         fig,
         f"Where {usd(lvr)} of arbitrage went",
-        "LVR on searcher swaps, Uniswap V3 USDC/WETH 0.05%, Jul–Sep 2026:\n"
+        f"LVR on searcher swaps, Uniswap V3 USDC/WETH 0.05%, {window_label(r.daily)}:\n"
         f"{pct(float(dest['fees_on_searcher_swaps_usd']) / lvr)} came back to LPs as fees, "
         f"{pct(share_bp)} went to block builders and proposers.",
         "Primary split shown; the hatched box is how far the proposer/builder boundary moves "

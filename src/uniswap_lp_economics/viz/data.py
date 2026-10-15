@@ -7,6 +7,8 @@ from typing import Any
 
 import polars as pl
 
+from uniswap_lp_economics.lp.figdata import JIT_BLOCK_SCHEMA
+
 # results file -> the `ulpe` command that writes it
 SOURCES = {
     "summary.json": "analyze",
@@ -22,6 +24,26 @@ SOURCES = {
     "figure_data/jit_block.csv": "lp",
 }
 SUMMARY_KEYS = {"lead_lag": "analyze", "arbitrage": "analyze", "lp": "lp"}
+# Column types the figures rely on, so a table with only a header still reads with them.
+TYPES: dict[str, dict[str, Any]] = {
+    "episodes.csv": {"duration_s": pl.Float64, "threshold_bp": pl.Float64},
+    "bot_profit.csv": {"sender": pl.String, "gross_usd": pl.Float64, "kept_usd": pl.Float64},
+    "figure_data/basis_hist.csv": {
+        "bin_lo_bp": pl.Float64,
+        "bin_hi_bp": pl.Float64,
+        "blocks": pl.Int64,
+    },
+    "figure_data/episode_blocks.csv": {
+        "block_number": pl.Int64,
+        "ts_us": pl.Int64,
+        "pool_price": pl.Float64,
+        "p_cex": pl.Float64,
+        "lvr_0_usd": pl.Float64,
+        "has_searcher": pl.Boolean,
+    },
+    "figure_data/episode_cex.csv": {"ts_us": pl.Int64, "price": pl.Float64},
+    "figure_data/jit_block.csv": JIT_BLOCK_SCHEMA,
+}
 LP_KEYS = (
     "destination",
     "daily",
@@ -30,6 +52,17 @@ LP_KEYS = (
     "lifetime_by_width",
     "fees_minus_lvr_usd",
 )
+
+
+def window_label(daily: pl.DataFrame) -> str:
+    """The window as months, from the daily series: "Jul–Sep 2026", "Jul 2026"."""
+    days = daily["day"].to_list()
+    first, last = min(days), max(days)
+    if (first.year, first.month) == (last.year, last.month):
+        return f"{first:%b %Y}"
+    if first.year == last.year:
+        return f"{first:%b}–{last:%b %Y}"
+    return f"{first:%b %Y}–{last:%b %Y}"
 
 
 @dataclass(frozen=True)
@@ -68,7 +101,7 @@ def load_results(d: Path) -> Results:
         raise FileNotFoundError("; ".join(gaps))
 
     def csv(name: str) -> pl.DataFrame:
-        return pl.read_csv(d / name, try_parse_dates=True)
+        return pl.read_csv(d / name, try_parse_dates=True, schema_overrides=TYPES.get(name))
 
     return Results(
         summary=summary,

@@ -20,6 +20,7 @@ JIT_BLOCK_SCHEMA: dict[str, Any] = {
     "tx_hash": pl.String,
     "amount_usdc": pl.Float64,
     "amount_eth": pl.Float64,
+    "pool_price_before": pl.Float64,
     "pool_price_after": pl.Float64,
     "notional_usd": pl.Float64,
     "markout_usd_0": pl.Float64,
@@ -150,6 +151,7 @@ def jit_block_table(
     price = sqrt_price_x96_to_eth_price(int(start))
     rows = []
     for e in events.filter(pl.col("block_number") == block).sort("log_index").iter_rows(named=True):
+        before = price
         if e["event"] == "swap" and e["sqrt_price_x96"] is not None:
             price = sqrt_price_x96_to_eth_price(int(e["sqrt_price_x96"]))
         role = (
@@ -164,6 +166,7 @@ def jit_block_table(
                 "tx_hash": e["tx_hash"],
                 "amount_usdc": int(e["amount0"] or 0) / 1e6,
                 "amount_eth": int(e["amount1"] or 0) / 1e18,
+                "pool_price_before": before,
                 "pool_price_after": price,
                 "position_id": pid,
                 "full_pattern": full,

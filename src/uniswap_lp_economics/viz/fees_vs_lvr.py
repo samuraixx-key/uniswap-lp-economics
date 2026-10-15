@@ -10,13 +10,15 @@ from matplotlib.figure import Figure
 from matplotlib.ticker import FuncFormatter
 from numpy.typing import ArrayLike
 
-from uniswap_lp_economics.viz.data import Results
+from uniswap_lp_economics.viz.data import Results, window_label
 from uniswap_lp_economics.viz.style import USD_FMT, frame, new_figure, no_data, pal, pct, usd
 
-SOURCE_MEASURED = (
-    "Uniswap V3 USDC/WETH 0.05%, Jul–Sep 2026. LVR measured per swap against Binance's last "
-    "trade at block time."
-)
+
+def _source(r: Results) -> str:
+    return (
+        f"Uniswap V3 USDC/WETH 0.05%, {window_label(r.daily)}. LVR measured per swap against "
+        "Binance's last trade at block time."
+    )
 
 
 def fit_loglog(
@@ -28,7 +30,9 @@ def fit_loglog(
 
 
 def break_even(a: tuple[float, float], b: tuple[float, float]) -> float:
-    """x where the two log-log fits cross."""
+    """x where the two log-log fits cross; NaN for parallel fits."""
+    if a[0] == b[0]:
+        return float("nan")
     return float(np.exp((b[1] - a[1]) / (a[0] - b[0])))
 
 
@@ -41,7 +45,7 @@ def lvr_vs_volatility(r: Results) -> Figure:
     )
     if pos.height < 2:
         no_data(ax, "too few days with positive LVR and fees")
-        frame(fig, "Arbitrage losses against volatility", "Not enough data.", SOURCE_MEASURED)
+        frame(fig, "LVR and swap fees against daily volatility", "Not enough data.", _source(r))
         return fig
     sig = pos["sigma_annual"].to_numpy()
     lvr_fit = fit_loglog(sig, pos["lvr_0"].to_list())
@@ -79,7 +83,7 @@ def lvr_vs_volatility(r: Results) -> Figure:
         va="bottom",
     )
     s_star = break_even(lvr_fit, fee_fit)
-    crosses = sig.min() <= s_star <= sig.max()
+    crosses = bool(np.isfinite(s_star)) and sig.min() <= s_star <= sig.max()
     if crosses:
         ax.axvline(s_star, color=p.muted, lw=1, ls=(0, (3, 3)), zorder=1)
         ymax = ax.get_ylim()[1]
@@ -121,10 +125,12 @@ def lvr_vs_volatility(r: Results) -> Figure:
     )
     frame(
         fig,
-        "Arbitrage losses grow faster with volatility than fees do",
+        "Arbitrage losses grow faster with volatility than fees do"
+        if lvr_fit[0] > fee_fit[0]
+        else "LVR and swap fees against daily volatility",
         f"Each dot is one day. Swap fees (LP + protocol) grow as σ^{fee_fit[0]:.2f}, LVR as "
         f"σ^{lvr_fit[0]:.2f}.\n{tail.strip()}",
-        f"{SOURCE_MEASURED} Log-log OLS fits.\nThe formula at fixed liquidity predicts σ²; "
+        f"{_source(r)} Log-log OLS fits.\nThe formula at fixed liquidity predicts σ²; "
         "a flatter measured slope fits LPs pulling liquidity on volatile days.",
     )
     return fig
@@ -175,15 +181,22 @@ def cumulative(r: Results) -> Figure:
     ax.set_ylabel("Cumulative USD since the window start")
     frame(
         fig,
-        "Over the quarter, LVR pulled steadily ahead of LP fees",
+        "Over the window, LVR pulled ahead of LP fees"
+        if lvr[-1] > lp[-1]
+        else "Cumulative LP fees and LVR over the window",
         f"LP fees − LVR: {usd(s['fees_minus_lvr_usd'])} (95% interval "
         f"{usd(s['fees_minus_lvr_ci_lo_usd'])} to {usd(s['fees_minus_lvr_ci_hi_usd'])}). "
-        "Before the protocol's cut, total fees fell short by only "
-        f"{usd(-s['total_fees_minus_lvr_usd'])}\n"
-        f"(interval {usd(s['total_fees_minus_lvr_ci_lo_usd'])} to "
+        + (
+            "Before the protocol's cut, total fees fell short by only "
+            f"{usd(-s['total_fees_minus_lvr_usd'])} "
+            if s["total_fees_minus_lvr_usd"] < 0
+            else "Before the protocol's cut, total fees exceeded LVR by "
+            f"{usd(s['total_fees_minus_lvr_usd'])} "
+        )
+        + f"(interval {usd(s['total_fees_minus_lvr_ci_lo_usd'])} to "
         f"{usd(s['total_fees_minus_lvr_ci_hi_usd'])}), and LVR beat LP fees on "
         f"{s['days_lvr_above_lp_fees']} of {s['days']} days.",
-        f"{SOURCE_MEASURED} Intervals: bootstrap over days (1,000 resamples, seed 42).",
+        f"{_source(r)} Intervals: bootstrap over days ({s.get('bootstrap', '1,000 resamples')}).",
     )
     return fig
 
@@ -223,7 +236,9 @@ def measured_vs_theory(r: Results) -> Figure:
         ax.grid(True, axis="both")
     frame(
         fig,
-        "Measured arbitrage runs above the LVR formula, before and after fees",
+        "Measured arbitrage runs above the LVR formula, before and after fees"
+        if min(ratios) > 1
+        else "Measured arbitrage against the LVR formula",
         f"Each dot is one day. Before fees, measured LVR on searcher swaps is {ratios[0]:.2f}× "
         f"the formula; after LP and protocol fees, searchers' gross is {ratios[1]:.2f}× the "
         "formula's expected arbitrage profit.",

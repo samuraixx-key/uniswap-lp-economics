@@ -19,6 +19,10 @@ def test_jit_block_labels_events_and_totals(tmp_path: Path) -> None:
         texts = " ".join(t.get_text() for t in fig.texts + fig.axes[0].texts)
     assert "Block 12" in texts and "Operator's swap" in texts and "JIT adds" in texts
     assert "P&L vs rebalancing" in texts and "$11" in texts
+    assert "Operator's own swaps" in texts and "−$3" in texts  # markouts −2 and −1
+    assert "Operator, all in" in texts and "$8" in texts  # 11 − 3
+    ys = fig.axes[0].lines[0].get_ydata()
+    assert ys[0] == 1990.0  # the line starts at the block-start price
 
 
 def test_empty_jit_block_says_so(tmp_path: Path) -> None:

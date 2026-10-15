@@ -74,9 +74,12 @@ def bots_keep(r: Results) -> Figure:
         no_data(b)
     b.set_title("(b) Per top bot", loc="left", fontsize=10.5, color=p.ink)
     g, k = float(w.get("top_bot_single_pool_gross_usd") or 0), float(w.get("kept_usd") or 0)
+    paid = float(w.get("priority_fee_usd") or 0) + float(w.get("coinbase_usd") or 0)
     frame(
         fig,
-        "Arbitrage bots hand most of their edge to block builders",
+        "Arbitrage bots hand most of their edge to block builders"
+        if paid > g / 2
+        else "What arbitrage bots keep after gas and builder payments",
         f"Top bots' single-pool gross at 0 s: {usd(g)}. After the base fee, priority fees and "
         f"direct payments to the block's fee recipient, they kept {usd(k)} (an upper bound).",
         "Sub-project 2. Available = arbitrage available at block starts before gas and Binance "

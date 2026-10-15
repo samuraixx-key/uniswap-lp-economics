@@ -102,7 +102,9 @@ def pool_follows_binance(r: Results) -> Figure:
     )
     frame(
         fig,
-        "The pool follows Binance: gaps open, and arbitrage closes them within blocks",
+        "The pool follows Binance: gaps open, and arbitrage closes them within blocks"
+        if best_lag > 0 and len(d) and median <= 60
+        else "How the pool tracks Binance",
         f"{pct(inside)} of blocks start inside the fee band; half of the gaps outside "
         f"±{k:g} bp close within {_duration(median) if len(d) else 'n/a'}; {lead}.",
         "Basis = pool price / Binance last trade − 1 at block start, clipped to ±50 bp. "
