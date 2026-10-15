@@ -23,6 +23,7 @@ from uniswap_lp_economics.io import read_exact, write_exact, write_text_atomic
 from uniswap_lp_economics.lp import analyze as lp_analysis_module
 from uniswap_lp_economics.lp.positions import build_positions
 from uniswap_lp_economics.rpc import RpcClient
+from uniswap_lp_economics.viz import render as viz_render
 
 
 def _rpc() -> RpcClient:
@@ -255,6 +256,7 @@ ALL_STEPS = (
     "fetch-builders",
     "fetch-relays",
     "lp",
+    "figures",
 )
 
 
@@ -293,6 +295,11 @@ def run_step(name: str, confirm_cost: bool) -> str:
         fetch_relays()
     elif name == "lp":
         return lp_analysis_module.run_lp()
+    elif name == "figures":
+        try:
+            return viz_render.run_figures()
+        except FileNotFoundError as e:
+            raise SystemExit(str(e)) from None
     else:
         raise ValueError(f"unknown pipeline step {name!r}")
     return "OK"
@@ -342,6 +349,7 @@ def main() -> None:
     sub.add_parser("validate", help="run checks C1-C6 and write data_validation/validation_report")
     sub.add_parser("analyze", help="run checks A1-A6 and write results/ (tables, charts, summary)")
     sub.add_parser("lp", help="LP P&L and LVR: checks L1-L7, results/ (sub-project 3)")
+    sub.add_parser("figures", help="render results/figures from results/ (light and dark SVG)")
     all_cmd = sub.add_parser(
         "all", help="run the whole pipeline (the paid BigQuery queries need --confirm-cost)"
     )
@@ -410,6 +418,8 @@ def main() -> None:
         except (FileNotFoundError, RuntimeError, ValueError) as e:
             raise SystemExit(str(e)) from e
         raise SystemExit(0 if status == "PASS" else 1)
+    elif args.command == "figures":
+        run_step("figures", False)
     elif args.command == "all":
         try:
             for step in ALL_STEPS:
