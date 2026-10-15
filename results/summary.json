@@ -1185,8 +1185,8 @@
   ],
   "limitation": "Builder payments are detected only as direct ETH transfers from the bot contract to the block's fee recipient within the same transaction. Payments routed elsewhere (another contract, a separate transaction in the bundle, off-chain agreements) are missed, so the reported net profit is an **upper bound** on what the bots keep. Binance-side trading fees, inventory and hedging costs are not observed.",
   "lp": {
-    "generated_utc": "2026-10-14T21:21:13+00:00",
-    "git_commit": "7793710-dirty",
+    "generated_utc": "2026-10-15T02:13:46+00:00",
+    "git_commit": "2f94abc",
     "lp_fees_usd": 2644187.170867051,
     "protocol_fees_usd": 881290.1311692027,
     "lvr_0_usd": 3703796.759283188,
@@ -1310,7 +1310,7 @@
         "positions": 397,
         "fees_usd": 17100.83084260079,
         "lvr_0_usd": 21355.65021125805,
-        "gas_usd": 708.5413470854172,
+        "gas_usd": 708.5413470854173,
         "pnl_rebal_usd": -4963.36071574268,
         "pnl_hold_usd": -198.54972815008307,
         "share_beat_hold": 0.380352644836272,
@@ -1385,7 +1385,7 @@
         "positions": 2131,
         "fees_usd": 574490.9940378921,
         "lvr_0_usd": 773089.5727441848,
-        "gas_usd": 1747.1347590975079,
+        "gas_usd": 1747.134759097508,
         "pnl_rebal_usd": -200345.7134653901,
         "pnl_hold_usd": -3493525.8065335467,
         "share_beat_hold": 0.11778507742843736,
@@ -1451,7 +1451,7 @@
         "share_beat_hold": 0.3180169286577993,
         "bp_per_day": -7.571843881047216,
         "ci_lo_bp": -9.599546460077095,
-        "ci_hi_bp": -3.8665400354408916,
+        "ci_hi_bp": -3.8665400354408925,
         "bp_per_day_hold": -4.227591697086023
       },
       {
@@ -1527,8 +1527,8 @@
         "unreproduced": 0,
         "by_mode": {
           "to_price": 11595,
-          "exact_output": 25846,
-          "exact_input": 496936
+          "exact_input": 496936,
+          "exact_output": 25846
         }
       },
       "L2 fee accumulators match the chain": {
@@ -1572,7 +1572,82 @@
         "extra_in_history": 0,
         "without_position": 0,
         "noop_collects": 8
+      },
+      "R1 relay vs on-chain proposer payment (reported)": {
+        "sampled": 1000,
+        "found_on_a_relay": 769,
+        "compared_with_on_chain": 769,
+        "match_within_1_wei": 699,
+        "match_within_1pct": 699
+      },
+      "R2 traces vs Alchemy builder payments, top bots (reported)": {
+        "alchemy_pool_txs_with_payment": 56724,
+        "same_amount_in_traces": 56724
+      },
+      "R3 LP-type coverage (reported)": {
+        "by_lp_type": [
+          {
+            "lp_type": "lp_vault",
+            "positions": 111,
+            "fee_usd": 12151.368260761032
+          },
+          {
+            "lp_type": "nft_contract",
+            "positions": 734,
+            "fee_usd": 38156.21842198651
+          },
+          {
+            "lp_type": "jit",
+            "positions": 844,
+            "fee_usd": 4752.9155765646165
+          },
+          {
+            "lp_type": "direct_other",
+            "positions": 397,
+            "fee_usd": 17100.83084260079
+          },
+          {
+            "lp_type": "nft_wallet",
+            "positions": 5788,
+            "fee_usd": 2572025.837765223
+          }
+        ]
+      },
+      "R4 NFT positions transferred while open (reported)": {
+        "window_active": 7874,
+        "transferred": 570
+      },
+      "R5 steps without a 12 s reference (reported)": {
+        "steps": 586360,
+        "without_12s_reference": 0
       }
-    }
+    },
+    "destination": {
+      "pool_lvr_0_usd": 3703796.7592831887,
+      "share_searcher_of_pool_lvr": 1.1188837489490309,
+      "lvr_on_searcher_swaps_usd": 4144118.0033720457,
+      "lvr_on_other_flows_usd": -440321.24408885674,
+      "fees_on_searcher_swaps_usd": 1976144.8451833571,
+      "protocol_fees_on_searcher_swaps_usd": 658714.8662914522,
+      "searcher_gross_usd": 1509258.2918972974,
+      "multi_pool_gross_usd": 257681.72520138923,
+      "single_pool_gross_usd": 1251576.5666959083,
+      "gas_burned_usd": 9715.88912562744,
+      "builder_margin_usd": 654139.408874275,
+      "proposer_usd": 789291.1455588749,
+      "searcher_kept_usd": -201569.876862869,
+      "share_fees": 0.4768553510241212,
+      "share_protocol_fees": 0.15895176386277118,
+      "share_multi_pool": 0.062180112871234615,
+      "share_gas_burned": 0.0023445010778461606,
+      "share_builder_margin": 0.15784767913027706,
+      "share_proposer": 0.19046058652688777,
+      "share_searcher_kept": -0.048639994493123194,
+      "n_searcher_swaps": 253280,
+      "n_swaps_no_other_logs_row": 0,
+      "n_swaps_block_not_in_split": 0,
+      "n_swaps_null_costs": 0
+    },
+    "destination_limitation": "The split of builder payments between builder and proposer uses each block's ratio of proposer payment to builder revenue; how a builder prices an individual transaction is not observed. Proposer payments are identified as the block's last transaction from the fee recipient and cross-checked against relay data on a sample of blocks only."
   }
 }
