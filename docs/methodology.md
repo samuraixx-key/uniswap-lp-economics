@@ -1,11 +1,15 @@
-# Methodology: price discovery and markouts (sub-project 2)
+# Methodology: price discovery, markouts and LP P&L (sub-projects 2 and 3)
 
 This file defines every quantity in `results/` and gives its formula. Scope: the Uniswap V3
 USDC/WETH 0.05% pool (`0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640`) against Binance, window
-`[2026-07-01, 2026-10-01)` UTC. The design spec is
-[`docs/superpowers/specs/2026-10-13-price-discovery-markouts-design.md`](superpowers/specs/2026-10-13-price-discovery-markouts-design.md);
-where the implementation plan amended it, the ruling is cited ("Ruling n"). Numbers quoted here
-come from `results/`.
+`[2026-07-01, 2026-10-01)` UTC. Sections 1–8 cover sub-project 2 (design spec
+[`docs/superpowers/specs/2026-10-13-price-discovery-markouts-design.md`](superpowers/specs/2026-10-13-price-discovery-markouts-design.md));
+sections 9–17 cover sub-project 3, LP P&L and where LVR goes (design spec
+[`docs/superpowers/specs/2026-10-14-lp-pnl-lvr-design.md`](superpowers/specs/2026-10-14-lp-pnl-lvr-design.md)).
+Where an implementation plan amended a spec, the ruling is cited ("Ruling n"); the sub-project 3
+rulings that changed a definition or a number are listed in
+[Changes in sub-project 3](#changes-in-sub-project-3). Numbers quoted here come from `results/`,
+except where a sentence names another source.
 
 Notation: `f` = pool swap fee = 500 pips = 0.0005; `c` = Binance trading fee assumed for the
 arbitrage (0 or 1 bp); `P_cex(t)` = reference price at time `t` (section 2); pool prices are in
@@ -15,6 +19,13 @@ Contents: [1 Data](#1-data-and-validation) · [2 Reference price](#2-reference-p
 [3 Markouts](#3-markouts) · [4 Flow labels](#4-flow-labels) ·
 [5 Costs](#5-costs-and-builder-payments) · [6 Price discovery](#6-price-discovery) ·
 [7 Available arbitrage](#7-available-arbitrage) · [8 Checks](#8-checks-a1a6)
+
+Sub-project 3: [9 Positions](#9-positions) ·
+[10 Accumulators](#10-fee-and-lvr-accumulators) · [11 Measured LVR](#11-measured-lvr) ·
+[12 Theoretical LVR](#12-theoretical-lvr) · [13 P&L](#13-pl-in-the-window) ·
+[14 Lifetime](#14-lifetime-pl-against-holding) · [15 Where LVR goes](#15-where-lvr-goes) ·
+[16 Checks](#16-checks-l1l7-and-r1r5) · [17 Limitations](#17-limitations-of-sub-project-3) ·
+[Changes in sub-project 3](#changes-in-sub-project-3)
 
 ## 1. Data and validation
 
@@ -416,6 +427,385 @@ single/multi-pool scope.
 internal transfers in these transactions go to the fee recipient). *Does not prove:* that all
 builder payments are seen (see the limitation in section 5).
 
+## 9. Positions
+
+### 9.1 Data added in sub-project 3
+
+All git-ignored under `DATA_DIR/raw`, except the labels.
+
+| File | Source | Content |
+|---|---|---|
+| `history/pool_events.parquet`, `history/npm_events.parquet` | BigQuery `crypto_ethereum.logs`, one paid query from the pool's creation (2021-05-04) to the window end; dry run 2.98 TB | Every pool `Mint`/`Burn`/`Collect`, and the NonfungiblePositionManager (NPM, `0xc364…fe88`) `IncreaseLiquidity`/`DecreaseLiquidity`/`Collect`/`Transfer` logs of tokens in our pool |
+| `chain_state/snapshot_fees.parquet` | RPC at the snapshot block 25,433,938 | `feeGrowthGlobal0/1X128` and every initialized tick's `feeGrowthOutside0/1X128` |
+| `chain_state/sample_fees.parquet` | RPC at the 500 sample blocks of check C3 | The same values for the sampled ticks (check L2) |
+| `chain_state/start_positions.parquet`, `end_positions.parquet` | RPC at the snapshot block and at the window's last block | `pool.positions(key)` and `NPM.positions(tokenId)`: liquidity, `feeGrowthInside0/1LastX128`, `tokensOwed0/1` |
+| `chain_state/owner_code.parquet` | `eth_getCode` at the window's last block | Whether each LP address has contract code, and its EIP-7702 delegate if any |
+| `builders/block_revenue.parquet`, `pool_tx_direct_payments.parquet`, `pool_tx_other_logs.parquet` | BigQuery `transactions`, `traces` and `logs`, aggregated inside BigQuery (Ruling 4) | Section 15 |
+| `relays.parquet` | MEV-Boost relay data APIs (free) | Relay-reported proposer payments for 1,000 random window blocks (check R1) |
+| `binance/ETHUSDT-1m-YYYY-MM.zip` | data.binance.vision, checksum-verified | ETHUSDT 1-minute klines from the pool's creation month to the window start (section 14) |
+| `labels/lp_addresses.csv` (committed) | Etherscan, one source link per address | LP vaults (section 9.3) |
+
+The history query runs in two stages. Stage 1 selects the pool's and the NPM's logs with the seven
+event signatures into a BigQuery table that expires after 7 days; stage 2 reads that table only:
+pool events as they are, and NPM events of tokens in our pool. A token is in our pool when one of
+its `IncreaseLiquidity` events shares a transaction with a pool `Mint` owned by the NPM with the
+same liquidity.
+
+### 9.2 Identity
+
+- **NFT positions.** One position per NPM `tokenId`, over its whole life. Each NPM event is
+  matched to the pool event the NPM emitted just before it in the same transaction:
+  `IncreaseLiquidity` to a `Mint` owned by the NPM with the same liquidity, `DecreaseLiquidity`
+  to a `Burn` of the same liquidity and range, `Collect` to a `Collect` on the same range (preceded
+  by a `Burn` of 0, the NPM's "poke", when the token still holds liquidity). A token whose first
+  `IncreaseLiquidity` matches no `Mint` in our pool belongs to another pool and is ignored; any
+  other unmatched event stops the run with its block and log index.
+- **NPM collect amounts.** The NPM's `Collect` event logs the amounts it requested,
+  `min(amountMax, the token's tokens owed)`. The pool pays `min(requested, the NPM key's tokens
+  owed)`, and the key's owed can be lower than the sum of its tokens' owed by floor rounding. So a
+  pool `Collect` matches when its amounts are at most the NPM's in both tokens. The position's flow
+  keeps the NPM amounts, which is the NPM's own accounting (and what checks L3 and L4 compare).
+  Over the whole history there are 2,622 such shortfalls, the largest 48 raw USDC units and 44 wei.
+- **Direct positions** (minted by any address other than the NPM) are keyed as the contract keys
+  them, `(owner, tick_lower, tick_upper)`. A mint on a key with zero liquidity starts a new
+  position; burns and collects go to the key's latest position.
+- **Zero collects on keys never minted.** `UniswapV3Pool.collect` does not check that a position
+  exists and emits `Collect(0, 0)` for any key. Such events are contract no-ops: no position, no
+  flow. There are 179 in the history, 8 of them in the window (check L7).
+- **Carried owed tokens.** When a direct key is minted again before its earlier position collected
+  all it burned, the contract keeps the old tokens owed in the same slot, and the next collect pays
+  them to the new position. The earlier position is flagged `carry_out` and the later one
+  `carry_in` (the test: the earlier position burned more of either token than it collected). The
+  split between the two cannot be recovered before the window, where fees are not known. Check L4
+  skips both (section 16) and the lifetime statistics exclude flagged positions (section 14,
+  `n_excluded_carry`); the window P&L is unaffected. In this run `n_excluded_carry` is 0.
+- **LP.** For an NFT position, the token's owner when the position closes (its liquidity reaches 0
+  and is never increased again), or at the window end, from the NPM `Transfer` events. For a
+  direct position, the key's owner. An NFT position whose owner changed while it held liquidity is
+  flagged `transferred` (check R4: 570 of the 7,874 window-active positions).
+- **Window-active:** liquidity > 0 at some moment in `[WINDOW_START, WINDOW_END)`. A position whose
+  only window event is a collect is not window-active. 7,874 positions are window-active; 3,837 of
+  them were open at the snapshot (check L5).
+
+### 9.3 LP types, range width, holding time and cohort
+
+- **LP type** (first match): `jit` (not open at the window start, and its first deposit and its
+  exit are in the same block, ending with no liquidity); `lp_vault` (the LP is in
+  `labels/lp_addresses.csv`); `nft_wallet` (NFT position whose LP has no contract code at the
+  window's last block); `nft_contract` (NFT position whose LP has code); `direct_other` (every other
+  direct position, whatever its owner).
+- **EIP-7702.** A delegated EOA has the code `0xef0100` followed by its 20-byte delegate. It is a
+  wallet controlled by a private key, so `has_code` means real contract code and a delegated EOA
+  counts as a wallet. Of the 4,112 addresses read (LPs and owners of window-active positions), 287
+  have contract code and 861 are delegated EOAs (counts from the `eth_getCode` fetch,
+  `owner_code.parquet`; they are not in `results/`).
+- **LP vault labels.** An address is labelled `lp_vault` only if Etherscan names it as an LP vault
+  or active manager. Four addresses qualify: a Gamma Hypervisor, a Harvest UniVaultProxy and two
+  Enzyme external positions; each row of `labels/lp_addresses.csv` has its source link. Smart
+  accounts, utility contracts and unverified contracts are not labelled, so they stay
+  `nft_contract` or `direct_other`.
+- **Range width:** `(1.0001^(tick_upper − tick_lower) − 1) × 10⁴` bp; buckets `<50`, `50-200`,
+  `200-1000`, `1000-5000`, `>=5000` bp (the last includes full range).
+- **Holding time in the window:** `same_block` (the `jit` positions), `whole_window` (open at both
+  ends), else by exit time minus start time: `<1h`, `1h-1d`, `1d-7d`, `>=7d`.
+- **Cohort:** `pre_window` (liquidity > 0 at the window start) or `in_window`.
+
+## 10. Fee and LVR accumulators
+
+**Swap reproduction.** Every swap of the window is re-simulated step by step from the replayed
+state, and the first of three modes that reproduces its logged amounts and final `sqrtPriceX96`
+bit-exactly is kept: (1) exact input of the logged input amount, (2) exact output of the logged
+output amount, (3) "to price": exact input of an unlimited amount with the logged final price as
+the limit. Each step records its start and end price, liquidity, `amount_in`, `amount_out`, fee and
+crossed tick. Check L1: 496,936 swaps in mode 1, 25,846 in mode 2 and 11,595 in mode 3; none
+unreproduced.
+
+**Exact accumulators** (`lp/state.py`), as `UniswapV3Pool` and `Tick` keep them, all modulo 2²⁵⁶:
+
+```
+cut              = fee // feeProtocol nibble of the input token     (0 when off; 4 in this window)
+lp_fee           = fee − cut
+fee_growth_in   += lp_fee × 2¹²⁸ // L                               (only when L > 0)
+cross tick t:      outside_t = global − outside_t                   (before the liquidity change)
+init tick t:       outside_t = global if t ≤ current tick, else 0   (Tick.update; a cleared tick is re-initialized fresh)
+inside(lo, hi)   = global − below(lo) − above(hi)                   (Tick.getFeeGrowthInside)
+```
+
+`L` is the step's active liquidity. A step with `L` = 0 pays the fee (and the protocol's cut) but
+grows nothing and is marked not accrued; there are 0 such steps in this window.
+**Flash loans** pay LP fees too: `UniswapV3Pool.flash` adds each token's paid fee, net of the
+protocol's cut, to the fee growth exactly like a swap fee. The engine records it as one step per
+token paid, with the flow label `flash` and no LVR; a WETH flash fee is valued at `P_cex(t0)` of
+the most recent swap.
+
+**Float accumulators**, with the same global/outside/inside mechanics, per step:
+
+```
+fee_usd_growth  += lp_fee × (USD per raw unit of the input token at P_cex(t0)) / L
+lvr_growth[h]   += lvr_step[h] / L           h ∈ {0, 12} s (section 11)
+```
+
+USDC is taken at face value. The exact accumulators start from the chain's values at the snapshot
+block; the float ones start at zero there, for the global value and for every tick (Ruling 3).
+Only differences between two checkpoints are ever used, and "nothing accrued on either side since
+the snapshot" is a valid starting state for the outside convention.
+
+**Contract mirror and attribution** (`lp/ledger.py`), two layers kept apart:
+
+- The **contract mirror** holds what the chain stores, updated only by events: every pool `Mint`
+  and `Burn` (including the NPM's `Burn` of 0) adds `liquidity × (inside − inside_last) // 2¹²⁸`
+  to the key's `tokensOwed` and stores the new `inside_last`; a pool `Collect` reduces
+  `tokensOwed`. NPM tokens mirror the NPM's own accounting on `IncreaseLiquidity`,
+  `DecreaseLiquidity` and `Collect`, reading the pool key's stored fee growth, as the NPM reads
+  `pool.positions(key)`, never the ticks: the pool `Burn` just before a `DecreaseLiquidity` may have
+  cleared them (Ruling 14). The mirror starts from the chain's `positions()` values at the snapshot,
+  read for every pool key touched after the snapshot (a new position on a previously used key
+  inherits that key's stored state) and every NPM token open at the window start. Check L3 compares
+  the mirror with the chain at both ends.
+- The **attribution layer** holds what each position earned in the window: exact raw fees
+  `liquidity × Δinside // 2¹²⁸`, checkpointed at the position's own events and at the window
+  boundaries (so its floors match the contract's), and USD fees and LVR from the float
+  accumulators, also checkpointed at the first event of each new UTC day (Ruling 9). A position's
+  `fees` are realised plus uncollected, LP share only.
+
+## 11. Measured LVR
+
+Per swap step (`token0` = USDC, `token1` = WETH, decimal-adjusted, `P = P_cex(t0 + h)`):
+
+```
+lvr_step[h] = −(Δusdc + Δeth × P)
+```
+
+where `Δ` are the pool's token changes **excluding the fee**: `+amount_in` of the input token and
+`−amount_out` of the output token. It is signed: positive when the trade gained against Binance
+(the pool gave a better price than Binance's), negative when the pool gained. `h` = 0 s is primary
+and 12 s a sensitivity; a step without a 12 s reference would contribute 0 and be counted (check
+R5: 0 of 586,360 steps).
+
+Pool LVR is the sum over accrued steps: **3,703,796.76 USD at 0 s** and 4,089,325.49 USD at 12 s.
+On searcher steps it is 4,144,118.00 USD; the other flows' steps sum to −440,321.24 USD, i.e. as a
+whole they lost to the pool against Binance even before the fee.
+This is a net, measured quantity: it counts every flow, not only arbitrage.
+
+**Identity with the sub-project 2 markouts.** A markout's amounts include the fee and the LVR's
+exclude it, so summed over each swap's steps
+
+```
+Σ_steps lvr_step[0] = trader_markout_usd(0) + total swap fee (LP + protocol) at P_cex(t0)
+```
+
+and therefore LP fees − LVR on a swap equals its sub-project 2 LP markout at 0 s. Check L6
+enforces the identity over the window: 3,703,796.7592831883 USD from the steps against
+3,703,796.7592831957 USD from the markouts (relative tolerance 1e-9).
+
+## 12. Theoretical LVR
+
+For each interval `[t, t + Δ)` of a grid of Binance reference prices over the window, `Δ` = 1 s
+(primary) or 60 s (sampling sensitivity):
+
+```
+r            = ln(P_cex(t + Δ) / P_cex(t))
+lvr_theory   = r² × L_dec × √P_cex(t) / 4          L_dec = L_raw × 10⁻¹²
+```
+
+`L_raw` is the active liquidity at the start of the block in force at `t`. For a full-range position
+this reduces to the textbook `σ²/8 ×` pool value. Per UTC day, `RV_day = Σ r²` of the 1 s returns,
+`σ_annual = √(365 × RV_day)` and `σ = √(RV_day / 86,400)` per √second.
+
+**Fee and block-time adjustment** (Milionis, Moallemi, Roughgarden 2023, arXiv:2305.14604, Theorem 1
+and Eq. 12):
+
+```
+P_trade = 1 / (1 + η),   η = √(2λ) × γ / σ,   γ = ln(1 + 0.0005),   λ = 1/12 s⁻¹
+theory_arb      = theory_1s × P_trade           expected arbitrage profit
+theory_arb_fees = theory_1s × (1 − P_trade)     expected fees paid by arbitrage
+```
+
+Window totals ([`results/lp_pnl.md`](../results/lp_pnl.md)): theory 3,158,845.51 USD with 1 s
+returns and 4,333,659.24 USD with 1-minute returns, against measured 3,703,796.76 USD;
+`theory_arb` 933,257.67 USD and `theory_arb_fees` 2,225,587.84 USD. The model assumes geometric
+Brownian motion and blocks arriving as a Poisson process with rate λ, while Ethereum slots are a
+fixed 12 s; the 1 s realised variance of Binance's last trade also contains order-flow noise and
+stale stretches. The 1-minute total is about a third higher than the 1 s one, so the sampling
+choice matters as much as the model.
+
+**Volatility regimes.** The 92 days are ranked by `σ_annual` (ordinal rank) and split into terciles:
+rank ≤ n/3 is `low` (30 days), ≤ 2n/3 `mid` (31), else `high` (31)
+([`results/vol_regimes.md`](../results/vol_regimes.md)). The regime × LP type table sums the
+per-day attribution of section 10.
+
+## 13. P&L in the window
+
+Per window-active position, in USD ([`results/positions.csv`](../results/positions.csv)):
+
+- `fees`, `lvr_0`, `lvr_12` from the attribution layer.
+- `gas`: every window transaction that changed the position (mint, burn, collect, increase,
+  decrease, poke): `receipt_gas_used × receipt_effective_gas_price / 10¹⁸ × P_cex` at its block,
+  split equally across the positions it touched. A transaction without a receipt, a block without a
+  price, or a null gas field stops the run rather than costing 0.
+- **Against rebalancing:** `pnl_rebal = fees − lvr_0 − gas` (and `pnl_rebal_12` with `lvr_12`).
+- **Against holding:** everything the LP got out minus everything put in, all at the Binance price
+  at the position's exit (its last removal, or the window end):
+  `pnl_hold = V_exit + fees + Σ withdrawn − Σ deposited − gas`. Deposits and withdrawals are token
+  amounts; a position open at the window start deposits, at that moment, the token amounts it held
+  at the snapshot pool price. This compares the LP with holding the deposited tokens.
+- **Rate:** `bp_per_day = pnl_rebal / (twv × days) × 10⁴` (and `bp_per_day_hold` with `pnl_hold`).
+  `twv`, the time-weighted value, is the mean of the position's USD value at each UTC hour start in
+  `[t_start, t_exit)`: its liquidity at that time, as token amounts at the pool price of the block
+  in force, valued at that block's `P_cex` (Ruling 5). A position open at no hour start uses the
+  value of its first in-window deposit (or of its start holdings) at that block's price. `days` is
+  `(t_exit − t_start) / 86,400 s`; a `jit` position counts one 12 s slot.
+- **Groups** ([`results/lp_groups.md`](../results/lp_groups.md)), by LP type, range width, holding
+  time and cohort: count, Σ fees, Σ LVR, Σ gas, Σ `pnl_rebal`, Σ `pnl_hold`, the share with
+  `pnl_hold > 0`, and `bp_per_day = Σ pnl_rebal / Σ (twv × days) × 10⁴`, i.e. weighted by
+  value × time, with a 95% interval from a bootstrap over positions (1,000 resamples, seed 42,
+  2.5th to 97.5th percentile of the same ratio).
+- **Daily series** ([`results/lvr_daily.md`](../results/lvr_daily.md)): per UTC day, LP fees,
+  protocol fees, measured LVR at 0 s and 12 s, the searcher part, realised variance, `σ_annual`,
+  the theoretical values and the regime.
+
+Headline totals (`lp_fees_usd`, `lvr_0_usd`, `lvr_12_usd`, and the accrued-only
+`lvr_0_searcher_usd`, `lp_fees_searcher_usd`) sum accrued steps only: a step with no liquidity in
+range paid no LP. Section 15 counts every searcher step; in this window the two coincide, as no
+step lacked liquidity.
+
+## 14. Lifetime P&L against holding
+
+For every window-active position, over its whole history
+([`results/lifetime.md`](../results/lifetime.md)):
+
+```
+pnl_hold_life = (Σ collected + owed and accrued at the window end + V_end − Σ deposited) at P_exit
+return_life   = pnl_hold_life / Σ deposits, each valued at its own time
+beat_hold     = pnl_hold_life > 0
+```
+
+- Deposits are pool `Mint` amounts (direct) or NPM `IncreaseLiquidity` amounts (NFT); collected
+  amounts are pool `Collect` (direct) or NPM `Collect` (NFT) and include the withdrawn principal,
+  so withdrawals are not added again. Fees are implicit: collected minus withdrawn principal, plus
+  what is still owed or accrued at the window end (from the engine).
+- `P_exit` is the window-end price for an open position, else `P_cex` at the block of its last
+  removal. Deposits inside the window are valued at `P_cex` of their block; deposits before it at
+  the last ETHUSDT 1-minute close known at the deposit time (a bar's close is stamped at the bar's
+  end). A close older than 3,600 s, a deposit block without a price, or a closed position without
+  a removal stops the run.
+- Positions flagged `carry_in` or `carry_out` (section 9.2) are left out of every share and median;
+  `n_excluded_carry` reports how many (0 here). Lifetime holding buckets: `<1d`, `1-7d`,
+  `7-30d`, `30-180d`, `>=180d`.
+- LP gas is not counted in lifetime P&L.
+
+## 15. Where LVR goes
+
+Per block in the window, from the builder tables (Ruling 4: aggregated inside BigQuery, because the
+window has about 110 M transactions):
+
+```
+R_b = Σ_tx gas_used × (effective_gas_price − base_fee)     (transactions not sent by the fee recipient)
+    + Σ successful trace payments to the fee recipient
+Q_b = value of the block's last transaction if it is sent by the fee recipient;
+      otherwise R_b (the fee recipient is the proposer: a self-built block)
+proposer_share_b = Q_b / R_b      (0 when R_b = 0; above 1 when the builder subsidises)
+```
+
+A **trace payment** is a successful trace with value > 0 to the block's fee recipient, inside a
+transaction the fee recipient did not send (its own transactions, e.g. unwrapping WETH, are
+excluded), and not a `delegatecall`, `callcode` or `staticcall` (those move no value of their own).
+
+Per searcher swap (sub-project 2 label), with the transaction's costs split across its swaps in
+our pool by notional, in USD at `P_cex(t0)`:
+
+```
+gross          = trader_markout_usd(0)
+gas_burned     = gas_used × base_fee
+builder_paid   = gas_used × (effective_gas_price − base_fee) + trace payments to the fee recipient in the tx
+proposer       = builder_paid × proposer_share_b
+builder_margin = builder_paid − proposer
+kept           = gross − gas_burned − builder_paid
+```
+
+Trace payments cover every searcher, not only the top bots of sub-project 2. **Scope:** a
+transaction is single-pool when it emits no log from an address other than our pool, USDC, WETH and
+its target (`COALESCE(to_address, the contract created)`); this is counted for every transaction
+touching our pool. Multi-pool transactions are reported gross only.
+
+The chain ([`results/lvr_destination.md`](../results/lvr_destination.md), chart 12) runs: pool LVR
+at 0 s (3,703,796.76 USD) → minus the other flows (−440,321.24) → LVR on searcher steps
+(4,144,118.00) = LP fees (1,976,144.85) + protocol fees (658,714.87) + searcher gross
+(1,509,258.29); gross = multi-pool gross (257,681.73) + single-pool gross (1,251,576.57); single-pool
+gross = gas burned (9,715.89) + builder margin (654,139.41) + proposer (789,291.15) + kept
+(−201,569.88). Shares are of the LVR on searcher steps: 0.4769, 0.1590, 0.0622, 0.0023, 0.1578,
+0.1905 and −0.0486. This section counts every searcher step, also any with no liquidity in range,
+so its keys are named apart from the accrued-only totals of section 13. No swap needed a fallback:
+0 swaps without an other-logs row, 0 in a block missing from the split, 0 with null costs.
+
+Required limitation text (also in the README and `results/lvr_destination.md`):
+
+> The split of builder payments between builder and proposer uses each block's ratio of proposer payment to builder revenue; how a builder prices an individual transaction is not observed. Proposer payments are identified as the block's last transaction from the fee recipient and cross-checked against relay data on a sample of blocks only.
+
+`kept` is still an upper bound, as in section 5: payments outside the transaction (a separate
+transaction in the bundle, off-chain agreements) are missed, and failed transactions are not
+seen.
+
+## 16. Checks L1–L7 and R1–R5
+
+Written to [`results/lp_checks.md`](../results/lp_checks.md) (and `.json`). L1–L7 are gated: `ulpe
+lp` computes everything, then writes the checks and, only if all pass, the results (`summary.json`
+last). R1–R5 are reported. All pass in this run.
+
+| Check | Rule | Result |
+|---|---|---|
+| L1 swap reproduction | Every swap bit-exact in one of the three modes (section 10) | 534,377 swaps, 0 unreproduced; 496,936 exact input, 25,846 exact output, 11,595 to price |
+| L2 fee accumulators vs chain | At each of the 500 sample blocks, `feeGrowthGlobal0/1` and the sampled ticks' `feeGrowthOutside0/1` equal the engine's exactly | 500 blocks, 18,125 values, 0 mismatches |
+| L3 positions vs chain | The contract mirror's liquidity, `feeGrowthInside0/1LastX128` and `tokensOwed0/1` equal the chain's for every open pool key and NPM token at the window's last block, and the start state matches the rebuilt positions | 12,263 compared, 0 mismatches, 0 start mismatches |
+| L4 fees vs Collect | For every position opened, closed and fully collected in the window (the chain owes nothing at the end), engine fees = collected − withdrawn principal, exactly in raw units. Positions that received carried owed tokens, or handed theirs on to a re-mint (section 9.2), are skipped | 3,428 positions, 0 mismatches |
+| L5 start state | Σ liquidity of the positions open at the snapshot, per tick, equals the snapshot tick book (`liquidity_net` and `liquidity_gross`), and active liquidity matches | 3,837 positions, 1,557 ticks, 0 mismatches |
+| L6 identities | Σ position fees ≤ pool LP fees, short by at most one raw unit per accrued step, one per window flow and two per position (Ruling 13); Σ position LVR = pool LVR and pool LVR = the markout identity (section 11), relative error ≤ 1e-9 | Pool LP fees 1,337,421,456,289 raw USDC and 618,857,678,632,566,990,117 wei; positions short by 4,870 and 5,011 (tolerance 620,992) |
+| L7 history complete | The history's window `Mint`/`Burn` events equal `events.parquet`, each belongs to exactly one position, and every NPM event of our tokens matches a pool event | 21,850 liquidity events, 0 missing, 0 extra, 0 unassigned; 8 no-op zero collects |
+| R1 relays | Relay-reported proposer payment vs `Q_b`, on 1,000 random window blocks | 769 found on a relay; 699 of them match within 1 wei (the same 699 within 1%) |
+| R2 traces vs Alchemy | Top-bot payments to the fee recipient from sub-project 2's Alchemy transfers vs the trace payments, on transactions touching our pool | 56,724 of 56,724 equal |
+| R3 LP-type coverage | Positions and fees by LP type | Table in `lp_checks.md`; 111 `lp_vault` positions |
+| R4 transferred | NFT positions whose owner changed while open | 570 of 7,874 |
+| R5 12 s reference | Steps without a 12 s reference | 0 of 586,360 |
+
+What they prove and what they do not:
+
+- L1–L3 and L5 are exact-integer comparisons with the chain: the engine reproduces every swap, the
+  fee accumulators at 500 blocks, and every open position's stored state at both ends. The USD
+  values and LVR rest on the float accumulators, which only L6 checks, as identities.
+- L4 checks fees against what LPs actually collected, but only for positions that opened, closed
+  and collected inside the window.
+- **R1 sample.** The relay fetch has a circuit breaker: a relay that fails (time-out, server error
+  or invalid JSON after retries) on 3 consecutive blocks is skipped for the rest of the run, and
+  later blocks count as not checked on it. bloXroute max-profit timed out from the start and was
+  skipped; Flashbots was skipped after about 600 blocks. 769 of the 1,000 blocks were found on a
+  relay; of the 231 not found, 190 have at least one relay that was not checked (per-relay counts
+  from `relays.parquet`, not in `results/`). Why 70 of the 769 differ by more than 1% is not
+  established here.
+
+## 17. Limitations of sub-project 3
+
+- **Reference = last Binance ETHUSDC trade**, as in sub-project 2; measured LVR, fees in USD and
+  every P&L move with it. Sub-project 4 tests a mid price and OKX.
+- **Theory** assumes geometric Brownian motion and Poisson blocks, while Ethereum slots are a
+  fixed 12 s; 1 s realised variance of last trades includes order-flow noise. The 1-minute version
+  is about a third higher than the 1 s one.
+- **LP hedging and other holdings are not observed.** P&L against rebalancing is what an LP who
+  rebalanced at Binance's price would have made; a hedged LP's real result also depends on the
+  hedge's own costs.
+- **LP gas** is counted only for window transactions; gas before the window and in lifetime P&L
+  is not.
+- **Lifetime values before the window** use ETHUSDT 1-minute closes (USDT, not USDC).
+- **Who the LP is.** An NFT position's LP is its owner at close (570 window-active positions changed
+  owner while open), and a vault stands for many depositors. Only four vault addresses are labelled;
+  other managers stay `nft_contract` or `direct_other`.
+- **Collected amounts of NFT positions** keep the NPM's requested amounts, which overstate what the
+  pool paid by at most 48 raw USDC units and 44 wei per collect (2,622 collects in the history).
+- **Direct keys with carried owed tokens** shift principal and fees between two positions of the
+  same key; flagged positions are excluded from lifetime statistics (none among the window-active
+  positions in this run), but a carry of fees only (principal fully collected) is not flagged.
+- **Where LVR goes:** the limitation text of section 15; `kept` is an upper bound.
+- **Scope:** one pool and one quarter.
+
 ## Changes in sub-project 3
 
 Sub-project 3 made the Binance reference deterministic. Before, when several trades shared a
@@ -444,3 +834,27 @@ only enters the LP markout, which no published table reports, so again no report
 | total protocol fee, USD | 881,671.39 | 881,290.13 |
 | A3 largest residual, USD | 2.2e-11 | 7.0e-12 |
 | any number in `results/` | — | unchanged (largest relative difference 7e-15) |
+
+### Where the code departs from the sub-project 3 spec
+
+Reviewed rulings during implementation changed several definitions in the design spec. Sections
+9–17 describe the code; this list says what changed and why.
+
+| Topic | Spec | Code, and why |
+|---|---|---|
+| Flash loans | Fee growth from swap steps only | `UniswapV3Pool.flash` also grows fee growth, so flash fees accrue to LPs: one step per token paid, labelled `flash`, no LVR (section 10). Without it, L2 fails |
+| Zero collects | Every pool event belongs to a position | A `Collect(0, 0)` on a key never minted is a contract no-op: no position, no flow; 179 in the history, 8 in the window (section 9.2) |
+| NPM collect match | Exact amounts | The NPM logs requested amounts and the pool pays `min(requested, key owed)`; the pool `Collect` may be lower. Matched when ≤ in both tokens; flows keep the NPM amounts; 2,622 shortfalls, at most 48 raw USDC units and 44 wei |
+| Direct key re-minted before its owed is collected | Not covered | The old owed stays in the slot and goes to the new position. `carry_in`/`carry_out` flags; L4 skips positions that handed on or received owed tokens; flagged positions are excluded from lifetime statistics and counted in `n_excluded_carry` |
+| NPM token accounting | Fee growth inside from the ticks | Read from the pool key's stored fee growth, as the NPM does (Ruling 14) |
+| Start state | Keys and tokens open at the window start | Every pool key touched after the snapshot is read at the snapshot (a new position on an old key inherits its stored owed); NPM tokens open at the window start |
+| L6 fee tolerance | 1 raw unit per step | Also one per window flow and two per position, never above the pool's (Ruling 13) |
+| Owner code | `has_code` from `eth_getCode` | EIP-7702 delegated EOAs (code `0xef0100` + delegate) are wallets, not contracts: 861 of the 4,112 addresses read are delegated, 287 are real contracts |
+| LP vault labels | Web-verified vaults and managers | Only addresses Etherscan names as vaults or managers: 4 addresses, with sources in `labels/lp_addresses.csv` |
+| LP gas | Gas of window mint/burn/collect transactions | A missing receipt, block price or gas field stops the run instead of costing 0 |
+| Time-weighted value | Averaged over the position's blocks | Sampled at UTC hour starts (Ruling 5); a position open at no hour start is valued at its first in-window deposit, not the sum of its deposits |
+| Lifetime prices | ETHUSDT 1-minute closes | A close older than 3,600 s before a deposit stops the run (a missing month file or a data gap) |
+| Headline totals | Sums over steps | Fee and LVR totals sum accrued steps only; the destination counts every searcher step, so its keys are named apart (`lvr_on_searcher_swaps_usd`, …) from `lvr_0_searcher_usd`. Identical in this window (no step without liquidity) |
+| Builder data (D5) | Download every window transaction and value trace (dry runs 32 GB and 288 GB) | Aggregated inside BigQuery into three tables (Ruling 4); trace payments exclude transactions sent by the fee recipient and `delegatecall`/`callcode`/`staticcall` traces; the other-logs target is `COALESCE(to_address, contract created)` and covers every pool transaction. The three queries scanned about 661 GB, against the spec's estimate of about 320 GB, mostly because of the joins that exclude the fee recipient's own transactions |
+| R2 | All top-bot payments vs traces | Restricted to transactions that touch our pool, the population the trace table covers |
+| Relay sample (R1) | Retries, cached | A circuit breaker skips a relay after 3 consecutive failed blocks: bloXroute max-profit timed out and was skipped, Flashbots was skipped after about 600 blocks; 769 of 1,000 blocks found, and 190 of the not-found blocks have relays that were not checked |

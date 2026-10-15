@@ -3,6 +3,7 @@
 import argparse
 import json
 from datetime import UTC, date, datetime
+from typing import NoReturn
 
 import polars as pl
 
@@ -110,14 +111,28 @@ def labelled_swaps() -> pl.DataFrame:
     return flows.label_swaps(read_exact(path), flows.load_labels(config.LABELS_CSV))
 
 
-def fetch_blocks(dry_run: bool) -> None:
+def refuse_paid_query(what: str, command: str) -> NoReturn:
+    """Stop `ulpe all` before a billable BigQuery query that --confirm-cost did not allow."""
+    raise SystemExit(
+        f"{what} missing: `ulpe {command}` runs a billable BigQuery query. Check its size with "
+        f"`ulpe {command} --dry-run`, then run `ulpe all --confirm-cost`"
+    )
+
+
+def fetch_blocks(dry_run: bool, confirm_cost: bool = True) -> None:
+    """With confirm_cost False (`ulpe all` without the flag), stop instead of querying BigQuery."""
+    have_blocks = (config.RAW_DIR / bq_blocks.BLOCKS_FILE).exists()
+    if not (dry_run or have_blocks or confirm_cost):
+        refuse_paid_query("block fee recipients and base fees", "fetch-blocks")
     bots = flows.top_bots(labelled_swaps())
     print(f"top bots: {len(bots)}")
-    if dry_run or not (config.RAW_DIR / bq_blocks.BLOCKS_FILE).exists():
+    if dry_run or not have_blocks:
         bq_blocks.fetch_blocks(config.RAW_DIR, config.WINDOW_START, config.WINDOW_END, dry_run)
     else:
         print("blocks already downloaded, skipping")
     if dry_run or not bq_blocks.bot_tx_logs_current(config.RAW_DIR, bots):
+        if not (dry_run or confirm_cost):
+            refuse_paid_query("logs in top-bot transactions", "fetch-blocks")
         bq_blocks.fetch_bot_tx_logs(
             config.RAW_DIR, config.WINDOW_START, config.WINDOW_END, bots, dry_run
         )
@@ -174,6 +189,112 @@ def fetch_chain_state() -> None:
     chain_state.fetch_owner_code(client, config.RAW_DIR, addresses, end_block)
 
 
+def fetch_price_history() -> None:
+    """D7: Binance ETHUSDT 1-minute klines from the pool's creation to the window start."""
+    months = [
+        (d.year, d.month)
+        for d, _ in bigquery.month_windows(
+            date(config.POOL_CREATED.year, config.POOL_CREATED.month, 1), config.WINDOW_START
+        )
+    ]
+    binance.fetch_price_history(months, config.RAW_DIR)
+
+
+def fetch_relays() -> None:
+    """D6: relay-reported proposer payments for a random sample of window blocks."""
+    blocks = pl.read_parquet(config.RAW_DIR / bq_blocks.BLOCKS_FILE)["block_number"]
+    relays.fetch_relay_sample(config.RAW_DIR, int(blocks.min()), int(blocks.max()))  # type: ignore[arg-type]
+
+
+def fetch_logs(confirm_cost: bool) -> None:
+    """Pool logs for every window month not yet on disk (`ulpe all`)."""
+    missing = [
+        (start, end)
+        for start, end in bigquery.month_windows(config.WINDOW_START, config.WINDOW_END)
+        if not bigquery.raw_logs_path(start, end).exists()
+    ]
+    if missing and not confirm_cost:
+        refuse_paid_query(
+            "pool logs", f"fetch-logs --start {config.WINDOW_START} --end {config.WINDOW_END}"
+        )
+    for start, end in missing:
+        bigquery.fetch_pool_logs(start, end)
+
+
+def fetch_builders(confirm_cost: bool) -> None:
+    """D5 (`ulpe all`): the three aggregated builder tables, unless all of them are on disk."""
+    folder = config.RAW_DIR / builders.BUILDERS_DIR
+    names = (builders.BLOCK_REVENUE, builders.TX_DIRECT, builders.TX_OTHER_LOGS)
+    if all((folder / name).exists() for name in names):
+        print("builder tables already downloaded, skipping")
+        return
+    if not confirm_cost:
+        refuse_paid_query("builder revenue and payment tables", "fetch-builders")
+    builders.fetch_builders(config.RAW_DIR, config.WINDOW_START, config.WINDOW_END)
+
+
+# The whole pipeline, in order. fetch-chain-state appears twice: its fee-state part runs before
+# the history exists, its position part needs the history.
+ALL_STEPS = (
+    "fetch-logs",
+    "fetch-snapshot",
+    "fetch-cex",
+    "fetch-samples",
+    "build",
+    "validate",
+    "fetch-blocks",
+    "fetch-transfers",
+    "analyze",
+    "fetch-chain-state",
+    "fetch-history",
+    "fetch-chain-state",
+    "fetch-price-history",
+    "fetch-builders",
+    "fetch-relays",
+    "lp",
+)
+
+
+def run_step(name: str, confirm_cost: bool) -> str:
+    """Run one pipeline step; "PASS"/"FAIL" for the gated ones (validate, analyze, lp), else "OK".
+
+    Without confirm_cost no billable BigQuery query runs: a BigQuery step whose output is missing
+    stops the run with a message (fetch-history with its own refusal, after a free dry run)."""
+    if name == "fetch-logs":
+        fetch_logs(confirm_cost)
+    elif name == "fetch-snapshot":
+        fetch_snapshot()
+    elif name == "fetch-cex":
+        fetch_cex()
+    elif name == "fetch-samples":
+        fetch_samples()
+    elif name == "build":
+        build.build_all(config.RAW_DIR, config.INTERIM_DIR)
+    elif name == "validate":
+        return validate.run_validation()
+    elif name == "fetch-blocks":
+        fetch_blocks(dry_run=False, confirm_cost=confirm_cost)
+    elif name == "fetch-transfers":
+        fetch_transfers()
+    elif name == "analyze":
+        return analysis.run_analysis()
+    elif name == "fetch-chain-state":
+        fetch_chain_state()
+    elif name == "fetch-history":
+        history.fetch_history(config.RAW_DIR, config.POOL_CREATED, config.WINDOW_END, confirm_cost)
+    elif name == "fetch-price-history":
+        fetch_price_history()
+    elif name == "fetch-builders":
+        fetch_builders(confirm_cost)
+    elif name == "fetch-relays":
+        fetch_relays()
+    elif name == "lp":
+        return lp_analysis_module.run_lp()
+    else:
+        raise ValueError(f"unknown pipeline step {name!r}")
+    return "OK"
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="ulpe", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -212,7 +333,14 @@ def main() -> None:
     sub.add_parser("validate", help="run checks C1-C6 and write data_validation/validation_report")
     sub.add_parser("analyze", help="run checks A1-A6 and write results/ (tables, charts, summary)")
     sub.add_parser("lp", help="LP P&L and LVR: checks L1-L7, results/ (sub-project 3)")
-    sub.add_parser("all", help="fetch anything missing, build, then validate")
+    all_cmd = sub.add_parser(
+        "all", help="run the whole pipeline (the paid BigQuery queries need --confirm-cost)"
+    )
+    all_cmd.add_argument(
+        "--confirm-cost",
+        action="store_true",
+        help="allow the paid BigQuery queries (history and builders; logs and blocks if missing)",
+    )
 
     args = parser.parse_args()
     if args.command == "fetch-logs":
@@ -228,13 +356,7 @@ def main() -> None:
     elif args.command == "fetch-cex":
         fetch_cex()
     elif args.command == "fetch-price-history":
-        months = [
-            (d.year, d.month)
-            for d, _ in bigquery.month_windows(
-                date(config.POOL_CREATED.year, config.POOL_CREATED.month, 1), config.WINDOW_START
-            )
-        ]
-        binance.fetch_price_history(months, config.RAW_DIR)
+        fetch_price_history()
     elif args.command == "fetch-blocks":
         fetch_blocks(args.dry_run)
     elif args.command == "fetch-transfers":
@@ -250,8 +372,7 @@ def main() -> None:
             config.RAW_DIR, config.WINDOW_START, config.WINDOW_END, args.dry_run
         )
     elif args.command == "fetch-relays":
-        blocks = pl.read_parquet(config.RAW_DIR / bq_blocks.BLOCKS_FILE)["block_number"]
-        relays.fetch_relay_sample(config.RAW_DIR, int(blocks.min()), int(blocks.max()))  # type: ignore[arg-type]
+        fetch_relays()
     elif args.command == "build":
         try:
             build.build_all(config.RAW_DIR, config.INTERIM_DIR)
@@ -276,14 +397,13 @@ def main() -> None:
             raise SystemExit(str(e)) from e
         raise SystemExit(0 if status == "PASS" else 1)
     elif args.command == "all":
-        for start, end in bigquery.month_windows(config.WINDOW_START, config.WINDOW_END):
-            if not bigquery.raw_logs_path(start, end).exists():
-                bigquery.fetch_pool_logs(start, end)
-        fetch_snapshot()
-        fetch_cex()
-        fetch_samples()
-        build.build_all(config.RAW_DIR, config.INTERIM_DIR)
-        raise SystemExit(0 if validate.run_validation() == "PASS" else 1)
+        try:
+            for step in ALL_STEPS:
+                if run_step(step, args.confirm_cost) == "FAIL":
+                    raise SystemExit(1)
+        except (FileNotFoundError, RuntimeError, ValueError) as e:
+            raise SystemExit(str(e)) from e
+        raise SystemExit(0)
 
 
 if __name__ == "__main__":

@@ -3,15 +3,17 @@
 **Who makes money on Uniswap V3?** A swap-by-swap study of the USDC/WETH 0.05% pool on Ethereum
 mainnet against Binance: how fast the pool follows the CEX price, who closes the gaps, what each
 flow type earns or loses (markouts), and what arbitrage bots keep after gas and builder payments.
-LP fees vs loss-versus-rebalancing (LVR) is next.
+Then the liquidity providers' side: whether LP fees cover loss-versus-rebalancing (LVR), which LPs
+make money, and where the LVR goes.
 
 [![CI](https://github.com/samuraixx-key/uniswap-lp-economics/actions/workflows/ci.yml/badge.svg)](https://github.com/samuraixx-key/uniswap-lp-economics/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.13-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-> **Status:** sub-projects 1 (data foundation) and 2 (price discovery and markouts) are complete;
-> data checks C1–C6 and analysis checks A1–A6 all pass. Next: LP P&L (fees vs LVR), then
-> counterfactual LP strategies.
+> **Status:** sub-projects 1 (data foundation), 2 (price discovery and markouts) and 3 (LP P&L and
+> where LVR goes) are complete; data checks C1–C6, analysis checks A1–A6 and LP checks L1–L7 all
+> pass. Next: reference robustness (sub-project 4: mid prices and OKX), then counterfactual LP
+> strategies (sub-project 5).
 
 ## TL;DR
 
@@ -60,9 +62,54 @@ and payments to block builders?
 *Chart 1. Notional-weighted trader markout against Binance by flow label, from the block time to
 1 h later, with 95% day-bootstrap bands. Positive = the swap won against the pool.*
 
+**And for the liquidity providers.** Do the fees they earn cover LVR (what they lose by trading
+at the pool's price instead of Binance's)? Which LPs make money? And where does the LVR go?
+
+4. **Fees do not cover LVR.** Over the window LPs earned **$2.64M** in fees (after the protocol's
+   quarter, which took $0.88M) and lost **$3.70M** to LVR measured at the block time ($4.09M at
+   12 s): fees − LVR = **−$1.06M**. Fees fell short in every volatility tercile of days: −$0.15M
+   on the 30 calmest days, −$0.23M on the middle 31 and −$0.68M on the 31 most volatile. The
+   Milionis–Moallemi–Roughgarden formula with 1-second Binance returns gives $3.16M of LVR.
+   *Caveat:* LVR here is measured swap by swap against Binance's last trade at the block time, net
+   of all flow: searcher swaps alone cost LPs $4.14M, and the rest of the flow gave $0.44M back. It
+   is the loss against a portfolio that rebalances at Binance's price, not a loss against holding.
+   The theoretical value depends on sampling: 1-minute returns give $4.33M.
+5. **Almost only just-in-time liquidity makes money.** Against a portfolio that rebalances at
+   Binance's price, after gas, the 7,874 positions active in the window lost **$1.09M**. JIT
+   positions (844, minted and burned in the same block) made +$13.9k: they earn fees on flow that
+   loses to the pool, so their LVR is negative (−$28.9k). Every other LP type lost between 1.35 and
+   2.28 bp of position value per day, each with a 95% interval below zero: NFT positions held by
+   wallets, which earned $2.57M of the $2.64M in fees, **−1.35 bp/day** (−1.77 to −1.12) and
+   −$1.08M; vaults −1.58; NFT positions held by contracts −2.28; other direct positions −1.55.
+   Against simply holding the deposited tokens, 24.1% of positions came out ahead within the
+   window; over their whole life, 65.7% did (median return +0.03%), and 79% of positions with a
+   life of 180 days or more.
+   *Caveat:* the benchmark assumes the LP could hedge for free at Binance's last trade; LPs' hedges
+   and other holdings are not observed, and LP gas before the window is not counted. The window
+   result against holding (−$18.2M) is mostly the window's price path, not LVR. Lifetime shares
+   count positions, not dollars, and value deposits made before the window at ETHUSDT 1-minute
+   closes. A vault stands for many depositors, and an NFT position's LP is its owner at close.
+6. **Where LVR goes: back to LPs as fees, then to proposers and builders; searchers keep nothing
+   measurable at block time.** Of the $4.14M of LVR on searcher swaps, 47.7% went to LPs as fees,
+   15.9% to the protocol, 19.0% to block proposers and 15.8% to builders (margin after paying the
+   proposer); 6.2% is the gross of multi-pool transactions (not split), 0.2% gas burned, and the
+   searchers kept **−4.9%** (−$0.20M).
+   *Caveat:* the builder/proposer split applies each block's ratio of proposer payment to builder
+   revenue, not how a builder priced each transaction, and on-chain proposer payments match relay
+   data on 699 of the 769 sampled blocks found on a relay. "Kept" is an upper bound (payments
+   outside the transaction are missed) and, as in finding 3, a small difference of large totals
+   measured at the block time.
+
+![Daily LP fees vs measured LVR at 0 s and 12 s](results/figures/7_lp_fees_vs_lvr_daily.png)
+
+*Chart 7. LP fees (after the protocol's quarter) and measured LVR per UTC day, in USD thousands.
+LVR at 0 s is above fees on 79 of the 92 days (counted from
+[`results/lvr_daily.csv`](results/lvr_daily.csv)), and far above on the most volatile ones.*
+
 ## Contents
 
-- [Data](#data) · [Method](#method) · [Results](#results) · [Limitations](#limitations)
+- [Data](#data) · [Method](#method) · [Results](#results) · [LP P&L](#lp-pl) ·
+  [Where LVR goes](#where-lvr-goes) · [Limitations](#limitations)
 - [Reproduce](#reproduce) · [Repo map](#repo-map) · [Further reading](#further-reading)
 
 ## Data
@@ -93,6 +140,18 @@ get `Int128` back in Polars). Floats appear only in readable columns such as `am
 the window: the protocol takes 1/4 of every swap fee, in both tokens. There were no `SetFeeProtocol`
 events in the window, and 380 `CollectProtocol` events. LP fee income in later stages therefore has
 to be computed net of the protocol's quarter.
+
+**Added for LP P&L (sub-project 3).** Positions open at the window start were created earlier, so
+the pool's full history is needed to know their state and their LP:
+
+| Source | What | How |
+|---|---|---|
+| Pool and NonfungiblePositionManager logs, 2021-05-04 to the window end | Every `Mint`/`Burn`/`Collect`, and the NFT positions' `IncreaseLiquidity`/`DecreaseLiquidity`/`Collect`/`Transfer` | BigQuery, one paid query (2.98 TB scanned) |
+| Archive RPC | Fee-growth state at the snapshot and at the 500 sample blocks; every position's stored state at the window's start and end; whether each LP address has contract code | `eth_call` batched through Multicall3, `eth_getCode` |
+| BigQuery transactions, traces and logs | Per block: builder revenue and proposer payment; per transaction touching the pool: payments to the block's fee recipient and logs from other contracts | Aggregated inside BigQuery (about 661 GB scanned) |
+| MEV-Boost relays | Relay-reported proposer payments for 1,000 random window blocks | Public data APIs, cross-check only |
+| Binance | ETHUSDT 1-minute candles since the pool's creation | data.binance.vision, checksum-verified |
+| `labels/lp_addresses.csv` | Four LP vaults named on Etherscan, with source links | Curated |
 
 ### Validation
 
@@ -137,6 +196,19 @@ Every definition and formula: [`docs/methodology.md`](docs/methodology.md).
    cross-correlation of returns, AR(1) half-life of the basis.
 5. **Available → captured → kept:** optimal arbitrage at each block start by exact-integer V3 swap
    simulation; searchers' 0 s markouts; the top bots' gross minus gas and builder payments.
+6. **Positions and fees, exactly as the contract keeps them:** every swap is re-simulated step by
+   step, and the pool's fee-growth accounting is replayed in exact integers alongside parallel
+   float accumulators for USD fees and LVR. Positions are rebuilt from the pool's full history (one
+   per NFT; direct positions split each time their liquidity returns to zero), and their stored
+   state matches the chain at both ends of the window.
+7. **LVR and P&L:** measured LVR per swap step = the pool's token change, fee excluded, valued at
+   Binance (`−(Δusdc + Δeth × P_cex)`); theoretical LVR from realised variance and the active
+   liquidity. Per position: P&L against rebalancing (fees − LVR − gas) and against holding, in bp
+   of hourly time-weighted value per day, with 95% bootstrap intervals over positions; and a
+   lifetime result against holding.
+8. **Where LVR goes:** LVR on searcher swaps → LP fees, protocol fees and the searchers' gross;
+   gross → gas burned, builder margin, proposer payment and what the searcher kept, using every
+   searcher transaction's payments to the block's fee recipient (from traces).
 
 ## Results
 
@@ -170,7 +242,7 @@ to 0.00; the unrounded share is in `summary.json`, `label_coverage`):
 - **All swaps together:** +0.25 bp at 0 s [-0.14, 0.77] and +0.80 bp at 12 s [0.30, 1.48]. After
   fees, the pool's counterparties as a whole roughly break even against Binance at the block time
   and win slightly 12 s later; the searchers' gains are largely offset by the other flow's losses.
-  LP P&L proper (fees vs LVR, net of the protocol's quarter) is sub-project 3.
+  LP P&L proper (fees vs LVR, net of the protocol's quarter) is in [LP P&L](#lp-pl).
 - **Robustness** ([`results/markouts_robustness.md`](results/markouts_robustness.md)), mean bp at
   0 s:
 
@@ -282,7 +354,182 @@ further (see [Limitations](#limitations)). Its sign depends on the horizon: kept
 bot pays builders 1.26 times its gross; the two smallest pay 0.89 and 0.52 times theirs and keep
 8,867.73 and 38,004.34 USD.
 
+## LP P&L
+
+Everything in this section and the next is written by `uv run ulpe lp` into [`results/`](results/)
+(headline numbers under `"lp"` in [`results/summary.json`](results/summary.json)), and only after
+checks L1–L7 ([`results/lp_checks.md`](results/lp_checks.md)) pass. They are exact-integer
+comparisons with the chain: all 534,377 swaps are reproduced bit-exactly step by step; the fee
+accumulators equal the chain's at 500 random blocks (18,125 values); every open position's stored
+liquidity, fee checkpoints and owed tokens equal the chain's at both ends of the window (12,263
+compared); the positions open at the snapshot rebuild its tick book exactly; and for the 3,428
+positions opened, closed and fully collected in the window, the engine's fees equal what they
+collected minus the principal they withdrew, to the raw unit. Definitions:
+[`docs/methodology.md`](docs/methodology.md), sections 9–17.
+
+### Do fees cover LVR? (charts 7 to 9)
+
+Window totals from [`results/lp_pnl.md`](results/lp_pnl.md), in USD:
+
+| | USD |
+|---|---|
+| LP fees (after the protocol's quarter) | 2,644,187.17 |
+| protocol fees | 881,290.13 |
+| measured LVR, 0 s | 3,703,796.76 |
+| measured LVR, 12 s | 4,089,325.49 |
+| **fees − LVR (0 s)** | **−1,059,609.59** |
+| LVR on searcher swaps / LP fees on searcher swaps | 4,144,118.00 / 1,976,144.85 |
+| theoretical LVR, 1 s returns / 1-minute returns | 3,158,845.51 / 4,333,659.24 |
+| theory × P_trade: expected arbitrage profit / fees paid by arbitrage | 933,257.67 / 2,225,587.84 |
+
+Measured LVR is net over every swap: positive when the trade beat Binance, negative when the pool
+did. Summed over a swap's steps it equals the sub-project 2 trader markout plus the swap fee, so on
+each swap LP fees − LVR is the sub-project 2 LP markout at 0 s; check L6 confirms the identity
+over the window to a relative 1e-9.
+
+![Measured LVR on searcher swaps vs theoretical LVR, daily](results/figures/8_lvr_measured_vs_theory.png)
+
+*Chart 8. Daily measured LVR on searcher swaps against the theoretical LVR from 1-second realised
+variance (`RV × L × √P / 4`, the concentrated-liquidity form of σ²/8 × pool value), and the same
+times P_trade, the probability that a block holds an arbitrage given the 0.05% fee and 12 s blocks
+(Milionis, Moallemi, Roughgarden 2023).* The formula tracks the measured series day by day but
+sits below it on most days. With fees and discrete blocks the model expects arbitrageurs to keep
+$0.93M and pay $2.23M in fees; measured, searchers' 0 s gross was $1.51M and they paid $1.98M in
+LP fees plus $0.66M in protocol fees.
+
+![Fees minus LVR by volatility tercile](results/figures/9_lvr_by_volatility_regime.png)
+
+*Chart 9. Fees − LVR summed over the days of each tercile of daily realised volatility.* From
+[`results/vol_regimes.md`](results/vol_regimes.md), USD:
+
+| regime | days | mean σ, annualised | LP fees | LVR (0 s) | theory (1 s) | fees − LVR |
+|---|---|---|---|---|---|---|
+| low | 30 | 0.24 | 550,621.71 | 702,456.41 | 544,918.30 | -151,834.70 |
+| mid | 31 | 0.39 | 842,277.63 | 1,068,876.83 | 911,278.11 | -226,599.20 |
+| high | 31 | 0.57 | 1,251,287.82 | 1,932,463.52 | 1,702,649.11 | -681,175.69 |
+
+Fees grow with volatility, but LVR grows faster. The same file splits each regime by LP type: JIT
+liquidity is positive in all three, wallet-held NFT positions negative in all three.
+
+### Which LPs make money? (chart 10)
+
+Per window-active position: fees, LVR (0 s), gas of its own window transactions, P&L against a
+portfolio that rebalances at Binance's price (`fees − LVR − gas`) and against holding the deposited
+tokens, all in USD; the rate is that P&L in bp of the position's hourly time-weighted value per
+day, with a 95% bootstrap interval over positions. From
+[`results/lp_groups.md`](results/lp_groups.md) (one row per position in
+[`results/positions.csv`](results/positions.csv)):
+
+| grouping | group | positions | fees | LVR (0 s) | gas | P&L vs rebalancing | bp/day [95%] | P&L vs holding | share beating holding |
+|---|---|---|---|---|---|---|---|---|---|
+| LP type | jit | 844 | 4,752.92 | -28,934.84 | 19,771.41 | 13,916.34 | 5,629.54 [1,240.38, 10,381.09] | 13,916.34 | 0.57 |
+| | lp_vault | 111 | 12,151.37 | 15,643.43 | 176.30 | -3,668.37 | -1.58 [-3.05, -1.21] | -20,529.53 | 0.32 |
+| | nft_wallet | 5,788 | 2,572,025.84 | 3,644,992.64 | 5,495.25 | -1,078,462.06 | -1.35 [-1.77, -1.12] | -18,127,230.35 | 0.19 |
+| | nft_contract | 734 | 38,156.22 | 50,739.87 | 1,717.36 | -14,301.02 | -2.28 [-2.77, -1.91] | -74,523.43 | 0.19 |
+| | direct_other | 397 | 17,100.83 | 21,355.65 | 708.54 | -4,963.36 | -1.55 [-2.12, -1.08] | -198.55 | 0.38 |
+| range width (bp) | <50 | 1,731 | 31,534.02 | 8,612.53 | 20,158.66 | 2,762.83 | 2.20 [-10.79, 20.75] | -7,993.98 | 0.36 |
+| | 50-200 | 358 | 14,327.44 | 18,361.94 | 387.06 | -4,421.57 | -2.65 [-9.07, -0.90] | -5,679.83 | 0.19 |
+| | 200-1000 | 1,158 | 114,084.67 | 148,283.46 | 1,893.20 | -36,092.00 | -2.44 [-5.04, -1.03] | -29,441.91 | 0.26 |
+| | 1000-5000 | 2,496 | 1,909,750.05 | 2,755,449.25 | 3,682.81 | -849,382.01 | -1.73 [-3.04, -1.35] | -14,671,923.99 | 0.26 |
+| | >=5000 | 2,131 | 574,490.99 | 773,089.57 | 1,747.13 | -200,345.71 | -0.67 [-0.75, -0.61] | -3,493,525.81 | 0.12 |
+| holding in window | same_block | 844 | 4,752.92 | -28,934.84 | 19,771.41 | 13,916.34 | 5,629.54 [1,240.38, 10,381.09] | 13,916.34 | 0.57 |
+| | <1h | 364 | 5,014.81 | 6,995.75 | 717.06 | -2,698.00 | -86.77 [-153.74, -42.83] | -7,658.74 | 0.11 |
+| | 1h-1d | 982 | 47,377.64 | 91,490.69 | 1,708.17 | -45,821.22 | -34.44 [-67.84, -10.45] | -118,890.12 | 0.31 |
+| | 1d-7d | 827 | 181,924.45 | 240,008.66 | 1,614.32 | -59,698.52 | -7.57 [-9.60, -3.87] | -33,331.51 | 0.32 |
+| | >=7d | 1,784 | 1,074,902.86 | 1,453,936.54 | 3,738.48 | -382,772.16 | -2.27 [-2.87, -1.67] | -1,760,006.18 | 0.27 |
+| | whole_window | 3,073 | 1,330,214.49 | 1,940,299.96 | 319.43 | -610,404.90 | -0.97 [-1.16, -0.64] | -16,302,595.32 | 0.10 |
+| cohort | pre_window | 3,837 | 1,559,269.76 | 2,256,207.32 | 1,257.96 | -698,195.53 | -1.01 [-1.22, -0.73] | -17,415,498.80 | 0.09 |
+| | in_window | 4,037 | 1,084,917.41 | 1,447,589.44 | 26,610.90 | -389,282.93 | -3.29 [-4.42, -2.34] | -793,066.73 | 0.38 |
+| all positions | | 7,874 | | | | -1,087,478.46 | | -18,208,565.52 | 0.24 |
+
+- **JIT** liquidity is added just before a swap and removed after it in the same block. Its LVR is
+  negative: the flow it trades with loses to the pool against Binance. Its bp/day figure is large
+  because a JIT position counts one 12 s slot of capital; in USD it is $13.9k over the quarter.
+- **Every other type loses** against rebalancing, at 1.35 to 2.28 bp/day, with intervals below
+  zero. Narrow ranges under 50 bp are the only width bucket with a positive point estimate
+  (+2.20 bp/day), but its interval spans zero, and the bucket includes the JIT positions.
+- **Shorter holdings lose more per day**: −86.77 bp/day for positions held under an hour,
+  −0.97 bp/day for those open the whole window.
+- **Against holding**, the totals are much larger (−$18.2M). That gap is the window's price path:
+  the rebalancing portfolio's own result against holding, which is zero on average if price moves
+  are unpredictable, but not on any one path. Fees − LVR is the part an LP who hedged at Binance's
+  price would have kept.
+
+![bp per day by LP type and range width, with 95% intervals](results/figures/10_lp_pnl_by_group.png)
+
+*Chart 10. P&L against rebalancing in bp of position value per day, by LP type (left) and range
+width (right), with 95% bootstrap intervals. The JIT bar dwarfs the others on the left; their
+values are in the table above.*
+
+### Lifetime: did window-active positions beat holding? (chart 11)
+
+Over their whole life, from the first deposit to the exit (or the window end), each window-active
+position is compared with holding its deposits, valued at the exit price; the return divides by
+the deposits valued at their own time (ETHUSDT 1-minute closes before the window). From
+[`results/lifetime.md`](results/lifetime.md): 7,874 positions, none excluded for carried owed
+tokens; **65.7% beat holding**, median return +0.03% (`summary.json`: 0.000330).
+
+| range width (bp) | positions | share beating holding | | lifetime | positions | share beating holding |
+|---|---|---|---|---|---|---|
+| <50 | 1,731 | 0.83 | | <1d | 2,167 | 0.67 |
+| 50-200 | 358 | 0.48 | | 1-7d | 757 | 0.55 |
+| 200-1000 | 1,158 | 0.50 | | 7-30d | 837 | 0.61 |
+| 1000-5000 | 2,496 | 0.56 | | 30-180d | 1,166 | 0.40 |
+| >=5000 | 2,131 | 0.75 | | >=180d | 2,947 | 0.79 |
+
+The median return (a fraction of deposits) is 0.02 for ranges of 5,000 bp or more, 0.09 for
+positions with a life of 180 days or more and −0.01 for lives of 30 to 180 days; elsewhere it
+rounds to 0.00. Within the
+window only 24.1% of positions beat holding; over a whole life the share is higher, but a share
+counts positions, not dollars.
+
+![Share of positions that beat holding over their lifetime](results/figures/11_lifetime_beat_holding.png)
+
+*Chart 11. Share of window-active positions whose lifetime result beat holding, by range width
+(left) and lifetime (right); the dashed line is one half.*
+
+## Where LVR goes
+
+From [`results/lvr_destination.md`](results/lvr_destination.md), in USD and as shares of the LVR
+on searcher swaps:
+
+| Step | USD | share |
+|---|---|---|
+| pool LVR, 0 s | 3,703,796.76 | |
+| − LVR on other flows (non-searcher) | -440,321.24 | |
+| = LVR on searcher swaps | 4,144,118.00 | 1.0000 |
+| → LP fees | 1,976,144.85 | 0.4769 |
+| → protocol fees | 658,714.87 | 0.1590 |
+| → searchers' gross (0 s markout) | 1,509,258.29 | |
+| of which multi-pool transactions, gross only | 257,681.73 | 0.0622 |
+| of which single-pool transactions | 1,251,576.57 | |
+| → gas burned | 9,715.89 | 0.0023 |
+| → builder margin | 654,139.41 | 0.1578 |
+| → proposer payment | 789,291.15 | 0.1905 |
+| → kept by searchers (upper bound) | -201,569.88 | -0.0486 |
+
+- 253,280 searcher swaps, all of them costed: every one has an other-logs row, a block in the
+  builder/proposer split and gas data.
+- The searchers' gross equals sub-project 2's "captured" ($1.51M). Builder payments now come
+  from traces, so they cover every searcher, not only the four top bots of sub-project 2.
+- Searcher swaps carry more LVR than the whole pool (share 1.1189): the other flows trade at
+  prices worse than Binance's and give part of it back.
+- LPs recover about half of the searcher LVR as fees and the protocol about a sixth; most of the
+  rest goes to the block's proposer and builder. Proposer payments are matched against relays on a
+  sample: of 1,000 random blocks, 769 were found on a relay and 699 of those match the on-chain
+  payment within 1 wei.
+
+![Waterfall from pool LVR to fees, gas, builders, proposers and searchers](results/figures/12_lvr_destination.png)
+
+*Chart 12. From pool LVR at 0 s to LVR on searcher swaps, then to LP fees, protocol fees,
+multi-pool gross, gas burned, builder margin, proposer payment and what searchers kept, in USD
+thousands with shares of searcher LVR.*
+
+> The split of builder payments between builder and proposer uses each block's ratio of proposer payment to builder revenue; how a builder prices an individual transaction is not observed. Proposer payments are identified as the block's last transaction from the fee recipient and cross-checked against relay data on a sample of blocks only.
+
 ## Limitations
+
+### Price discovery and markouts (sub-project 2)
 
 > Builder payments are detected only as direct ETH transfers from the bot contract to the block's fee recipient within the same transaction. Payments routed elsewhere (another contract, a separate transaction in the bundle, off-chain agreements) are missed, so the reported net profit is an **upper bound** on what the bots keep. Binance-side trading fees, inventory and hedging costs are not observed.
 
@@ -305,10 +552,40 @@ bot pays builders 1.26 times its gross; the two smallest pay 0.89 and 0.52 times
 - **Multi-pool bot transactions get no cost breakdown:** their costs also pay for trades in other
   pools, so they are reported gross only.
 - **Builder income** is income of the block's fee recipient, usually the builder; what the builder
-  passes on to the validator is not measured.
+  passes on to the validator is not measured here (sub-project 3 splits it for searcher swaps, see
+  [Where LVR goes](#where-lvr-goes)).
 - **Statistics:** the bootstrap resamples UTC days and treats them as independent; for a thin group
   the interval is conditional on at least one active day and can be narrow.
 - **Scope:** one pool and one quarter; nothing here is tested on other pools or periods.
+
+### LP P&L and where LVR goes (sub-project 3)
+
+> The split of builder payments between builder and proposer uses each block's ratio of proposer payment to builder revenue; how a builder prices an individual transaction is not observed. Proposer payments are identified as the block's last transaction from the fee recipient and cross-checked against relay data on a sample of blocks only.
+
+- **Reference price.** Measured LVR, fees in USD and every P&L use Binance's last ETHUSDC trade, as
+  above. Sub-project 4 tests a mid price and OKX.
+- **Theory** assumes geometric Brownian motion and blocks arriving as a Poisson process, while
+  Ethereum slots are a fixed 12 s; the 1-second realised variance of last trades includes
+  order-flow noise. The 1-minute version gives about a third more LVR than the 1-second one.
+- **LP hedging and other holdings are not observed.** P&L against rebalancing is what an LP who
+  could rebalance for free at Binance's last trade would have made.
+- **LP gas** is counted only for window transactions; gas before the window and in lifetime P&L
+  is not.
+- **Lifetime values before the window** use ETHUSDT 1-minute closes (quoted in USDT).
+- **Who the LP is.** An NFT position's LP is its owner at close (570 window-active positions
+  changed owner while open), and a vault stands for many depositors. Only four vault addresses are
+  labelled (those Etherscan names as vaults); other managers stay `nft_contract` or
+  `direct_other`. EIP-7702 delegated wallets count as wallets.
+- **Small accounting edges, reported:** NFT collects keep the amounts the position manager
+  requested, which can exceed what the pool paid by up to 48 raw USDC units or 44 wei (2,622
+  collects in the pool's history); a direct position re-minted before its owed tokens were collected
+  hands them to the next position, and such positions are left out of the lifetime statistics (none
+  among the window-active positions).
+- **Where LVR goes:** "kept" is an upper bound (builder payments outside the transaction and
+  failed transactions are missed); the relay cross-check found 769 of 1,000 sampled blocks, and
+  some relays were skipped after repeated time-outs.
+- **Statistics:** the P&L intervals bootstrap positions and treat them as independent, though many
+  positions share an LP.
 
 ## Reproduce
 
@@ -318,22 +595,35 @@ Requirements:
 - A `.env` (copy `.env.example`) with `ETH_RPC_URL` set to an **archive** Ethereum RPC, e.g. the
   Alchemy (the free tier worked for us as of Oct 2026). Keep it private: the URL contains your API
   key. The code never prints or logs the RPC URL; server-supplied error messages are passed through.
-- `gcloud auth application-default login` for BigQuery (the free sandbox worked for us as of
-  Oct 2026), and `GCP_PROJECT` in `.env` set to your project.
+- `gcloud auth application-default login` for BigQuery, and `GCP_PROJECT` in `.env` set to your
+  project. The free sandbox was enough for sub-projects 1 and 2 (as of Oct 2026); the paid queries
+  of sub-project 3 need billing linked to the project.
 
 ```bash
 uv sync
-uv run pytest -q        # offline; includes the real-data fixture test
-uv run ulpe all         # fetch anything missing, build, validate
+uv run pytest -q                  # offline; includes the real-data fixture test
+uv run ulpe all --confirm-cost    # the whole pipeline: fetch anything missing, build, validate, analyze, lp
 ```
+
+**Cost.** Sub-project 3 runs two sets of paid BigQuery queries, once each. The position history
+scans about 3 TB (dry run 2.98 TB) and is billed once: its first stage writes a BigQuery table that a
+re-run reuses for 7 days, and the downloaded files are skipped afterwards. The three builder
+queries scan about 0.66 TB in total. A Google Cloud free-trial credit covered both for us. Without
+`--confirm-cost`, `ulpe all` issues no billable BigQuery query: it runs every step whose data is
+already on disk, and stops with a message at the first BigQuery step whose output is missing
+(pool logs, blocks, history or builder tables). `ulpe fetch-history` on its own also refuses to
+query without `--confirm-cost`; it first prints the size from a free dry run.
 
 `uv run pytest` needs no network or credentials: tests that touch the network are marked `live` and
 skipped by default. The fixture test replays the first 400 real pool events of the window against a
 matching slice of the on-chain tick book and runs checks C1 and C2 on them. An end-to-end test runs
 the whole analysis (checks A1–A6, every table and chart) on the same events, with synthetic Binance
-prices and bot data.
+prices and bot data, and another runs `ulpe lp`'s analysis (checks L1–L7, charts 7–12) on a small
+synthetic pool with a position opened before the window, an NFT position, a JIT position and a
+flash loan.
 
-`ulpe all` can also be run one step at a time. Each fetch step skips what is already on disk:
+`ulpe all` can also be run one step at a time, in the order below. Each fetch step skips what is
+already on disk. The data foundation:
 
 ```bash
 uv run ulpe fetch-logs --start 2026-07-01 --end 2026-10-01   # BigQuery pool logs (--dry-run reports bytes scanned)
@@ -347,7 +637,7 @@ uv run ulpe validate                                         # checks C1-C6, wri
 `validate` (and `all`) exit non-zero if any check fails. Downloaded and built data goes under
 `DATA_DIR` (default `./data`) and is git-ignored.
 
-`ulpe all` covers the data foundation only. The analysis needs three more steps after it:
+Price discovery and markouts (sub-project 2):
 
 ```bash
 uv run ulpe fetch-blocks      # BigQuery: block fee recipients and base fees; logs in top-bot transactions
@@ -361,6 +651,25 @@ one file per bot contract and skips contracts already fetched. `analyze` refuses
 validation passed on exactly the interim files now on disk; if a gated check (A1–A4) fails it exits
 non-zero and writes no results. Its per-swap and per-block working tables go to
 `DATA_DIR/processed` (git-ignored).
+
+LP P&L and where LVR goes (sub-project 3):
+
+```bash
+uv run ulpe fetch-chain-state                  # RPC: fee state at the snapshot and the 500 sample blocks
+uv run ulpe fetch-history --dry-run            # free: prints the size of the paid history query
+uv run ulpe fetch-history --confirm-cost       # BigQuery, paid: pool and position-manager history since 2021
+uv run ulpe fetch-chain-state                  # again: position state at both ends of the window, LP code (RPC)
+uv run ulpe fetch-price-history                # Binance ETHUSDT 1-minute candles since 2021
+uv run ulpe fetch-builders                     # BigQuery, paid: builder revenue and payments (--dry-run reports bytes)
+uv run ulpe fetch-relays                       # relay data APIs: proposer payments for 1,000 sampled blocks
+uv run ulpe lp                                 # checks L1-L7, then results/: tables, charts 7-12, summary.json["lp"]
+```
+
+`fetch-chain-state` runs twice because its position part needs the history. `fetch-builders` stops
+before querying if a dry run exceeds its 700 GB cap. `fetch-relays` is resumable and skips a relay
+after three consecutive failed blocks. `lp` refuses to run unless validation passed on the interim
+files on disk and the `analyze` outputs exist; if a check L1–L7 fails it writes the checks file
+and no results.
 
 ## Repo map
 
@@ -379,6 +688,10 @@ src/uniswap_lp_economics/
     binance.py      checksum-verified Binance downloads and parsing
     blocks.py       block fee recipients and base fees, and logs in top-bot transactions (BigQuery)
     transfers.py    top-bot internal ETH transfers (Alchemy), one cached file per contract
+    history.py      pool and position-manager history since 2021: one paid, two-stage BigQuery fetch
+    chain_state.py  fee and position state at the snapshot, sample and end blocks; LP code (RPC)
+    builders.py     builder revenue, proposer payment and per-transaction payments (BigQuery aggregates)
+    relays.py       relay-reported proposer payments for a block sample, with a circuit breaker
   build.py          raw downloads -> interim tables (events, swaps, CEX prices)
   validate.py       checks C1-C6 and the validation report
   replay.py         public event replay: pool state after every event and at every block start
@@ -392,22 +705,37 @@ src/uniswap_lp_economics/
   report.py         results tables (CSV and markdown), summary.json, the limitation text
   figures.py        the six charts in results/figures (matplotlib, Agg backend)
   analyze.py        `ulpe analyze`: validated data -> checks -> results/
-  cli.py            `ulpe` command-line entry point
+  lp/               sub-project 3: LP P&L and where LVR goes
+    swapfees.py     exact per-swap LP and protocol fees from the step-by-step re-simulation
+    state.py        fee-growth accumulators as the contract keeps them, plus USD-fee and LVR accumulators
+    positions.py    positions from the full history: NFT matching, direct-key episodes, LPs
+    engine.py       window replay: every swap step and liquidity event through the accumulators
+    ledger.py       contract mirror (what the chain stores) and attribution per position
+    pnl.py          window P&L per position and by group, gas, time-weighted value, bootstrap
+    theory.py       theoretical LVR, P_trade, volatility regimes
+    lifetime.py     lifetime P&L against holding
+    destination.py  where LVR goes: fees, gas, builder margin, proposer payment, kept
+    checks.py       checks L1-L7 and the reported checks R1-R5
+    figures.py      charts 7-12
+    analyze.py      `ulpe lp`: validated data -> checks -> results/ and summary.json["lp"]
+  cli.py            `ulpe` command-line entry point (`ulpe all` runs every step in order)
 scripts/
   make_fixture.py   cut the small real-data test fixture
   migrate_int128_to_decimal.py   one-off: convert early raw files from Int128 to Decimal(38,0)
 tests/              unit tests, the real-data fixture test and the end-to-end analysis test
   fixtures/         real pool events and tick book for the offline fixture test
-labels/             curated address labels (addresses.csv), with a source link per address
-results/            committed results: tables (.md, .csv), figures/, summary.json, analysis checks
+labels/             curated address labels (addresses.csv) and LP vaults (lp_addresses.csv), with a source link per address
+results/            committed results: tables (.md, .csv), figures/, summary.json, analysis and LP checks
 data_validation/    committed validation report (.md and .json)
 docs/methodology.md every definition and formula behind results/
-docs/superpowers/   design specs and implementation plans for sub-projects 1 and 2
+docs/superpowers/   design specs and implementation plans for sub-projects 1 to 3
 ```
 
 ## Further reading
 
 - Milionis, Moallemi, Roughgarden, Zhang (2022), *Automated Market Making and Loss-Versus-Rebalancing*.
+- Milionis, Moallemi, Roughgarden (2023), *Automated Market Making and Arbitrage Profits in the
+  Presence of Fees*, arXiv:2305.14604 (the `P_trade` adjustment).
 - Adams et al. (2021), *Uniswap v3 Core* whitepaper.
 
 ## License and disclaimer
