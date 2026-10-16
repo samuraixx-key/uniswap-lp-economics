@@ -1,4 +1,4 @@
-"""`ulpe lp`: validated data -> LP results (checks L1-L7, tables, charts, summary.json["lp"])."""
+"""`ulpe lp`: validated data -> LP results (checks L1-L7, tables, summary.json["lp"])."""
 
 import json
 from dataclasses import dataclass

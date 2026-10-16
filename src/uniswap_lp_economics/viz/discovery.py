@@ -4,9 +4,13 @@ and lead-lag, from sub-project 2's results."""
 import numpy as np
 import polars as pl
 from matplotlib.figure import Figure
-from matplotlib.ticker import FixedLocator, FuncFormatter, NullFormatter
+from matplotlib.ticker import FixedLocator, FuncFormatter, MaxNLocator, NullFormatter
 
-from uniswap_lp_economics.discovery import EPISODE_THRESHOLDS_BP, FEE_BAND_BP
+from uniswap_lp_economics.discovery import (
+    BASIS_HIST_RANGE_BP,
+    EPISODE_THRESHOLDS_BP,
+    FEE_BAND_BP,
+)
 from uniswap_lp_economics.viz.data import Results
 from uniswap_lp_economics.viz.style import frame, new_figure, no_data, pal, pct
 
@@ -92,6 +96,7 @@ def pool_follows_binance(r: Results) -> Figure:
     else:
         no_data(c)
     c.axhline(0, color=p.muted, lw=0.8)
+    c.xaxis.set_major_locator(MaxNLocator(integer=True))
     c.set_title("(c) Who moves first", loc="left", fontsize=10.5, color=p.ink)
     c.set_xlabel("Lag in blocks (positive: Binance first)")
     c.set_ylabel("Correlation of per-block returns")
@@ -107,7 +112,8 @@ def pool_follows_binance(r: Results) -> Figure:
         else "How the pool tracks Binance",
         f"{pct(inside)} of blocks start inside the fee band; half of the gaps outside "
         f"±{k:g} bp close within {_duration(median) if len(d) else 'n/a'}; {lead}.",
-        "Basis = pool price / Binance last trade − 1 at block start, clipped to ±50 bp. "
+        "Basis = pool price / Binance last trade − 1 at block start, clipped to "
+        f"±{BASIS_HIST_RANGE_BP:g} bp. "
         "Lead–lag: correlation of per-block log returns. Sub-project 2.",
     )
     return fig

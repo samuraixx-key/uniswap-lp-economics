@@ -22,6 +22,7 @@ from uniswap_lp_economics.viz.style import (
 )
 
 MIN_VALUE_USD = 100.0
+SYMLOG_LINTHRESH_USD = 10.0  # figure 9's P&L axis is linear within ± this
 LP_NAMES = {
     "jit": "JIT (same block)",
     "nft_wallet": "Wallet NFT",
@@ -67,12 +68,13 @@ def every_position(r: Results) -> Figure:
                 alpha=0.65 if t == "jit" else 0.35,
                 lw=0,
                 zorder=3 if t == "jit" else 2,
+                rasterized=True,  # thousands of dots: a bitmap keeps the SVG small
             )
     if pos.height == 0:
         no_data(ax, f"no position worth ${MIN_VALUE_USD:.0f} or more")
     else:
         ax.set_xscale("log")
-        ax.set_yscale("symlog", linthresh=10)
+        ax.set_yscale("symlog", linthresh=SYMLOG_LINTHRESH_USD)
         ax.set_xlim(MIN_VALUE_USD, float(pos["twv_usd"].cast(pl.Float64).max()) * 1.6)  # type: ignore[arg-type]
     ax.axhline(0, color=p.ink, lw=0.9, zorder=1)
     ax.yaxis.set_major_formatter(USD_FMT)
@@ -120,7 +122,8 @@ def every_position(r: Results) -> Figure:
         f"Each dot is one of the {pos_all.height:,} positions active in the window. {pct(lose)} "
         "lost money after fees, gas and builder payments; the losses scale with size. JIT "
         "positions are large but live for a single block.",
-        f"{PNL_SOURCE} Symlog axis: linear within ±$10.\n{hidden:,} {plural} worth under "
+        f"{PNL_SOURCE} Symlog axis: linear within ±{usd(SYMLOG_LINTHRESH_USD)}.\n"
+        f"{hidden:,} {plural} worth under "
         f"${MIN_VALUE_USD:.0f} not drawn; the group totals on the right include them.",
     )
     return fig

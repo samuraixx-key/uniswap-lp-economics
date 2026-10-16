@@ -1,6 +1,9 @@
 from pathlib import Path
+from typing import Any
 
 import pytest
+from matplotlib.patches import PathPatch, Rectangle
+from matplotlib.text import Text
 from PIL import Image
 from vizfix import fixture_frames, write_results
 
@@ -68,3 +71,67 @@ def test_ulpe_figures_writes_every_expected_file(tmp_path: Path) -> None:
     expected = {f"{s}.svg" for s in stems} | {f"{s}-dark.svg" for s in stems}
     assert names == expected | {"02_stale_pool_episode.gif", "00_hero.png"}
     assert {p.name for p in (d / "figures").iterdir()} == names
+
+
+def _hero_texts(fig: Any) -> dict[str, str]:
+    return {t.get_gid() or t.get_text(): t.get_text() for t in fig.findobj(Text)}
+
+
+def test_uncertain_slice_sits_between_builders_and_proposers() -> None:
+    d = fixture_frames()["summary"]["lp"]["destination"]
+    p = style.PALETTES["light"]
+    _, dst = hero.flows(d, p)
+    # self-built sensitivity moves $4 from proposers (19 -> 15) to builders (16 -> 20)
+    drawn = hero.split_uncertain(dst, moved=-4.0)
+    names = [n[0] for n in drawn]
+    k = names.index(hero.UNCERTAIN)
+    assert names[k - 1] == "Block builders" and names[k + 1] == "Proposers"
+    assert [n[1] for n in drawn[k - 1 : k + 2]] == pytest.approx([16.0, 4.0, 15.0])
+    assert sum(n[1] for n in drawn) == pytest.approx(sum(n[1] for n in dst))
+    # the other direction: the sensitivity gives proposers more
+    drawn = hero.split_uncertain(dst, moved=3.0)
+    assert [n[1] for n in drawn[k - 1 : k + 2]] == pytest.approx([13.0, 3.0, 19.0])
+
+
+def test_hero_draws_the_uncertain_slice_hatched_and_touching_both_flows(tmp_path: Path) -> None:
+    r = data.load_results(write_results(tmp_path, fixture_frames()))
+    with style.theme("light"):
+        fig = hero.hero(r)
+        nodes = {a.get_gid(): a for a in fig.findobj(Rectangle) if a.get_gid()}
+        bands = [a for a in fig.findobj(PathPatch) if a.get_hatch()]
+    b, u, q = (nodes[f"node:{n}"] for n in ("Block builders", hero.UNCERTAIN, "Proposers"))
+    assert u.get_hatch()
+    assert u.get_y() + u.get_height() == pytest.approx(b.get_y())
+    assert q.get_y() + q.get_height() == pytest.approx(u.get_y())
+    assert len(bands) == 1
+
+
+def test_tiny_shares_read_under_one_percent(tmp_path: Path) -> None:
+    frames = fixture_frames()
+    frames["summary"]["lp"]["destination"].update(gas_burned_usd=0.3, multi_pool_gross_usd=6.7)
+    r = data.load_results(write_results(tmp_path, frames))
+    with style.theme("light"):
+        texts = " ".join(t.get_text() for t in hero.hero(r).findobj(Text))
+    assert "Gas burned  $0 · <1%" in texts
+    assert "· 0%" not in texts
+
+
+def test_footnote_explains_the_second_source_and_the_hatching(tmp_path: Path) -> None:
+    r = data.load_results(write_results(tmp_path, fixture_frames()))
+    with style.theme("light"):
+        source = _hero_texts(hero.hero(r))["source"]
+    assert "second source" in source and "hatched" in source.lower()
+
+
+def _title_share_of_height(fig: Any) -> float:
+    fig.canvas.draw()
+    [title] = [t for t in fig.texts if t.get_gid() == "title"]
+    return float(title.get_window_extent().height / fig.bbox.height)
+
+
+def test_social_card_text_is_larger_than_the_plain_hero(tmp_path: Path) -> None:
+    r = data.load_results(write_results(tmp_path, fixture_frames()))
+    with style.theme("light"):
+        plain = _title_share_of_height(hero.hero(r, size=(12.8, 6.4)))
+        card = _title_share_of_height(hero.card_figure(r))
+    assert card >= 1.2 * plain

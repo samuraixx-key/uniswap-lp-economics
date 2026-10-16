@@ -113,6 +113,7 @@ def _rc(p: Palette) -> dict[str, Any]:
         "axes.spines.right": False,
         "axes.grid": True,
         "axes.grid.axis": "y",
+        "axes.axisbelow": True,  # gridlines behind bars as well as lines
         "axes.labelsize": 10,
         "axes.prop_cycle": cycler(color=[p.fees, p.lvr, p.jit, p.other]),
         "grid.color": p.grid,

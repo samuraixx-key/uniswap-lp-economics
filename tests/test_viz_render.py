@@ -98,3 +98,12 @@ def test_header_only_tables_keep_their_types(tmp_path: Path) -> None:
     for stem, fn in render.FIGURES:
         with style.theme("light"):
             style.svg_bytes(fn(r)), stem
+
+
+def test_analyze_help_no_longer_promises_charts(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr("sys.argv", ["ulpe", "--help"])
+    with pytest.raises(SystemExit):
+        cli.main()
+    assert "chart" not in capsys.readouterr().out  # `ulpe figures` draws them now
