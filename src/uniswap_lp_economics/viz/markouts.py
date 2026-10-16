@@ -18,6 +18,11 @@ FLOW_NAMES = {
 }
 
 
+def _bp(x: float, digits: int) -> str:
+    """Signed basis points with a typographic minus."""
+    return f"{x:+.{digits}f} bp".replace("-", "−")
+
+
 def _name(label: str) -> str:
     return FLOW_NAMES.get(label, label.replace("_", " ").capitalize())
 
@@ -46,7 +51,7 @@ def markouts(r: Results) -> Figure:
         ax.plot(x, mean, color=color, lw=2.2, marker="o", ms=4)
         ax.axhline(0, color=p.muted, lw=0.8)
         ax.annotate(
-            f"{mean[0]:+.1f} bp",
+            _bp(mean[0], 1),
             (x[0], mean[0]),
             xytext=(2, 9),
             textcoords="offset points",
@@ -71,8 +76,8 @@ def markouts(r: Results) -> Figure:
         and float((others0["mean_bp"] < 0).mean()) > 0.5  # type: ignore[arg-type]
     )
     a0 = everyone.filter(pl.col("horizon_s") == 0)
-    s_txt = f"searchers {float(s0['mean_bp'][0]):+.2f} bp" if s0.height else "no searcher flow"
-    a_txt = f"all swaps {float(a0['mean_bp'][0]):+.2f} bp" if a0.height else ""
+    s_txt = f"searchers {_bp(float(s0['mean_bp'][0]), 2)}" if s0.height else "no searcher flow"
+    a_txt = f"all swaps {_bp(float(a0['mean_bp'][0]), 2)}" if a0.height else ""
     frame(
         fig,
         "Searchers win against the pool; most other flow pays"

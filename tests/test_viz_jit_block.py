@@ -29,7 +29,7 @@ def test_empty_jit_block_says_so(tmp_path: Path) -> None:
     frames = fixture_frames()
     frames["jit_block"] = frames["jit_block"].head(0)
     r = data.load_results(write_results(tmp_path, frames))
-    with style.theme("dark"):
+    with style.theme("light"):
         fig = jit_block.jit_block(r)
         texts = " ".join(t.get_text() for t in fig.texts + fig.axes[0].texts)
         style.svg_bytes(fig)

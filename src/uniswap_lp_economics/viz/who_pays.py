@@ -22,6 +22,7 @@ from uniswap_lp_economics.viz.style import (
 )
 
 MIN_VALUE_USD = 100.0
+SYMLOG_LINTHRESH_USD = 10.0  # figure 9's P&L axis is linear within ± this
 LP_NAMES = {
     "jit": "JIT (same block)",
     "nft_wallet": "Wallet NFT",
@@ -54,7 +55,7 @@ def every_position(r: Results) -> Figure:
     pos_all = r.positions
     pos = pos_all.filter(pl.col("twv_usd") >= MIN_VALUE_USD)
     hidden = pos_all.height - pos.height
-    fig, ax = new_figure(left=0.10, right=0.79)
+    fig, ax = new_figure(left=0.10, right=0.76)
     colors = {"jit": p.jit, "nft_wallet": p.fees}
     for t in ("nft_contract", "direct_other", "lp_vault", "nft_wallet", "jit"):
         g = pos.filter(pl.col("lp_type") == t)
@@ -67,12 +68,13 @@ def every_position(r: Results) -> Figure:
                 alpha=0.65 if t == "jit" else 0.35,
                 lw=0,
                 zorder=3 if t == "jit" else 2,
+                rasterized=True,  # thousands of dots: a bitmap keeps the SVG small
             )
     if pos.height == 0:
         no_data(ax, f"no position worth ${MIN_VALUE_USD:.0f} or more")
     else:
         ax.set_xscale("log")
-        ax.set_yscale("symlog", linthresh=10)
+        ax.set_yscale("symlog", linthresh=SYMLOG_LINTHRESH_USD)
         ax.set_xlim(MIN_VALUE_USD, float(pos["twv_usd"].cast(pl.Float64).max()) * 1.6)  # type: ignore[arg-type]
     ax.axhline(0, color=p.ink, lw=0.9, zorder=1)
     ax.yaxis.set_major_formatter(USD_FMT)
@@ -120,7 +122,8 @@ def every_position(r: Results) -> Figure:
         f"Each dot is one of the {pos_all.height:,} positions active in the window. {pct(lose)} "
         "lost money after fees, gas and builder payments; the losses scale with size. JIT "
         "positions are large but live for a single block.",
-        f"{PNL_SOURCE} Symlog axis: linear within ±$10.\n{hidden:,} {plural} worth under "
+        f"{PNL_SOURCE} Symlog axis: linear within ±{usd(SYMLOG_LINTHRESH_USD)}.\n"
+        f"{hidden:,} {plural} worth under "
         f"${MIN_VALUE_USD:.0f} not drawn; the group totals on the right include them.",
     )
     return fig
@@ -143,7 +146,15 @@ def _dots(ax: Axes, rows: list[dict[str, Any]], names: dict[str, str], color: st
             edgecolor=color,
             lw=2,
         )
-        ax.text(i + 0.12, v, usd(v), va="center", fontsize=9, color=p.ink)
+        ax.annotate(
+            usd(v),
+            (i, v),
+            xytext=(7, 0),
+            textcoords="offset points",
+            va="center",
+            fontsize=9,
+            color=p.ink,
+        )
     ax.axhline(0, color=p.muted, lw=0.8)
     ax.set_xticks(
         range(len(rows)),
@@ -172,10 +183,10 @@ def pnl_by_group(r: Results) -> Figure:
             (pl.col("grouping") == "width_bucket") & (pl.col("group") == w)
         ).to_dicts()
     ]
-    fig, (a, j, w) = new_figure(1, 3, top=0.74, bottom=0.22, wspace=0.35, width_ratios=[4, 1.3, 5])
+    fig, (a, j, w) = new_figure(1, 3, top=0.74, bottom=0.22, wspace=0.52, width_ratios=[4, 1.5, 5])
     for ax, rows, names, color, title in (
         (a, types, LP_NAMES, p.fees, "(a) By LP type"),
-        (j, jit, LP_NAMES, p.jit, "(b) JIT, own scale"),
+        (j, jit, LP_NAMES, p.jit, "(b) JIT"),
         (w, widths, WIDTH_NAMES, p.other, "(c) By range width"),
     ):
         if rows:
@@ -183,6 +194,7 @@ def pnl_by_group(r: Results) -> Figure:
         else:
             no_data(ax, "none")
         ax.set_title(title, loc="left", fontsize=10.5, color=p.ink)
+    j.text(0.04, 0.98, "Own scale", transform=j.transAxes, va="top", fontsize=8.5, color=p.muted)
     a.set_ylabel("USD per $10,000 of position value per month")
     wallet = next((row for row in types if row["group"] == "nft_wallet"), None)
     lead = (

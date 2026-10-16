@@ -878,7 +878,7 @@ What they prove and what they do not:
 ## 16a. Figures
 
 `ulpe figures` renders every figure from `results/` only (`summary.json`, the results CSVs and
-`results/figure_data/`), in light and dark SVG with text as outlines, so a re-render with unchanged
+`results/figure_data/`), in light SVG with text as outlines, so a re-render with unchanged
 inputs changes no file. The style (palette, Inter font, title block) is in `viz/style.py`.
 
 | Figure | Inputs |

@@ -3,6 +3,7 @@ and its animation."""
 
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -17,6 +18,21 @@ from uniswap_lp_economics.viz.data import Results
 from uniswap_lp_economics.viz.style import frame, new_figure, no_data, pal, theme, usd
 
 GIF_NAME = "02_stale_pool_episode.gif"
+# where an arbitrage label may sit, in points from its dot, in order of preference
+LABEL_OFFSETS = (
+    (10, -8),
+    (-10, -8),
+    (10, 8),
+    (-10, 8),
+    (14, -24),
+    (-14, -24),
+    (14, 24),
+    (-14, 24),
+    (24, -40),
+    (-24, -40),
+    (24, 40),
+    (-24, 40),
+)
 CONCEPT_STEPS = (
     ("1  Binance moves", "Between two blocks, the price\non Binance changes."),
     ("2  The pool is stale", "Uniswap's price can only change\nwhen the next block lands."),
@@ -45,8 +61,18 @@ def concept(r: Results) -> Figure:
         if i == 2 or i == 3:
             ax.plot([12, 12], [100, cex[-1]], color=p.fees, lw=2.6)
             ax.scatter([12], [cex[-1]], s=70, color=p.lvr, zorder=5)
-        if i == 3:
-            ax.fill_between(t, 100.0, cex, color=p.lvr, alpha=0.22, lw=0)
+        if i == 3:  # only the gap at the trade is the LP's loss
+            ax.fill_between([11.5, 12.5], 100.0, cex[-1], color=p.lvr, alpha=0.30, lw=0)
+            ax.text(
+                11.2,
+                (100.0 + cex[-1]) / 2,
+                "LVR",
+                ha="right",
+                va="center",
+                fontsize=9.5,
+                fontweight="bold",
+                color=p.lvr,
+            )
         ax.set_title(head, loc="left", fontsize=11.5, fontweight="bold", color=p.ink)
         ax.text(0.0, -0.06, text, transform=ax.transAxes, va="top", fontsize=9.5, color=p.muted)
         ax.set_xticks([])
@@ -96,18 +122,6 @@ def _draw_episode(ax: Axes, b: pl.DataFrame, c: pl.DataFrame, n: int) -> None:
         lw=0.8,
         zorder=5,
     )
-    ranked = [int(i) for i in np.argsort(-np.where(arb, lvr, -np.inf))[:4] if arb[i]]
-    for rank, i in enumerate(ranked):
-        ax.annotate(
-            f"arb takes {usd(lvr[i])}",
-            (bt[i], pool[i]),
-            xytext=(-14, 14) if rank == 0 else (10, -16),
-            textcoords="offset points",
-            fontsize=9.5,
-            color=p.lvr,
-            fontweight="bold",
-            ha="right" if rank == 0 else "left",
-        )
     lo = min(pool_all.min(), cp_all.min() if len(cp_all) else pool_all.min())
     hi = max(pool_all.max(), cp_all.max() if len(cp_all) else pool_all.max())
     pad = (hi - lo) * 0.06 or 1.0
@@ -145,6 +159,63 @@ def _draw_episode(ax: Axes, b: pl.DataFrame, c: pl.DataFrame, n: int) -> None:
     ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"${v:,.0f}"))
     ax.set_xlabel("Seconds (12 s per block)")
     ax.set_ylabel("ETH price (USD)")
+    ranked = [int(i) for i in np.argsort(-np.where(arb, lvr, -np.inf))[:4] if arb[i]]
+    _label_arbs(ax, [(bt[i], pool[i], f"arb takes {usd(lvr[i])}") for i in ranked], ct, cp)
+
+
+def _line_points(ax: Axes, x: np.ndarray, y: np.ndarray, step_px: float = 1.5) -> np.ndarray:
+    """Display-space points along a polyline, at most step_px apart."""
+    xy = ax.transData.transform(np.column_stack([x, y]))
+    if len(xy) < 2:
+        return xy
+    out = [xy[:1]]
+    for a, b in zip(xy[:-1], xy[1:], strict=True):
+        k = max(1, int(np.ceil(np.hypot(*(b - a)) / step_px)))
+        out.append(a + (b - a) * (np.arange(1, k + 1) / k)[:, None])
+    return np.concatenate(out)
+
+
+def _label_arbs(
+    ax: Axes, labels: list[tuple[float, float, str]], ct: np.ndarray, cp: np.ndarray
+) -> None:
+    """Label the largest arbitrages, each at the first nearby spot that keeps it off the Binance
+    line, the other labels and the panel's text."""
+    p = pal()
+    renderer = ax.figure.canvas.get_renderer()  # type: ignore[attr-defined]
+    line = _line_points(ax, ct, cp)
+    frame_box = ax.get_window_extent(renderer)
+    taken = [t.get_window_extent(renderer).padded(3.0) for t in ax.texts]
+    for x, y, text in labels:
+        best: tuple[int, Any] | None = None
+        for dx, dy in LABEL_OFFSETS:
+            ann = ax.annotate(
+                text,
+                (x, y),
+                xytext=(dx, dy),
+                textcoords="offset points",
+                fontsize=9.5,
+                color=p.lvr,
+                fontweight="bold",
+                ha="left" if dx > 0 else "right",
+                va="top" if dy < 0 else "bottom",
+            )
+            box = ann.get_window_extent(renderer).padded(3.0)
+            clash = int(box.count_contains(line)) + sum(box.overlaps(t) for t in taken)
+            clash += (
+                0
+                if frame_box.contains(box.x0, box.y0) and frame_box.contains(box.x1, box.y1)
+                else 10_000
+            )
+            if best is None or clash < best[0]:
+                if best is not None:
+                    best[1].remove()
+                best = (clash, ann)
+            else:
+                ann.remove()
+            if clash == 0:
+                break
+        if best is not None:
+            taken.append(best[1].get_window_extent(renderer).padded(3.0))
 
 
 def _subtitle(b: pl.DataFrame) -> str:

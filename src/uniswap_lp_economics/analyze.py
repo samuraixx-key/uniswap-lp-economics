@@ -1,4 +1,4 @@
-"""`ulpe analyze`: validated data -> results/ (analysis checks, tables, charts, summary.json)."""
+"""`ulpe analyze`: validated data -> results/ (analysis checks, tables, summary.json)."""
 
 from dataclasses import dataclass
 from datetime import UTC, datetime

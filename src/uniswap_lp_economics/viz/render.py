@@ -1,5 +1,7 @@
-"""The figure registry and `ulpe figures` (chart redesign spec section 3): every figure in light
-and dark SVG, plus the extras (GIF, social card); stale figure files are removed."""
+"""The figure registry and `ulpe figures`: light SVGs, the GIF and the social card.
+
+Stale exports, including earlier dark versions, are removed on regeneration.
+"""
 
 from collections.abc import Callable
 from pathlib import Path
@@ -12,7 +14,7 @@ from uniswap_lp_economics.viz import discovery as viz_discovery
 from uniswap_lp_economics.viz import jit_block as viz_jit_block
 from uniswap_lp_economics.viz import markouts as viz_markouts
 from uniswap_lp_economics.viz.data import Results, load_results
-from uniswap_lp_economics.viz.style import MODES, save_svg, theme
+from uniswap_lp_economics.viz.style import save_svg, theme
 
 FigureFn = Callable[[Results], Figure]
 ExtraFn = Callable[[Results, Path], list[Path]]
@@ -44,15 +46,13 @@ def render_all(results_dir: Path, out_dir: Path, preview_dir: Path | None = None
     out_dir.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
     for stem, fn in FIGURES:
-        for mode in MODES:
-            name = stem if mode == "light" else f"{stem}-dark"
-            with theme(mode):
-                fig = fn(r)
-                if preview_dir is not None:
-                    preview_dir.mkdir(parents=True, exist_ok=True)
-                    fig.savefig(preview_dir / f"{name}.png", dpi=PREVIEW_DPI)
-                save_svg(fig, out_dir / f"{name}.svg")
-            written.append(out_dir / f"{name}.svg")
+        with theme("light"):
+            fig = fn(r)
+            if preview_dir is not None:
+                preview_dir.mkdir(parents=True, exist_ok=True)
+                fig.savefig(preview_dir / f"{stem}.png", dpi=PREVIEW_DPI)
+            save_svg(fig, out_dir / f"{stem}.svg")
+        written.append(out_dir / f"{stem}.svg")
     for extra in EXTRAS:
         written += extra(r, out_dir)
     for f in out_dir.iterdir():

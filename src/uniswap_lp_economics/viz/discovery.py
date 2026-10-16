@@ -4,9 +4,13 @@ and lead-lag, from sub-project 2's results."""
 import numpy as np
 import polars as pl
 from matplotlib.figure import Figure
-from matplotlib.ticker import FixedLocator, FuncFormatter, NullFormatter
+from matplotlib.ticker import FixedLocator, FuncFormatter, MaxNLocator, NullFormatter
 
-from uniswap_lp_economics.discovery import EPISODE_THRESHOLDS_BP, FEE_BAND_BP
+from uniswap_lp_economics.discovery import (
+    BASIS_HIST_RANGE_BP,
+    EPISODE_THRESHOLDS_BP,
+    FEE_BAND_BP,
+)
 from uniswap_lp_economics.viz.data import Results
 from uniswap_lp_economics.viz.style import frame, new_figure, no_data, pal, pct
 
@@ -19,7 +23,7 @@ def _duration(v: float) -> str:
 
 def pool_follows_binance(r: Results) -> Figure:
     p = pal()
-    fig, (a, b, c) = new_figure(1, 3, top=0.74, bottom=0.17, wspace=0.32)
+    fig, (a, b, c) = new_figure(1, 3, top=0.74, bottom=0.17, wspace=0.43)
     # (a) basis distribution
     h = r.basis_hist
     mid = ((h["bin_lo_bp"] + h["bin_hi_bp"]) / 2).to_numpy()
@@ -34,8 +38,8 @@ def pool_follows_binance(r: Results) -> Figure:
     else:
         no_data(a)
     a.set_xlim(-25, 25)
-    a.set_title("(a) How far apart the venues are", loc="left", fontsize=10.5, color=p.ink)
-    a.set_xlabel("Pool vs Binance at block start (bp)")
+    a.set_title("(a) Distance between venues", loc="left", fontsize=10.5, color=p.ink)
+    a.set_xlabel("Pool vs Binance (bp at block start)")
     a.set_ylabel("% of blocks")
     a.text(
         0.03,
@@ -92,8 +96,9 @@ def pool_follows_binance(r: Results) -> Figure:
     else:
         no_data(c)
     c.axhline(0, color=p.muted, lw=0.8)
+    c.xaxis.set_major_locator(MaxNLocator(integer=True))
     c.set_title("(c) Who moves first", loc="left", fontsize=10.5, color=p.ink)
-    c.set_xlabel("Lag in blocks (positive: Binance first)")
+    c.set_xlabel("Lag in blocks\nPositive = Binance first")
     c.set_ylabel("Correlation of per-block returns")
     lead = (
         f"pool returns follow Binance's {best_lag} block{'s' if best_lag != 1 else ''} later"
@@ -107,7 +112,8 @@ def pool_follows_binance(r: Results) -> Figure:
         else "How the pool tracks Binance",
         f"{pct(inside)} of blocks start inside the fee band; half of the gaps outside "
         f"±{k:g} bp close within {_duration(median) if len(d) else 'n/a'}; {lead}.",
-        "Basis = pool price / Binance last trade − 1 at block start, clipped to ±50 bp. "
+        "Basis = pool price / Binance last trade − 1 at block start, clipped to "
+        f"±{BASIS_HIST_RANGE_BP:g} bp. "
         "Lead–lag: correlation of per-block log returns. Sub-project 2.",
     )
     return fig

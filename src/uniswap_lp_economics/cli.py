@@ -347,9 +347,9 @@ def main() -> None:
     sub.add_parser("fetch-relays", help="relay-reported proposer payments for a block sample")
     sub.add_parser("build", help="decode raw data into interim tables")
     sub.add_parser("validate", help="run checks C1-C6 and write data_validation/validation_report")
-    sub.add_parser("analyze", help="run checks A1-A6 and write results/ (tables, charts, summary)")
+    sub.add_parser("analyze", help="run checks A1-A6 and write results/ (tables, summary)")
     sub.add_parser("lp", help="LP P&L and LVR: checks L1-L7, results/ (sub-project 3)")
-    sub.add_parser("figures", help="render results/figures from results/ (light and dark SVG)")
+    sub.add_parser("figures", help="render results/figures from results/ (light SVG)")
     all_cmd = sub.add_parser(
         "all", help="run the whole pipeline (the paid BigQuery queries need --confirm-cost)"
     )
