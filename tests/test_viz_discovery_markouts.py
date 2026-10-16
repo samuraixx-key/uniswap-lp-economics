@@ -19,8 +19,9 @@ def test_markouts_has_one_panel_per_flow_label_searchers_first(tmp_path: Path) -
     r = data.load_results(write_results(tmp_path, fixture_frames()))
     with style.theme("light"):
         fig = viz_markouts.markouts(r)
-        titles = [ax.get_title(loc="left") for ax in fig.axes]
-    assert titles == ["Searchers", "Aggregators"]
+        headers = style.panel_headers(fig)
+    assert [h.title for h in headers] == ["Searchers", "Aggregators"]
+    assert all(h.number is None for h in headers)  # the same chart per flow: no numbers
 
 
 def test_markouts_with_a_single_label_renders(tmp_path: Path) -> None:

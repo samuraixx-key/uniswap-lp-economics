@@ -12,7 +12,7 @@ from uniswap_lp_economics.discovery import (
     FEE_BAND_BP,
 )
 from uniswap_lp_economics.viz.data import Results
-from uniswap_lp_economics.viz.style import frame, new_figure, no_data, pal, pct
+from uniswap_lp_economics.viz.style import frame, new_figure, no_data, pal, panel_header, pct
 
 DURATION_TICKS_S = (12, 24, 60, 300, 1800)
 
@@ -38,7 +38,7 @@ def pool_follows_binance(r: Results) -> Figure:
     else:
         no_data(a)
     a.set_xlim(-25, 25)
-    a.set_title("(a) Distance between venues", loc="left", fontsize=10.5, color=p.ink)
+    panel_header(a, 1, "Distance between venues", "Pool vs Binance price at each block's start")
     a.set_xlabel("Pool vs Binance (bp at block start)")
     a.set_ylabel("% of blocks")
     a.text(
@@ -82,7 +82,7 @@ def pool_follows_binance(r: Results) -> Figure:
     else:
         no_data(b)
     b.yaxis.set_major_formatter(FuncFormatter(lambda v, _: pct(v)))
-    b.set_title("(b) How long gaps last", loc="left", fontsize=10.5, color=p.ink)
+    panel_header(b, 2, "How long gaps last", "Share of gaps still open after each duration")
     b.set_xlabel(f"Gap outside ±{k:g} bp lasting at least")
     b.set_ylabel("Share of gaps")
     # (c) lead-lag
@@ -97,7 +97,7 @@ def pool_follows_binance(r: Results) -> Figure:
         no_data(c)
     c.axhline(0, color=p.muted, lw=0.8)
     c.xaxis.set_major_locator(MaxNLocator(integer=True))
-    c.set_title("(c) Who moves first", loc="left", fontsize=10.5, color=p.ink)
+    panel_header(c, 3, "Who moves first", "Pool vs Binance return correlation, by lag")
     c.set_xlabel("Lag in blocks\nPositive = Binance first")
     c.set_ylabel("Correlation of per-block returns")
     lead = (

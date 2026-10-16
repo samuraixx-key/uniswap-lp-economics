@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import numpy as np
+import pytest
 from matplotlib.collections import PolyCollection
 from PIL import Image
 from vizfix import fixture_frames, write_results
@@ -66,3 +67,20 @@ def test_episode_labels_stay_off_the_binance_line(tmp_path: Path) -> None:
         for t in labels:
             box = t.get_window_extent().padded(2.0)
             assert box.count_contains(pts) == 0, t.get_text()
+
+
+def test_gif_frames_use_the_static_figure_layout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    r = data.load_results(write_results(tmp_path / "r", fixture_frames()))
+    seen = []
+
+    def save(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+        seen.append(self._fig.axes[0].get_position().bounds)
+        self._draw_was_started = True  # no "deleted without rendering" warning
+
+    monkeypatch.setattr(what_is_lvr.FuncAnimation, "save", save)
+    with style.theme("light"):
+        expected = what_is_lvr.episode(r).axes[0].get_position().bounds
+    what_is_lvr.episode_gif(r, tmp_path / "out")
+    assert seen == [pytest.approx(expected)]

@@ -5,7 +5,15 @@ import polars as pl
 from matplotlib.figure import Figure
 
 from uniswap_lp_economics.viz.data import Results
-from uniswap_lp_economics.viz.style import USD_FMT, frame, new_figure, no_data, pal, usd
+from uniswap_lp_economics.viz.style import (
+    USD_FMT,
+    frame,
+    new_figure,
+    no_data,
+    pal,
+    panel_header,
+    usd,
+)
 
 # (summary.arbitrage key, label, kind): "total" bars stand on zero, "minus" bars float down
 WATERFALL = (
@@ -50,13 +58,24 @@ def bots_keep(r: Results) -> Figure:
                 color=p.builder if key != "gas_burned_usd" else p.faint,
                 width=0.62,
             )
-            a.text(i, level, f"−{usd(v)}", ha="center", va="bottom", fontsize=9, color=p.muted)
+            a.annotate(  # clear of the bar's top, even when the bar is a hairline
+                f"−{usd(v)}",
+                (i, level),
+                xytext=(0, 4),
+                textcoords="offset points",
+                ha="center",
+                va="bottom",
+                fontsize=9,
+                color=p.muted,
+            )
             level -= v
     a.margins(y=0.18)
     a.axhline(0, color=p.muted, lw=0.8)
     a.set_xticks(range(len(WATERFALL)), [label for _, label, _ in WATERFALL], fontsize=8.5)
     a.yaxis.set_major_formatter(USD_FMT)
-    a.set_title("(a) Available → captured → kept", loc="left", fontsize=10.5, color=p.ink)
+    panel_header(
+        a, 1, "Available → captured → kept", "From the arbitrage on offer to what top bots kept"
+    )
     bots = r.bot_profit.filter(pl.col("sender") != "TOTAL").sort("gross_usd")
     if bots.height:
         y = list(range(bots.height))
@@ -68,19 +87,9 @@ def bots_keep(r: Results) -> Figure:
         b.xaxis.set_major_formatter(USD_FMT)
         b.grid(True, axis="x")
         b.grid(False, axis="y")
-        b.text(
-            0.98,
-            0.02,
-            "bar: gross at 0 s\ndot: kept",
-            transform=b.transAxes,
-            ha="right",
-            va="bottom",
-            fontsize=9,
-            color=p.muted,
-        )
     else:
         no_data(b)
-    b.set_title("(b) Per top bot", loc="left", fontsize=10.5, color=p.ink)
+    panel_header(b, 2, "Per top bot", "Bar: gross at 0 s. Dot: kept after gas and payments.")
     g, k = float(w.get("top_bot_single_pool_gross_usd") or 0), float(w.get("kept_usd") or 0)
     paid = float(w.get("priority_fee_usd") or 0) + float(w.get("coinbase_usd") or 0)
     frame(

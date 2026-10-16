@@ -97,3 +97,10 @@ def test_symlog_footnote_and_axis_share_one_threshold(
         texts = " ".join(t.get_text() for t in fig.texts)
         linthresh = fig.axes[0].yaxis.get_transform().linthresh
     assert "linear within ±$25" in texts and linthresh == 25.0
+
+
+def test_group_tick_labels_wrap_flat_and_keep_numbers_whole() -> None:
+    assert who_pays._tick("1,000–5,000 bp") == "1,000–\n5,000 bp"
+    assert who_pays._tick("5,000 bp or more") == "5,000 bp\nor more"
+    assert who_pays._tick("50–200 bp") == "50–200 bp"
+    assert who_pays._tick("Contract NFT") == "Contract\nNFT"

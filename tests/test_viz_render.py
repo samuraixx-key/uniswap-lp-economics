@@ -108,3 +108,39 @@ def test_analyze_help_no_longer_promises_charts(
     with pytest.raises(SystemExit):
         cli.main()
     assert "chart" not in capsys.readouterr().out  # `ulpe figures` draws them now
+
+
+MULTI_PANEL = {
+    "01_what_is_lvr": 4,
+    "03_pool_follows_binance": 3,
+    "07_measured_vs_theory": 2,
+    "08_bots_keep": 2,
+    "10_pnl_by_group": 3,
+    "12_lifetime": 2,
+}
+
+
+@pytest.mark.parametrize("stem", sorted(MULTI_PANEL))
+def test_multi_panel_figures_number_their_panel_headers(tmp_path: Path, stem: str) -> None:
+    r = data.load_results(write_results(tmp_path, fixture_frames()))
+    with style.theme("light"):
+        fig = dict(render.FIGURES)[stem](r)
+        headers = style.panel_headers(fig)
+        assert [h.number for h in headers] == list(range(1, MULTI_PANEL[stem] + 1))
+        assert all(h.description for h in headers)
+        assert not any(ax.get_title(loc="left") for ax in fig.axes)  # no old "(a)" titles
+        style.svg_bytes(fig)
+
+
+@pytest.mark.parametrize("stem", [stem for stem, _ in render.FIGURES])
+def test_no_text_runs_off_the_canvas(tmp_path: Path, stem: str) -> None:
+    r = data.load_results(write_results(tmp_path, fixture_frames()))
+    with style.theme("light"):
+        fig = dict(render.FIGURES)[stem](r)
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+        texts = list(fig.texts) + [t for ax in fig.axes for t in ax.texts]
+        boxes = [t.get_window_extent(renderer) for t in texts if t.get_text().strip()]
+        style.svg_bytes(fig)
+    w, h = fig.bbox.width, fig.bbox.height
+    assert all(b.x0 >= -1 and b.x1 <= w + 1 and b.y0 >= -1 and b.y1 <= h + 1 for b in boxes)

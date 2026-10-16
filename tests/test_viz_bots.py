@@ -32,3 +32,14 @@ def test_gridlines_sit_behind_the_bars(tmp_path: Path) -> None:
         assert bars
         # gridlines are drawn with their axis
         assert max(ax.xaxis.get_zorder(), ax.yaxis.get_zorder()) < min(b.get_zorder() for b in bars)
+
+
+def test_bot_panel_key_lives_in_its_header(tmp_path: Path) -> None:
+    r = data.load_results(write_results(tmp_path, fixture_frames()))
+    with style.theme("light"):
+        fig = bots.bots_keep(r)
+        [_, per_bot] = style.panel_headers(fig)
+        corner = [t.get_text() for t in fig.axes[1].texts]
+        style.svg_bytes(fig)
+    assert "Bar: gross at 0 s" in per_bot.description and "Dot: kept" in per_bot.description
+    assert not any("bar:" in t for t in corner)

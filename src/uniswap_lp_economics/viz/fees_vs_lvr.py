@@ -11,7 +11,16 @@ from matplotlib.ticker import FuncFormatter
 from numpy.typing import ArrayLike
 
 from uniswap_lp_economics.viz.data import Results, window_label
-from uniswap_lp_economics.viz.style import USD_FMT, frame, new_figure, no_data, pal, pct, usd
+from uniswap_lp_economics.viz.style import (
+    USD_FMT,
+    frame,
+    new_figure,
+    no_data,
+    pal,
+    panel_header,
+    pct,
+    usd,
+)
 
 
 def _source(r: Results) -> str:
@@ -73,15 +82,6 @@ def lvr_vs_volatility(r: Results) -> Figure:
             annotation_clip=False,
             parse_math=True,
         )
-    ax.text(
-        xs[-1],
-        th["theory_1s"].min() if th.height else 1.0,
-        "grey: LVR formula\n(1 s returns)",
-        color=p.faint,
-        fontsize=9,
-        ha="left",
-        va="bottom",
-    )
     s_star = break_even(lvr_fit, fee_fit)
     crosses = bool(np.isfinite(s_star)) and sig.min() <= s_star <= sig.max()
     if crosses:
@@ -128,7 +128,8 @@ def lvr_vs_volatility(r: Results) -> Figure:
         "Arbitrage losses grow faster with volatility than fees do"
         if lvr_fit[0] > fee_fit[0]
         else "LVR and swap fees against daily volatility",
-        f"Each dot is one day. Swap fees (LP + protocol) grow as σ^{fee_fit[0]:.2f}, LVR as "
+        "Each dot is one day (grey: the LVR formula). Swap fees (LP + protocol) grow as "
+        f"σ^{fee_fit[0]:.2f}, LVR as "
         f"σ^{lvr_fit[0]:.2f}.\n{tail.strip()}",
         f"{_source(r)} Log-log OLS fits.\nThe formula at fixed liquidity predicts σ²; "
         "a flatter measured slope fits LPs pulling liquidity on volatile days.",
@@ -208,9 +209,21 @@ def measured_vs_theory(r: Results) -> Figure:
     )
     fig, (a, b) = new_figure(1, 2, top=0.76, bottom=0.15, wspace=0.25)
     ratios = []
-    for ax, xcol, ycol, title, c in (
-        (a, "theory_1s", "lvr_0_searcher", "(a) Before fees: searcher LVR", p.lvr),
-        (b, "theory_arb", "gross", "(b) After fees: searchers' gross", p.jit),
+    for ax, xcol, ycol, header, c in (
+        (
+            a,
+            "theory_1s",
+            "lvr_0_searcher",
+            (1, "Before fees: searcher LVR", "Measured LVR on searcher swaps against the formula"),
+            p.lvr,
+        ),
+        (
+            b,
+            "theory_arb",
+            "gross",
+            (2, "After fees: searchers' gross", "Searchers' gross against the formula × P_trade"),
+            p.jit,
+        ),
     ):
         xv, yv = d[xcol].to_numpy() / 1e3, d[ycol].to_numpy() / 1e3
         hi = max(float(np.nanmax(xv)), float(np.nanmax(yv)), 1e-9) * 1.05
@@ -229,8 +242,17 @@ def measured_vs_theory(r: Results) -> Figure:
             fontsize=9.5,
             color=c,
         )
-        ax.text(hi, hi, " 45°", color=p.muted, fontsize=8.5, va="bottom")
-        ax.set_title(title, loc="left", fontsize=10.5, color=p.ink)
+        ax.annotate(  # just under the end of the line, inside the panel
+            "45°",
+            (hi, hi),
+            xytext=(-10, 4),  # up and left of the line's end, clear of the line
+            textcoords="offset points",
+            ha="right",
+            va="bottom",
+            color=p.muted,
+            fontsize=8.5,
+        )
+        panel_header(ax, *header)
         ax.set_xlabel("Theory, USD thousands per day")
         ax.set_ylabel("Measured, USD thousands per day")
         ax.grid(True, axis="both")
