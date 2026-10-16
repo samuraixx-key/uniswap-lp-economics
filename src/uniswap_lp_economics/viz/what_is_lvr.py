@@ -256,8 +256,8 @@ def episode_gif(r: Results, out_dir: Path) -> list[Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / GIF_NAME
     with theme("light"):
-        fig, ax = new_figure()
-        frame(fig, EPISODE_TITLE, _subtitle(b), EPISODE_SOURCE)
+        fig = episode(r)  # laid out with every label drawn, so the frames share its layout
+        ax = fig.axes[0]
 
         def draw(k: int) -> None:
             ax.clear()
