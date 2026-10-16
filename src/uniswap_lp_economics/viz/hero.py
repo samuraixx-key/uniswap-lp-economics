@@ -140,7 +140,7 @@ def hero(r: Results, size: tuple[float, float] = CANVAS) -> Figure:
     dests = split_uncertain(primary, moved)
     lvr = float(dest["lvr_on_searcher_swaps_usd"])
     fig = plt.figure(figsize=size)
-    ax = fig.add_axes((0.17, 0.10, 0.36, 0.66))
+    ax = fig.add_axes((0.18, 0.23, 0.30, 0.53))
     ax.set_axis_off()
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
@@ -177,15 +177,31 @@ def hero(r: Results, size: tuple[float, float] = CANVAS) -> Figure:
         top, bottom = spans[owner]
         u_top, u_bottom = spans[UNCERTAIN]
         spans[owner] = (max(top, u_top), min(bottom, u_bottom))
-    for label, v, _ in primary:
+    # A dedicated label column: nearby thin flows never compete for text space.
+    for i, (label, v, _) in enumerate(primary):
         top, bottom = spans[label]
-        ax.text(
-            X_RIGHT + NODE_W + 0.02,
-            (top + bottom) / 2,
-            f"{label}  {usd(v)} · {share(v / lvr)}",
+        label_y = 0.88 - i * 0.145
+        ax.annotate(
+            label,
+            (X_RIGHT + NODE_W, (top + bottom) / 2),
+            xycoords="axes fraction",
+            xytext=(1.00, label_y),
+            textcoords="axes fraction",
             va="center",
             fontsize=9.5,
             color=p.ink,
+            arrowprops={"arrowstyle": "-", "color": p.grid, "lw": 0.8},
+            annotation_clip=False,
+        )
+        ax.text(
+            1.91,
+            label_y,
+            f"{usd(v)} · {share(v / lvr)}",
+            transform=ax.transAxes,
+            va="center",
+            ha="right",
+            fontsize=9.5,
+            color=p.muted,
             clip_on=False,
         )
     height = 1.0 - right[-1][1]
@@ -206,7 +222,7 @@ def hero(r: Results, size: tuple[float, float] = CANVAS) -> Figure:
         ax.text(
             X_LEFT - 0.02,
             y - h / 2,
-            f"{textwrap.fill(label, 16)}\n{usd(v)}",
+            f"{textwrap.fill(label, 18)}\n{usd(v)}",
             va="center",
             ha="right",
             fontsize=9.5,
@@ -233,12 +249,12 @@ def hero(r: Results, size: tuple[float, float] = CANVAS) -> Figure:
     kept = float(dest["searcher_kept_usd"])
     stats = (
         (usd(float(lp["fees_minus_lvr_usd"])), "LP fees minus LVR\nover the window", p.lvr),
-        (pct(share_bp), "of searcher LVR went to\nblock builders and proposers", p.builder),
+        (pct(share_bp), "to block builders\nand proposers", p.builder),
         (usd(kept), "kept by searchers at block\ntime (an upper bound)", p.searcher),
     )
     for n, (big, small, c) in enumerate(stats):
-        yy = 0.70 - n * 0.19
-        fig.text(0.80, yy, big, fontsize=24, fontweight="bold", color=c, va="top")
+        yy = 0.72 - n * 0.18
+        fig.text(0.80, yy, big, fontsize=25, fontweight="bold", color=c, va="top")
         fig.text(0.80, yy - 0.075, small, fontsize=9.5, color=p.muted, va="top")
     frame(
         fig,

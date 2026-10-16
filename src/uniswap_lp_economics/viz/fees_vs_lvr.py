@@ -140,7 +140,7 @@ def cumulative(r: Results) -> Figure:
     p = pal()
     d = r.daily.sort("day")
     s = r.summary["lp"]["daily"]
-    fig, ax = new_figure(right=0.80)
+    fig, ax = new_figure(right=0.73)
     x = d["day"].to_list()
     lp = np.cumsum(d["fees_usd"].to_numpy())
     total = np.cumsum((d["fees_usd"] + d["protocol_fee_usd"]).to_numpy())
@@ -152,7 +152,7 @@ def cumulative(r: Results) -> Figure:
     for y, text, c in (
         (lvr[-1], f"LVR  {usd(lvr[-1])}", p.lvr),
         (lp[-1], f"LP fees  {usd(lp[-1])}", p.fees),
-        (total[-1], f"LP + protocol fees  {usd(total[-1])}", p.fees),
+        (total[-1], f"Total fees  {usd(total[-1])}", p.fees),
     ):
         ax.annotate(
             text,
@@ -209,8 +209,8 @@ def measured_vs_theory(r: Results) -> Figure:
     fig, (a, b) = new_figure(1, 2, top=0.76, bottom=0.15, wspace=0.25)
     ratios = []
     for ax, xcol, ycol, title, c in (
-        (a, "theory_1s", "lvr_0_searcher", "(a) Before fees: LVR on searcher swaps", p.lvr),
-        (b, "theory_arb", "gross", "(b) After fees: searchers' gross vs theory × P_trade", p.jit),
+        (a, "theory_1s", "lvr_0_searcher", "(a) Before fees: searcher LVR", p.lvr),
+        (b, "theory_arb", "gross", "(b) After fees: searchers' gross", p.jit),
     ):
         xv, yv = d[xcol].to_numpy() / 1e3, d[ycol].to_numpy() / 1e3
         hi = max(float(np.nanmax(xv)), float(np.nanmax(yv)), 1e-9) * 1.05

@@ -33,7 +33,7 @@ def test_empty_episode_renders_and_skips_the_gif(tmp_path: Path) -> None:
     frames = fixture_frames()
     frames["episode_blocks"] = frames["episode_blocks"].head(0)
     r = data.load_results(write_results(tmp_path, frames))
-    with style.theme("dark"):
+    with style.theme("light"):
         style.svg_bytes(what_is_lvr.episode(r))
     assert what_is_lvr.episode_gif(r, tmp_path / "out") == []
 

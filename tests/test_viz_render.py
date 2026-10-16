@@ -32,13 +32,14 @@ def test_old_summary_without_lp_daily_names_the_command(tmp_path: Path) -> None:
         data.load_results(write_results(tmp_path, frames))
 
 
-def test_render_all_writes_both_modes_and_removes_stale_files(
+def test_render_all_writes_light_only_and_removes_stale_files(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     d = write_results(tmp_path / "results", fixture_frames())
     out = d / "figures"
     out.mkdir()
     (out / "7_lp_fees_vs_lvr_daily.png").write_bytes(b"old")
+    (out / "99_tiny-dark.svg").write_bytes(b"old dark export")
     (out / "notes.txt").write_text("keep")
 
     def tiny(r: data.Results):  # type: ignore[no-untyped-def]
@@ -49,17 +50,17 @@ def test_render_all_writes_both_modes_and_removes_stale_files(
     monkeypatch.setattr(render, "FIGURES", [("99_tiny", tiny)])
     monkeypatch.setattr(render, "EXTRAS", [])
     written = render.render_all(d, out, preview_dir=tmp_path / "preview")
-    assert sorted(p.name for p in written) == ["99_tiny-dark.svg", "99_tiny.svg"]
+    assert sorted(p.name for p in written) == ["99_tiny.svg"]
+    assert not (out / "99_tiny-dark.svg").exists()
     assert not (out / "7_lp_fees_vs_lvr_daily.png").exists()  # stale figure file removed
     assert (out / "notes.txt").exists()  # only figure files are cleaned
     assert sorted(p.name for p in (tmp_path / "preview").iterdir()) == [
-        "99_tiny-dark.png",
         "99_tiny.png",
     ]
 
 
 @pytest.mark.parametrize("stem", [stem for stem, _ in render.FIGURES])
-def test_every_figure_renders_deterministically_in_both_modes(tmp_path: Path, stem: str) -> None:
+def test_every_figure_renders_deterministically(tmp_path: Path, stem: str) -> None:
     r = data.load_results(write_results(tmp_path, fixture_frames()))
     fn = dict(render.FIGURES)[stem]
     for mode in style.MODES:

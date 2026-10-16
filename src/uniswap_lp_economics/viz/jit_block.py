@@ -38,7 +38,7 @@ def _caption(row: dict[str, Any]) -> str:
 def jit_block(r: Results) -> Figure:
     p = pal()
     t = r.jit_block.sort("log_index")
-    fig, ax = new_figure(right=0.75, top=0.76, bottom=0.30)
+    fig, ax = new_figure(right=0.69, top=0.73, bottom=0.33)
     if t.height == 0:
         no_data(ax, "no JIT position in the window")
         frame(fig, "Inside a JIT block", "No JIT position in the window.", SOURCE)
@@ -106,7 +106,7 @@ def jit_block(r: Results) -> Figure:
         q = pos.row(0, named=True)
         lines = [
             ("Fees earned", q.get("fee_usd"), p.fees),
-            ("LVR (negative = gain)", q.get("lvr_0"), p.lvr),
+            ("LVR (− = gain)", q.get("lvr_0"), p.lvr),
             ("Gas", q.get("gas_usd"), p.muted),
             ("Builder payments", q.get("direct_usd"), p.muted),
             ("P&L vs rebalancing", q.get("pnl_rebal_usd"), p.ink),
@@ -117,12 +117,12 @@ def jit_block(r: Results) -> Figure:
                 p.ink,
             ),
         ]
-        y = 0.70
-        fig.text(0.78, y + 0.06, "This JIT position", fontsize=10.5, fontweight="bold", color=p.ink)
+        y = 0.66
+        fig.text(0.74, y + 0.07, "This JIT position", fontsize=10.5, fontweight="bold", color=p.ink)
         for label, v, c in lines:
-            fig.text(0.78, y, label, fontsize=9.5, color=p.muted)
+            fig.text(0.74, y, label, fontsize=9, color=p.muted)
             fig.text(
-                0.985,
+                0.96,
                 y,
                 usd(float(v)) if v is not None else "n/a",
                 fontsize=9.5,
@@ -130,5 +130,5 @@ def jit_block(r: Results) -> Figure:
                 ha="right",
                 fontweight="bold",
             )
-            y -= 0.05
+            y -= 0.06
     return fig

@@ -1,7 +1,5 @@
-"""House style for every figure (chart redesign spec sections 5 and 7): palettes for light and dark
-mode, the bundled Inter font, the title block, formatters and deterministic SVG output."""
+"""Light house style, bundled Inter font, aligned text and deterministic SVG output."""
 
-import textwrap
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -25,8 +23,8 @@ from uniswap_lp_economics.config import ROOT  # noqa: E402
 FONT_DIR = ROOT / "assets" / "fonts"
 FONT_FILES = ("Inter-Regular.ttf", "Inter-SemiBold.ttf", "Inter-Bold.ttf")
 FONT = "Inter"
-CANVAS = (10.0, 6.2)
-MODES = ("light", "dark")
+CANVAS = (11.5, 7.2)
+MODES = ("light",)
 SVG_SALT = "ulpe-figures"
 SUBTITLE_CHARS = 112  # 10.5 pt subtitle on the 10 in canvas
 SOURCE_CHARS = 150  # 8.3 pt source line
@@ -66,22 +64,6 @@ PALETTES = {
         proposer="#86B486",
         searcher="#B5838D",
         binance="#1F2933",
-    ),
-    "dark": Palette(
-        background="#0D1117",
-        ink="#E6EDF3",
-        muted="#9AA5B1",
-        faint="#6E7781",
-        grid="#21262D",
-        lvr="#E07A5F",
-        fees="#4FB3D9",
-        jit="#F2B84B",
-        other="#7D8B99",
-        protocol="#A291D9",
-        builder="#6FBF8B",
-        proposer="#A8D5A8",
-        searcher="#E8A0AE",
-        binance="#E6EDF3",
     ),
 }
 _current: Palette | None = None
@@ -130,7 +112,7 @@ def _rc(p: Palette) -> dict[str, Any]:
 
 @contextmanager
 def theme(mode: str) -> Iterator[Palette]:
-    """Light or dark house style for everything drawn inside the block."""
+    """Light house style for everything drawn inside the block."""
     global _current
     if mode not in PALETTES:
         raise ValueError(f"unknown mode {mode!r}; expected one of {MODES}")
@@ -157,8 +139,8 @@ def new_figure(
     size: tuple[float, float] = CANVAS,
     left: float = 0.085,
     right: float = 0.97,
-    top: float = 0.80,
-    bottom: float = 0.15,
+    top: float = 0.78,
+    bottom: float = 0.17,
     wspace: float | None = None,
     **subplot_kw: Any,
 ) -> tuple[Figure, Any]:
@@ -168,36 +150,93 @@ def new_figure(
     return fig, axes
 
 
-def _wrap(text: str, width: int) -> str:
-    """Wrap each paragraph line to `width` characters; explicit line breaks are kept."""
-    return "\n".join(textwrap.fill(line, width) for line in text.split("\n"))
+def _fit_text(
+    fig: Figure, text: str, fontsize: float, width: float, max_chars: int, weight: str = "normal"
+) -> str:
+    """Wrap using the actual Inter glyph widths and the available figure width."""
+    renderer = fig.canvas.get_renderer()  # type: ignore[attr-defined]
+    font = font_manager.FontProperties(family=FONT, size=fontsize, weight=weight)
+    limit = fig.bbox.width * width
+    paragraphs = []
+    for paragraph in text.split("\n"):
+        lines: list[str] = []
+        line = ""
+        for word in paragraph.split():
+            candidate = f"{line} {word}".strip()
+            pixels = renderer.get_text_width_height_descent(candidate, font, False)[0]
+            if line and (pixels > limit or len(candidate) > max_chars):
+                lines.append(line)
+                line = word
+            else:
+                line = candidate
+        lines.append(line)
+        # Avoid a tiny final line without changing the wording.
+        if len(lines) > 1 and len(lines[-1]) < 22:
+            words = lines[-2].split()
+            while len(words) > 4 and len(lines[-1]) < 22:
+                lines[-1] = words.pop() + " " + lines[-1]
+            lines[-2] = " ".join(words)
+        paragraphs.append("\n".join(lines))
+    return "\n".join(paragraphs)
 
 
 def frame(fig: Figure, title: str, subtitle: str, source: str) -> None:
-    """Headline stating the finding, a muted subtitle with the key numbers, a source line. Long
-    subtitle and source lines wrap to the canvas width."""
+    """Aligned header and footer, reserving space for wrapped text before the plot."""
     p = pal()
-    fig.text(
-        0.012, 0.975, title, fontsize=15.5, fontweight="bold", va="top", color=p.ink, gid="title"
+    renderer = fig.canvas.get_renderer()  # type: ignore[attr-defined]
+    left, width = 0.065, 0.88
+    heading = fig.text(
+        left,
+        0.96,
+        _fit_text(fig, title, 16, width, 110, "bold"),
+        fontsize=16,
+        fontweight="bold",
+        va="top",
+        color=p.ink,
+        gid="title",
+        linespacing=1.25,
     )
-    fig.text(
-        0.012,
-        0.92,
-        _wrap(subtitle, SUBTITLE_CHARS),
+    heading_bottom = heading.get_window_extent(renderer).y0 / fig.bbox.height
+    sub = fig.text(
+        left,
+        heading_bottom - 0.018,
+        _fit_text(fig, subtitle, 10.5, width, SUBTITLE_CHARS),
         fontsize=10.5,
         va="top",
         color=p.muted,
         gid="subtitle",
+        linespacing=1.4,
     )
-    fig.text(
-        0.012,
-        0.012,
-        _wrap(source, SOURCE_CHARS),
-        fontsize=8.3,
+    foot = fig.text(
+        left,
+        0.028,
+        _fit_text(fig, source, 8.5, width, SOURCE_CHARS),
+        fontsize=8.5,
         va="bottom",
-        color=p.faint,
+        color=p.muted,
         gid="source",
+        linespacing=1.4,
     )
+    if not fig.axes:
+        return
+    positions = [ax.get_position().frozen() for ax in fig.axes]
+    old_bottom, old_top = min(b.y0 for b in positions), max(b.y1 for b in positions)
+    top = min(old_top, sub.get_window_extent(renderer).y0 / fig.bbox.height - 0.065)
+    bottom = max(old_bottom, foot.get_window_extent(renderer).y1 / fig.bbox.height + 0.10)
+    for ax, box in zip(fig.axes, positions, strict=True):
+        scale = (top - bottom) / (old_top - old_bottom)
+        ax.set_position(
+            (box.x0, bottom + (box.y0 - old_bottom) * scale, box.width, box.height * scale)
+        )
+        for loc in ("left", "center", "right"):
+            panel_title = ax.get_title(loc=loc)
+            if panel_title:
+                ax.set_title(
+                    _fit_text(fig, panel_title, 10.5, box.width, 80),
+                    loc=loc,
+                    fontsize=10.5,
+                    linespacing=1.3,
+                )
 
 
 def usd(x: float) -> str:

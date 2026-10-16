@@ -15,10 +15,7 @@ make money, and where the LVR goes.
 > pass. Next: reference robustness (sub-project 4: mid prices and OKX), then counterfactual LP
 > strategies (sub-project 5).
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="results/figures/00_hero-dark.svg">
-  <img src="results/figures/00_hero.svg" alt="Sankey: where the LVR on searcher swaps went: LP fees, protocol fees, multi-pool arbitrage, gas, block builders and proposers, with searchers paying in more than they made">
-</picture>
+<img src="results/figures/00_hero.svg" alt="Sankey: where the LVR on searcher swaps went: LP fees, protocol fees, multi-pool arbitrage, gas, block builders and proposers, with searchers paying in more than they made">
 
 ## TL;DR
 
@@ -140,17 +137,11 @@ at the pool's price instead of Binance's)? Which LPs make money? And where does 
 
 Loss-versus-rebalancing (LVR) is what an LP loses because the pool's price can only move when a block lands, while Binance moves continuously. Each move opens a gap; the next block's arbitrageur trades the pool back to Binance's price, and the LP is on the losing side of that trade.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="results/figures/01_what_is_lvr-dark.svg">
-  <img src="results/figures/01_what_is_lvr.svg" alt="Schematic in four steps: Binance moves, the pool is stale, an arbitrageur trades, the LP pays the gap">
-</picture>
+<img src="results/figures/01_what_is_lvr.svg" alt="Schematic in four steps: Binance moves, the pool is stale, an arbitrageur trades, the LP pays the gap">
 
 A real episode, picked by a fixed rule (the 20 blocks with the largest Binance move on the day with the most LVR; see [`docs/methodology.md`](docs/methodology.md), Figures):
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="results/figures/02_stale_pool_episode-dark.svg">
-  <img src="results/figures/02_stale_pool_episode.svg" alt="Binance trades against the pool price per block over 32 blocks, with the gap shaded and each block's arbitrage marked by its LVR">
-</picture>
+<img src="results/figures/02_stale_pool_episode.svg" alt="Binance trades against the pool price per block over 32 blocks, with the gap shaded and each block's arbitrage marked by its LVR">
 
 Animated, block by block: [`results/figures/02_stale_pool_episode.gif`](results/figures/02_stale_pool_episode.gif).
 
@@ -168,10 +159,7 @@ reproduces all 534,377, see [How big is LVR, and when?](#how-big-is-lvr-and-when
 (659,799 blocks), and trader + LP + protocol markouts sum to zero on every swap (largest residual
 about 2e-11 USD).
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="results/figures/03_pool_follows_binance-dark.svg">
-  <img src="results/figures/03_pool_follows_binance.svg" alt="Three panels: the pool-Binance basis distribution with the fee band, how long gaps last, and the lead-lag correlation of returns">
-</picture>
+<img src="results/figures/03_pool_follows_binance.svg" alt="Three panels: the pool-Binance basis distribution with the fee band, how long gaps last, and the lead-lag correlation of returns">
 
 ### Basis and gap episodes
 
@@ -208,10 +196,7 @@ median block interval of 12 s.
 
 ## Who wins against the pool?
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="results/figures/04_markouts-dark.svg">
-  <img src="results/figures/04_markouts.svg" alt="Trader markout against Binance from 0 s to 1 h, one panel per flow label, with fading 95% day-bootstrap bands and all swaps dashed">
-</picture>
+<img src="results/figures/04_markouts.svg" alt="Trader markout against Binance from 0 s to 1 h, one panel per flow label, with fading 95% day-bootstrap bands and all swaps dashed">
 
 Mean trader markout in bp of notional, with the 95% day-bootstrap interval, from
 [`results/markouts.md`](results/markouts.md) (swap counts at 0 s; notional share from
@@ -266,15 +251,9 @@ positions opened, closed and fully collected in the window, the engine's fees eq
 collected minus the principal they withdrew, to the raw unit. Definitions:
 [`docs/methodology.md`](docs/methodology.md), sections 9–17.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="results/figures/05_lvr_vs_volatility-dark.svg">
-  <img src="results/figures/05_lvr_vs_volatility.svg" alt="Daily LVR and swap fees against daily realised volatility, log-log, with fitted slopes and the break-even volatility">
-</picture>
+<img src="results/figures/05_lvr_vs_volatility.svg" alt="Daily LVR and swap fees against daily realised volatility, log-log, with fitted slopes and the break-even volatility">
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="results/figures/06_cumulative_fees_vs_lvr-dark.svg">
-  <img src="results/figures/06_cumulative_fees_vs_lvr.svg" alt="Cumulative LP fees, total fees and LVR over the window, with the gap shaded and the worst day annotated">
-</picture>
+<img src="results/figures/06_cumulative_fees_vs_lvr.svg" alt="Cumulative LP fees, total fees and LVR over the window, with the gap shaded and the worst day annotated">
 
 Window totals from [`results/lp_pnl.md`](results/lp_pnl.md), in USD:
 
@@ -302,10 +281,7 @@ did. Summed over a swap's steps it equals the sub-project 2 trader markout plus 
 each swap LP fees − LVR is the sub-project 2 LP markout at 0 s; check L6 confirms the identity
 over the window to a relative 1e-9.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="results/figures/07_measured_vs_theory-dark.svg">
-  <img src="results/figures/07_measured_vs_theory.svg" alt="Daily measured LVR against the formula, before and after fees, with a 45 degree line">
-</picture>
+<img src="results/figures/07_measured_vs_theory.svg" alt="Daily measured LVR against the formula, before and after fees, with a 45 degree line">
 
 *Theory (figure above): measured LVR on searcher swaps against the theoretical LVR from 1-second
 realised variance (`RV × L × √P / 4`, the concentrated-liquidity form of σ²/8 × pool value).
@@ -337,10 +313,7 @@ positions negative in all three.
 
 ## Do arbitrage bots keep the edge?
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="results/figures/08_bots_keep-dark.svg">
-  <img src="results/figures/08_bots_keep.svg" alt="Waterfall from available arbitrage to what the top bots kept, and each top bot's gross against kept">
-</picture>
+<img src="results/figures/08_bots_keep.svg" alt="Waterfall from available arbitrage to what the top bots kept, and each top bot's gross against kept">
 
 From
 [`results/arbitrage.md`](results/arbitrage.md):
@@ -390,10 +363,7 @@ bot pays builders 1.26 times its gross; the two smallest pay 0.89 and 0.52 times
 
 ## Who pays?
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="results/figures/09_every_position-dark.svg">
-  <img src="results/figures/09_every_position.svg" alt="Every window-active position: value while open against P&L versus rebalancing, JIT highlighted">
-</picture>
+<img src="results/figures/09_every_position.svg" alt="Every window-active position: value while open against P&L versus rebalancing, JIT highlighted">
 
 Per window-active position: fees, LVR (0 s), gas of its own window transactions and the direct
 payments those transactions made to the block's fee recipient, P&L against a portfolio that
@@ -425,10 +395,7 @@ day, with a 95% bootstrap interval over positions. From
 | | in_window | 4,037 | 1,084,917.41 | 1,447,589.44 | 26,610.90 | 10,357.86 | -399,640.79 | -3.38 [-4.51, -2.46] | -803,424.59 | 0.38 |
 | all positions | | 7,874 | | | 27,868.87 | 10,357.86 | -1,097,836.32 | | -18,218,923.39 | 0.24 |
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="results/figures/10_pnl_by_group-dark.svg">
-  <img src="results/figures/10_pnl_by_group.svg" alt="P&L against rebalancing in USD per $10,000 per month by LP type and range width, with 95% intervals">
-</picture>
+<img src="results/figures/10_pnl_by_group.svg" alt="P&L against rebalancing in USD per $10,000 per month by LP type and range width, with 95% intervals">
 
 USD per $10,000 of position value per month = bp/day × 30.
 
@@ -451,10 +418,7 @@ USD per $10,000 of position value per month = bp/day × 30.
   JIT position serves; the $10.7k is the operators' combined result, with no overlap with JIT's
   negative LVR.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="results/figures/11_jit_block-dark.svg">
-  <img src="results/figures/11_jit_block.svg" alt="One real JIT block, event by event, with the position's fees, LVR, gas, builder payments and P&L">
-</picture>
+<img src="results/figures/11_jit_block.svg" alt="One real JIT block, event by event, with the position's fees, LVR, gas, builder payments and P&L">
 
 In the block shown (picked by a fixed rule, see [`docs/methodology.md`](docs/methodology.md),
 Figures), the operator's first swap moves the pool from $1,794.90 to $1,759.93; its liquidity then
@@ -503,10 +467,7 @@ positions, not dollars. Of the 2,167 positions that lived under a day, 38% beat 
 their gas and builder payments count: 57% of the 844 JIT positions
 (whose lifetime is their window) and 26% of the others.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="results/figures/12_lifetime-dark.svg">
-  <img src="results/figures/12_lifetime.svg" alt="Share of positions that beat holding over their lifetime, by how long they lived and by range width">
-</picture>
+<img src="results/figures/12_lifetime.svg" alt="Share of positions that beat holding over their lifetime, by how long they lived and by range width">
 
 ## Where LVR goes
 
@@ -783,7 +744,7 @@ matching slice of the on-chain tick book and runs checks C1 and C2 on them. An e
 the whole analysis (checks A1–A6 and every table) on the same events, with synthetic Binance
 prices and bot data, and another runs `ulpe lp`'s analysis (checks L1–L7) on a small
 synthetic pool with a position opened before the window, an NFT position, a JIT position and a
-flash loan. The figure tests render every figure, light and dark, from a small fixture `results/`
+flash loan. The figure tests render every figure in the light theme, from a small fixture `results/`
 directory and check that a second render gives the same bytes.
 
 `ulpe all` can also be run one step at a time, in the order below. Each fetch step skips what is
@@ -840,7 +801,7 @@ and no results.
 Figures:
 
 ```bash
-uv run ulpe figures   # results/ -> results/figures: every figure in light and dark SVG, the GIF and the social card
+uv run ulpe figures   # results/ -> results/figures: every figure in light SVG, the GIF and the social card
 ```
 
 `figures` reads only `results/` (it needs no data download) and takes seconds. `results/figures/00_hero.png` is the repository's social preview image, set by hand under

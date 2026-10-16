@@ -27,7 +27,7 @@ def test_markouts_with_a_single_label_renders(tmp_path: Path) -> None:
     frames = fixture_frames()
     frames["markouts"] = frames["markouts"].filter(pl.col("flow_label") != "aggregator")
     r = data.load_results(write_results(tmp_path, frames))
-    with style.theme("dark"):
+    with style.theme("light"):
         style.svg_bytes(viz_markouts.markouts(r))
 
 

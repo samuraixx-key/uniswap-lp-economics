@@ -33,7 +33,7 @@ def test_figures_render_without_jit_or_vaults(tmp_path: Path) -> None:
     frames["groups"] = frames["groups"].filter(~pl.col("group").is_in(["jit", "lp_vault"]))
     r = data.load_results(write_results(tmp_path, frames))
     for fn in (who_pays.every_position, who_pays.pnl_by_group, who_pays.lifetime):
-        with style.theme("dark"):
+        with style.theme("light"):
             style.svg_bytes(fn(r))
 
 

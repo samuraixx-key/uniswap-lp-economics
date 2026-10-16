@@ -23,7 +23,7 @@ def _duration(v: float) -> str:
 
 def pool_follows_binance(r: Results) -> Figure:
     p = pal()
-    fig, (a, b, c) = new_figure(1, 3, top=0.74, bottom=0.17, wspace=0.32)
+    fig, (a, b, c) = new_figure(1, 3, top=0.74, bottom=0.17, wspace=0.43)
     # (a) basis distribution
     h = r.basis_hist
     mid = ((h["bin_lo_bp"] + h["bin_hi_bp"]) / 2).to_numpy()
@@ -38,8 +38,8 @@ def pool_follows_binance(r: Results) -> Figure:
     else:
         no_data(a)
     a.set_xlim(-25, 25)
-    a.set_title("(a) How far apart the venues are", loc="left", fontsize=10.5, color=p.ink)
-    a.set_xlabel("Pool vs Binance at block start (bp)")
+    a.set_title("(a) Distance between venues", loc="left", fontsize=10.5, color=p.ink)
+    a.set_xlabel("Pool vs Binance (bp at block start)")
     a.set_ylabel("% of blocks")
     a.text(
         0.03,
@@ -98,7 +98,7 @@ def pool_follows_binance(r: Results) -> Figure:
     c.axhline(0, color=p.muted, lw=0.8)
     c.xaxis.set_major_locator(MaxNLocator(integer=True))
     c.set_title("(c) Who moves first", loc="left", fontsize=10.5, color=p.ink)
-    c.set_xlabel("Lag in blocks (positive: Binance first)")
+    c.set_xlabel("Lag in blocks\nPositive = Binance first")
     c.set_ylabel("Correlation of per-block returns")
     lead = (
         f"pool returns follow Binance's {best_lag} block{'s' if best_lag != 1 else ''} later"

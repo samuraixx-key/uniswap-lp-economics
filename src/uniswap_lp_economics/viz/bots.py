@@ -32,7 +32,16 @@ def bots_keep(r: Results) -> Figure:
             )
             a.bar(i, v, color=color, width=0.62)
             level = v
-            a.text(i, max(v, 0), usd(v), ha="center", va="bottom", fontsize=9, color=p.ink)
+            a.annotate(
+                usd(v),
+                (i, v),
+                xytext=(0, 6 if v >= 0 else -6),
+                textcoords="offset points",
+                ha="center",
+                va="bottom" if v >= 0 else "top",
+                fontsize=9,
+                color=p.ink,
+            )
         else:
             a.bar(
                 i,
@@ -43,12 +52,11 @@ def bots_keep(r: Results) -> Figure:
             )
             a.text(i, level, f"−{usd(v)}", ha="center", va="bottom", fontsize=9, color=p.muted)
             level -= v
+    a.margins(y=0.18)
     a.axhline(0, color=p.muted, lw=0.8)
     a.set_xticks(range(len(WATERFALL)), [label for _, label, _ in WATERFALL], fontsize=8.5)
     a.yaxis.set_major_formatter(USD_FMT)
-    a.set_title(
-        "(a) From available arbitrage to what bots kept", loc="left", fontsize=10.5, color=p.ink
-    )
+    a.set_title("(a) Available → captured → kept", loc="left", fontsize=10.5, color=p.ink)
     bots = r.bot_profit.filter(pl.col("sender") != "TOTAL").sort("gross_usd")
     if bots.height:
         y = list(range(bots.height))

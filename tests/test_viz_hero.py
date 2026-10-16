@@ -29,7 +29,7 @@ def test_positive_kept_and_negative_flow_still_balance() -> None:
     d = dict(fixture_frames()["summary"]["lp"]["destination"])
     # sources 100 + 4 (negative multi-pool) = destinations 48 + 16 + 1 + 16 + 19 + 4 (kept)
     d.update(searcher_kept_usd=4.0, multi_pool_gross_usd=-4.0)
-    src, dst = hero.flows(d, style.PALETTES["dark"])
+    src, dst = hero.flows(d, style.PALETTES["light"])
     assert any(t[0] == "Searchers kept" for t in dst)
     assert any("negative" in s[0] for s in src)
     assert sum(s[1] for s in src) == pytest.approx(sum(t[1] for t in dst))
@@ -68,7 +68,7 @@ def test_ulpe_figures_writes_every_expected_file(tmp_path: Path) -> None:
         "12_lifetime",
     ]
     assert [s for s, _ in render.FIGURES] == stems
-    expected = {f"{s}.svg" for s in stems} | {f"{s}-dark.svg" for s in stems}
+    expected = {f"{s}.svg" for s in stems}
     assert names == expected | {"02_stale_pool_episode.gif", "00_hero.png"}
     assert {p.name for p in (d / "figures").iterdir()} == names
 
@@ -112,7 +112,7 @@ def test_tiny_shares_read_under_one_percent(tmp_path: Path) -> None:
     r = data.load_results(write_results(tmp_path, frames))
     with style.theme("light"):
         texts = " ".join(t.get_text() for t in hero.hero(r).findobj(Text))
-    assert "Gas burned  $0 · <1%" in texts
+    assert "Gas burned" in texts and "$0 · <1%" in texts
     assert "· 0%" not in texts
 
 
