@@ -6,7 +6,7 @@ from matplotlib.figure import Figure
 
 from uniswap_lp_economics.config import HORIZONS_S
 from uniswap_lp_economics.viz.data import Results
-from uniswap_lp_economics.viz.style import fade_band, frame, new_figure, no_data, pal
+from uniswap_lp_economics.viz.style import fade_band, frame, new_figure, no_data, pal, panel_header
 
 HORIZON_LABELS = {0: "0 s", 12: "12 s", 60: "1 m", 300: "5 m", 3600: "1 h"}
 FLOW_NAMES = {
@@ -59,7 +59,7 @@ def markouts(r: Results) -> Figure:
             color=color,
             fontweight="bold",
         )
-        ax.set_title(_name(label), loc="left", fontsize=11, fontweight="bold", color=color)
+        panel_header(ax, None, _name(label), color=color)  # the same chart per flow: no numbers
         ax.set_xticks(
             range(len(HORIZONS_S)),
             [HORIZON_LABELS.get(h, f"{h} s") for h in HORIZONS_S],

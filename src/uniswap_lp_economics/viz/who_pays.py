@@ -1,6 +1,7 @@
 """Chapter 'Who pays?': every position (figure 9), P&L by group in USD per $10,000 per month
 (figure 10) and lifetime vs holding (figure 12)."""
 
+import textwrap
 from typing import Any
 
 import polars as pl
@@ -16,6 +17,7 @@ from uniswap_lp_economics.viz.style import (
     new_figure,
     no_data,
     pal,
+    panel_header,
     pct,
     per_10k_month,
     usd,
@@ -129,6 +131,17 @@ def every_position(r: Results) -> Figure:
     return fig
 
 
+def _tick(name: str) -> str:
+    """A category label wrapped to sit flat under its dot; a number keeps its unit, and a long
+    range breaks after its dash ("1,000\u2013" over "5,000 bp")."""
+    wrapped = textwrap.fill(name.replace(" bp", "\u00a0bp"), 10, break_long_words=False)
+    lines = [
+        line.replace("\u2013", "\u2013\n", 1) if len(line) > 10 and "\u2013" in line else line
+        for line in wrapped.split("\n")
+    ]
+    return "\n".join(lines).replace("\u00a0", " ")
+
+
 def _dots(ax: Axes, rows: list[dict[str, Any]], names: dict[str, str], color: str) -> None:
     p = pal()
     for i, row in enumerate(rows):
@@ -158,10 +171,8 @@ def _dots(ax: Axes, rows: list[dict[str, Any]], names: dict[str, str], color: st
     ax.axhline(0, color=p.muted, lw=0.8)
     ax.set_xticks(
         range(len(rows)),
-        [names.get(row["group"], row["group"]) for row in rows],
+        [_tick(names.get(row["group"], row["group"])) for row in rows],
         fontsize=8.5,
-        rotation=20,
-        ha="right",
     )
     ax.set_xlim(-0.6, max(len(rows), 1) - 0.4)
     ax.yaxis.set_major_formatter(USD_FMT)
@@ -184,17 +195,16 @@ def pnl_by_group(r: Results) -> Figure:
         ).to_dicts()
     ]
     fig, (a, j, w) = new_figure(1, 3, top=0.74, bottom=0.22, wspace=0.52, width_ratios=[4, 1.5, 5])
-    for ax, rows, names, color, title in (
-        (a, types, LP_NAMES, p.fees, "(a) By LP type"),
-        (j, jit, LP_NAMES, p.jit, "(b) JIT"),
-        (w, widths, WIDTH_NAMES, p.other, "(c) By range width"),
+    for ax, rows, names, color, header in (
+        (a, types, LP_NAMES, p.fees, (1, "By LP type", "How the position is held")),
+        (j, jit, LP_NAMES, p.jit, (2, "JIT", "Own scale: single-block positions")),
+        (w, widths, WIDTH_NAMES, p.other, (3, "By range width", "Width of the price range")),
     ):
         if rows:
             _dots(ax, rows, names, color)
         else:
             no_data(ax, "none")
-        ax.set_title(title, loc="left", fontsize=10.5, color=p.ink)
-    j.text(0.04, 0.98, "Own scale", transform=j.transAxes, va="top", fontsize=8.5, color=p.muted)
+        panel_header(ax, *header)
     a.set_ylabel("USD per $10,000 of position value per month")
     wallet = next((row for row in types if row["group"] == "nft_wallet"), None)
     lead = (
@@ -222,10 +232,23 @@ def lifetime(r: Results) -> Figure:
     p = pal()
     lp = r.summary["lp"]
     fig, axes = new_figure(1, 2, left=0.13, top=0.76, bottom=0.14, wspace=0.55)
-    for ax, rows, key, names, title in (
-        (axes[0], lp["lifetime_by_life"], "life_bucket", LIFE_NAMES, "(a) By how long it lived"),
-        (axes[1], lp["lifetime_by_width"], "width_bucket", WIDTH_NAMES, "(b) By range width"),
+    for ax, rows, key, names, header in (
+        (
+            axes[0],
+            lp["lifetime_by_life"],
+            "life_bucket",
+            LIFE_NAMES,
+            (1, "By how long it lived", "Dashed line: half of the positions beat holding"),
+        ),
+        (
+            axes[1],
+            lp["lifetime_by_width"],
+            "width_bucket",
+            WIDTH_NAMES,
+            (2, "By range width", "Width of the position's price range"),
+        ),
     ):
+        panel_header(ax, *header)
         if not rows:
             no_data(ax)
             continue
@@ -250,7 +273,6 @@ def lifetime(r: Results) -> Figure:
         ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: pct(v)))
         ax.grid(True, axis="x")
         ax.grid(False, axis="y")
-        ax.set_title(title, loc="left", fontsize=10.5, color=p.ink)
     o = lp["lifetime"]
     old = next((row for row in lp["lifetime_by_life"] if row["life_bucket"] == ">=180d"), None)
     tail = f"; {pct(old['share_beat_hold'])} of those that lived 180 days or more" if old else ""

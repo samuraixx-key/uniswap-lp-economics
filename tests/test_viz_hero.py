@@ -120,6 +120,7 @@ def test_footnote_explains_the_second_source_and_the_hatching(tmp_path: Path) ->
     r = data.load_results(write_results(tmp_path, fixture_frames()))
     with style.theme("light"):
         source = _hero_texts(hero.hero(r))["source"]
+    source = " ".join(source.split())  # wherever the line wraps
     assert "second source" in source and "hatched" in source.lower()
 
 

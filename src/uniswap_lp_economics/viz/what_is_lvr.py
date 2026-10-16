@@ -15,7 +15,15 @@ from matplotlib.ticker import FuncFormatter
 
 from uniswap_lp_economics.config import BLOCK_TIME_S, US
 from uniswap_lp_economics.viz.data import Results
-from uniswap_lp_economics.viz.style import frame, new_figure, no_data, pal, theme, usd
+from uniswap_lp_economics.viz.style import (
+    frame,
+    new_figure,
+    no_data,
+    pal,
+    panel_header,
+    theme,
+    usd,
+)
 
 GIF_NAME = "02_stale_pool_episode.gif"
 # where an arbitrage label may sit, in points from its dot, in order of preference
@@ -34,13 +42,13 @@ LABEL_OFFSETS = (
     (-24, 40),
 )
 CONCEPT_STEPS = (
-    ("1  Binance moves", "Between two blocks, the price\non Binance changes."),
-    ("2  The pool is stale", "Uniswap's price can only change\nwhen the next block lands."),
+    ("Binance moves", "Between two blocks, the price on Binance changes."),
+    ("The pool is stale", "Uniswap's price can only change when the next block lands."),
     (
-        "3  An arbitrageur trades",
-        "In that block, a bot buys ETH from\nthe pool at the old, cheaper price.",
+        "An arbitrageur trades",
+        "In that block, a bot buys ETH from the pool at the old, cheaper price.",
     ),
-    ("4  The LP pays the gap", "The pool sold below Binance's price:\nthat difference is LVR."),
+    ("The LP pays the gap", "The pool sold below Binance's price: that difference is LVR."),
 )
 EPISODE_TITLE = "LVR is the price of a stale pool"
 EPISODE_SOURCE = (
@@ -73,8 +81,7 @@ def concept(r: Results) -> Figure:
                 fontweight="bold",
                 color=p.lvr,
             )
-        ax.set_title(head, loc="left", fontsize=11.5, fontweight="bold", color=p.ink)
-        ax.text(0.0, -0.06, text, transform=ax.transAxes, va="top", fontsize=9.5, color=p.muted)
+        panel_header(ax, i + 1, head, text)
         ax.set_xticks([])
         ax.set_yticks([])
         ax.grid(False)
