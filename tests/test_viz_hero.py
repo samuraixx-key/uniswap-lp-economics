@@ -112,8 +112,8 @@ def test_tiny_shares_read_under_one_percent(tmp_path: Path) -> None:
     r = data.load_results(write_results(tmp_path, frames))
     with style.theme("light"):
         texts = " ".join(t.get_text() for t in hero.hero(r).findobj(Text))
-    assert "Gas burned" in texts and "$0 · <1%" in texts
-    assert "· 0%" not in texts
+    assert "<1%" in texts and "Gas burned · $0" in texts
+    assert "0%" not in texts.split()
 
 
 def test_footnote_explains_the_second_source_and_the_hatching(tmp_path: Path) -> None:
@@ -136,3 +136,62 @@ def test_social_card_text_is_larger_than_the_plain_hero(tmp_path: Path) -> None:
         plain = _title_share_of_height(hero.hero(r, size=(12.8, 6.4)))
         card = _title_share_of_height(hero.card_figure(r))
     assert card >= 1.2 * plain
+
+
+def test_stages_split_swap_fees_from_searchers_gross_profit() -> None:
+    d = fixture_frames()["summary"]["lp"]["destination"]
+    st = hero.stages(d, style.PALETTES["light"])
+    assert [n[0] for n in st.middle] == [hero.FEES_NODE, hero.GROSS_NODE]
+    assert [n[1] for n in st.middle] == pytest.approx([64.0, 42.0])  # 48 + 16; 6 + 1 + 16 + 19
+    # LVR pays the fees first, the rest is the searchers' gross; their own money tops it up
+    assert st.stage1 == [
+        (0, 0, pytest.approx(64.0)),
+        (0, 1, pytest.approx(36.0)),
+        (1, 1, pytest.approx(6.0)),
+    ]
+    fee_side = [st.dests[j][0] for i, j, _ in st.stage2 if i == 0]
+    assert fee_side == ["LP fees", "Protocol fees"]
+    for k, (_, v, _) in enumerate(st.middle):  # every middle node: in = out
+        assert sum(a for _, m, a in st.stage1 if m == k) == pytest.approx(v)
+        assert sum(a for m, _, a in st.stage2 if m == k) == pytest.approx(v)
+
+
+def test_positive_kept_leaves_the_searchers_gross_profit() -> None:
+    d = dict(fixture_frames()["summary"]["lp"]["destination"])
+    d.update(searcher_kept_usd=4.0, multi_pool_gross_usd=-4.0)
+    st = hero.stages(d, style.PALETTES["light"])
+    kept = [st.dests[j][0] for i, j, _ in st.stage2 if i == 1]
+    assert kept[-1] == "Searchers kept"
+    assert any("negative" in st.sources[i][0] for i, m, _ in st.stage1 if m == 1)
+
+
+def test_fees_above_lvr_raise() -> None:
+    d = dict(fixture_frames()["summary"]["lp"]["destination"])
+    d.update(lvr_on_searcher_swaps_usd=60.0, searcher_kept_usd=-46.0)
+    with pytest.raises(ValueError, match="swap fees exceed"):
+        hero.stages(d, style.PALETTES["light"])
+
+
+def test_end_labels_lead_with_the_share_and_give_the_builder_range(tmp_path: Path) -> None:
+    r = data.load_results(write_results(tmp_path, fixture_frames()))
+    with style.theme("light"):
+        texts = [t.get_text() for t in hero.hero(r).findobj(Text)]
+    assert "48%" in texts and "LP fees · $48" in texts
+    # the self-built sensitivity moves $4 from proposers to builders
+    assert "Block builders · $16–$20" in texts and "Proposers · $15–$19" in texts
+    assert "Paid as swap fees" in texts and "Searchers' gross profit" in texts
+
+
+def test_subtitle_says_builders_took_more_than_the_gross_only_when_they_did(
+    tmp_path: Path,
+) -> None:
+    frames = fixture_frames()
+    r = data.load_results(write_results(tmp_path / "a", frames))
+    with style.theme("light"):
+        sub = " ".join(_hero_texts(hero.hero(r))["subtitle"].split())
+    assert "builders and proposers took 97% of it" in sub  # 16 + 19 of 36
+    frames["summary"]["lp"]["destination"].update(proposer_usd=29.0, searcher_kept_usd=-16.0)
+    r = data.load_results(write_results(tmp_path / "b", frames))
+    with style.theme("light"):
+        sub = " ".join(_hero_texts(hero.hero(r))["subtitle"].split())
+    assert "more than all of it" in sub  # 16 + 29 > 36
