@@ -15,7 +15,7 @@ make money, and where the LVR goes.
 > pass. Next: reference robustness (sub-project 4: mid prices and OKX), then counterfactual LP
 > strategies (sub-project 5).
 
-<img src="results/figures/00_hero.svg" alt="Sankey: where the LVR on searcher swaps went: LP fees, protocol fees, multi-pool arbitrage, gas, block builders and proposers, with searchers paying in more than they made">
+<img src="results/figures/00_hero.svg" alt="Two-stage Sankey: the LVR on searcher swaps splits into swap fees (to LPs and the protocol) and searchers' gross profit, which, topped up by searchers' own money, ends with block builders, proposers, gas and multi-pool arbitrage">
 
 ## TL;DR
 

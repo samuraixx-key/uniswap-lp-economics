@@ -1,19 +1,29 @@
-"""The hero (README top): where the LVR on searcher swaps went, as a Sankey, with the uncertain
-proposer/builder split hatched between the two flows; also the 1280×640 social card."""
+"""The hero (README top): where the LVR on searcher swaps went, as a two-stage Sankey. The LVR first
+splits into the swap fees searchers paid and their gross profit; the fees end with LPs and the
+protocol, the gross profit (topped up by any money searchers paid beyond it) with block builders,
+proposers, gas and multi-pool arbitrage. The uncertain proposer/builder split is hatched between
+the two flows. Also the 1280×640 social card."""
 
 import textwrap
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.axes import Axes
+from matplotlib.colors import to_rgb
 from matplotlib.figure import Figure
+from matplotlib.lines import Line2D
 from matplotlib.patches import PathPatch, Rectangle
 from matplotlib.path import Path as MplPath
+from matplotlib.text import Text
 
 from uniswap_lp_economics.viz.data import Results, window_label
 from uniswap_lp_economics.viz.style import CANVAS, Palette, frame, pal, pct, theme, usd
 
 Node = tuple[str, float, str]
+Link = tuple[int, int, float]  # (from index, to index, USD)
 CARD_NAME = "00_hero.png"
 DEST_KEYS = (
     ("fees_on_searcher_swaps_usd", "LP fees", "fees"),
@@ -23,9 +33,22 @@ DEST_KEYS = (
     ("builder_margin_usd", "Block builders", "builder"),
     ("proposer_usd", "Proposers", "proposer"),
 )
-X_LEFT, X_RIGHT, NODE_W = 0.0, 0.80, 0.03
+FEE_SIDE = ("LP fees", "Protocol fees")
+FEES_NODE = "Paid as swap fees"
+GROSS_NODE = "Searchers' gross profit"
+SOURCE_NAMES = {"Paid by searchers beyond their profit": "Searchers' own money"}
+SOURCE_BREAKS = {
+    "LVR on searcher swaps": "LVR on\nsearcher swaps",
+    "Searchers' own money": "Searchers'\nown money",
+}
+COLUMN_HEADERS = ("ARBITRAGE", "FIRST SPLIT", "WHERE IT ENDED")
+COLS = (0.0, 0.47, 0.94)  # x of the three node columns, axes fraction
+NODE_W = 0.022
+GAP = 0.03  # between nodes, axes fraction
+LABEL_PT = 34.0  # height of one end label (share over name), points
 UNCERTAIN = "Builders or proposers"
 HATCH = "////"
+BAND_ALPHA = 0.5
 CARD_PX, CARD_DPI = (1280, 640), 125
 
 
@@ -52,9 +75,9 @@ def flows(dest: dict[str, Any], p: Palette) -> tuple[list[Node], list[Node]]:
     return sources, dests
 
 
-def pieces(sources: list[Node], dests: list[Node]) -> list[tuple[int, int, float]]:
+def pieces(sources: list[Node], dests: list[Node]) -> list[Link]:
     """Fill destinations in order from sources in order: (source index, destination index, USD)."""
-    out: list[tuple[int, int, float]] = []
+    out: list[Link] = []
     rs, rd = [n[1] for n in sources], [n[1] for n in dests]
     i = j = 0
     eps = 1e-9 * max(sum(rs), 1.0)
@@ -69,6 +92,33 @@ def pieces(sources: list[Node], dests: list[Node]) -> list[tuple[int, int, float
         if rd[j] <= eps:
             j += 1
     return out
+
+
+@dataclass(frozen=True)
+class Stages:
+    sources: list[Node]  # column 0: the LVR first
+    middle: list[Node]  # column 1: FEES_NODE, GROSS_NODE (value = what each passes on)
+    dests: list[Node]  # column 2: the fee side, then the searcher side
+    stage1: list[Link]  # source -> middle
+    stage2: list[Link]  # middle -> destination
+
+
+def stages(dest: dict[str, Any], p: Palette) -> Stages:
+    """The two-stage split. The LVR pays the swap fees first; what is left is the searchers' gross
+    profit, which every other source (money searchers paid beyond their profit, a negative flow)
+    tops up before it ends with the searcher-side destinations."""
+    sources, dests = flows(dest, p)
+    fee_side = [n for n in dests if n[0] in FEE_SIDE]
+    rest = [n for n in dests if n[0] not in FEE_SIDE]
+    fees = sum(n[1] for n in fee_side)
+    if fees > sources[0][1]:
+        raise ValueError(
+            "swap fees exceed the LVR on searcher swaps: there is no gross profit to draw"
+        )
+    middle = [(FEES_NODE, fees, p.fees), (GROSS_NODE, sum(n[1] for n in rest), p.searcher)]
+    stage2 = [(0, j, a) for _, j, a in pieces([middle[0]], fee_side)]
+    stage2 += [(1, len(fee_side) + j, a) for _, j, a in pieces([middle[1]], rest)]
+    return Stages(sources, middle, fee_side + rest, pieces(sources, middle), stage2)
 
 
 def split_uncertain(dests: list[Node], moved: float) -> list[Node]:
@@ -97,188 +147,341 @@ def share(x: float) -> str:
 
 
 def _band(
-    ax: Any, y0a: float, y0b: float, y1a: float, y1b: float, color: str, hatch: str | None = None
+    ax: Axes,
+    x: tuple[float, float],
+    left: tuple[float, float],
+    right: tuple[float, float],
+    colors: tuple[str, str],
+    hatch: str | None = None,
 ) -> None:
-    """A band from [y0b, y0a] on the left to [y1b, y1a] on the right (cubic Bézier edges); with
-    `hatch`, hatched in that colour over the fill."""
-    x0, x1 = X_LEFT + NODE_W, X_RIGHT
+    """A band from [left] (top, bottom) at x[0] to [right] at x[1] with cubic Bézier edges, its
+    colour graded from colors[0] to colors[1]; with `hatch`, hatched in that colour over it."""
+    x0, x1 = x
     xm = (x0 + x1) / 2
     verts = [
-        (x0, y0a),
-        (xm, y0a),
-        (xm, y1a),
-        (x1, y1a),
-        (x1, y1b),
-        (xm, y1b),
-        (xm, y0b),
-        (x0, y0b),
-        (x0, y0a),
+        (x0, left[0]),
+        (xm, left[0]),
+        (xm, right[0]),
+        (x1, right[0]),
+        (x1, right[1]),
+        (xm, right[1]),
+        (xm, left[1]),
+        (x0, left[1]),
+        (x0, left[0]),
     ]
-    codes = [
-        MplPath.MOVETO,
-        MplPath.CURVE4,
-        MplPath.CURVE4,
-        MplPath.CURVE4,
-        MplPath.LINETO,
-        MplPath.CURVE4,
-        MplPath.CURVE4,
-        MplPath.CURVE4,
-        MplPath.CLOSEPOLY,
-    ]
+    codes = [MplPath.MOVETO, *[MplPath.CURVE4] * 3, MplPath.LINETO]
+    codes += [*[MplPath.CURVE4] * 3, MplPath.CLOSEPOLY]
     path = MplPath(verts, codes)
-    ax.add_patch(PathPatch(path, facecolor=color, alpha=0.38, lw=0))
+    outline = PathPatch(path, facecolor="none", lw=0)
+    ax.add_patch(outline)
+    a, b = np.array(to_rgb(colors[0])), np.array(to_rgb(colors[1]))
+    grade = a + (b - a) * np.linspace(0, 1, 64)[None, :, None]
+    lo, hi = min(left[1], right[1]), max(left[0], right[0])
+    image = ax.imshow(
+        grade,
+        extent=(x0, x1, lo, hi),
+        aspect="auto",
+        alpha=BAND_ALPHA,
+        origin="lower",
+        interpolation="bilinear",
+        zorder=1,
+    )
+    image.set_clip_path(outline)
     if hatch is not None:
-        ax.add_patch(PathPatch(path, fill=False, hatch=HATCH, edgecolor=hatch, lw=0, alpha=0.8))
+        ax.add_patch(
+            PathPatch(path, fill=False, hatch=HATCH, edgecolor=hatch, lw=0, alpha=0.7, zorder=2)
+        )
+
+
+def spread(want: list[float], gap: float, floor: float) -> list[float]:
+    """Label centres, top to bottom, as close to `want` as possible and at least `gap` apart; the
+    lowest no lower than `floor`."""
+    ys = list(want)
+    for i in range(1, len(ys)):
+        ys[i] = min(ys[i], ys[i - 1] - gap)
+    if ys and ys[-1] < floor:
+        ys[-1] = floor
+        for i in range(len(ys) - 2, -1, -1):
+            ys[i] = max(ys[i], ys[i + 1] + gap)
+    return ys
+
+
+@dataclass
+class EndLabel:
+    want: float  # the node's centre, axes fraction
+    big: Text
+    small: Text
+    connector: Line2D
+
+
+def _place_end_labels(fig: Figure, ax: Axes, labels: list[EndLabel]) -> None:
+    """Stack the end labels beside their nodes, LABEL_PT apart whatever the axes' final size, with
+    a bent connector to any label moved off its node."""
+    gap = LABEL_PT / 72 / (ax.get_position().height * fig.get_figheight())
+    ys = spread([lab.want for lab in labels], gap, floor=-0.02)
+    x_node = COLS[2] + NODE_W
+    x_text = labels[0].big.get_position()[0] if labels else 0.0
+    for lab, y in zip(labels, ys, strict=True):
+        lab.big.set_y(y + 0.002)
+        lab.small.set_y(y - 0.006)
+        moved = abs(lab.want - y) > 0.004
+        lab.connector.set_data([x_node + 0.006, x_node + 0.035, x_text - 0.015], [lab.want, y, y])
+        lab.connector.set_visible(moved)
 
 
 def hero(r: Results, size: tuple[float, float] = CANVAS) -> Figure:
     p = pal()
     lp = r.summary["lp"]
     dest = lp["destination"]
-    sources, primary = flows(dest, p)
-    moved = float(dest["sensitivity_self_built"]["proposer_usd"]) - float(dest["proposer_usd"])
-    dests = split_uncertain(primary, moved)
-    lvr = float(dest["lvr_on_searcher_swaps_usd"])
+    st = stages(dest, p)
+    sens = dest["sensitivity_self_built"]
+    moved = float(sens["proposer_usd"]) - float(dest["proposer_usd"])
+    lvr = st.sources[0][1]
+    fees = st.middle[0][1]
+    gross = next(a for i, m, a in st.stage1 if i == 0 and m == 1) if lvr > fees else 0.0
+    drawn = split_uncertain(st.dests, moved)
     fig = plt.figure(figsize=size)
-    ax = fig.add_axes((0.18, 0.23, 0.30, 0.53))
+    ax = fig.add_axes((0.17, 0.12, 0.40, 0.62))
     ax.set_axis_off()
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
-    gap = 0.014
+
+    # column 2, top to bottom: a wider gap between the fee side and the searcher side
     joined = {"Block builders", UNCERTAIN, "Proposers"}  # one stack, no gaps inside it
-    gaps = [
-        0.0 if a[0] in joined and b[0] in joined else gap
-        for a, b in zip(dests[:-1], dests[1:], strict=True)
-    ]
-    total = sum(n[1] for n in dests)
-    scale = (1 - sum(gaps)) / total
-    right, y = [], 1.0
-    for j, (label, v, c) in enumerate(dests):
+    gaps = []
+    for upper, lower in zip(drawn[:-1], drawn[1:], strict=True):
+        if upper[0] in joined and lower[0] in joined:
+            gaps.append(0.0)
+        elif (upper[0] in FEE_SIDE) != (lower[0] in FEE_SIDE):
+            gaps.append(GAP * 1.6)
+        else:
+            gaps.append(GAP * 0.7)
+    scale = (1 - sum(gaps)) / sum(n[1] for n in drawn)
+    spans2: list[tuple[float, float]] = []
+    y = 1.0
+    for j, (label, v, c) in enumerate(drawn):
         h = v * scale
         uncertain = label == UNCERTAIN
         ax.add_patch(
             Rectangle(
-                (X_RIGHT, y - h),
+                (COLS[2], y - h),
                 NODE_W,
                 h,
                 facecolor=c,
                 edgecolor=p.builder if uncertain else c,
                 hatch=HATCH if uncertain else None,
                 lw=0,
+                zorder=3,
                 gid=f"node:{label}",
             )
         )
-        right.append([y, y - h])
+        spans2.append((y, y - h))
         y -= h + (gaps[j] if j < len(gaps) else 0.0)
-    # Labels give the primary split: the uncertain slice counts with the flow it came out of.
-    spans = {n[0]: (top, bottom) for n, (top, bottom) in zip(dests, right, strict=True)}
-    if UNCERTAIN in spans:
-        owner = "Proposers" if moved < 0 else "Block builders"
-        top, bottom = spans[owner]
-        u_top, u_bottom = spans[UNCERTAIN]
-        spans[owner] = (max(top, u_top), min(bottom, u_bottom))
-    # A dedicated label column: nearby thin flows never compete for text space.
-    for i, (label, v, _) in enumerate(primary):
-        top, bottom = spans[label]
-        label_y = 0.88 - i * 0.145
-        ax.annotate(
-            label,
-            (X_RIGHT + NODE_W, (top + bottom) / 2),
-            xycoords="axes fraction",
-            xytext=(1.00, label_y),
-            textcoords="axes fraction",
-            va="center",
-            fontsize=9.5,
-            color=p.ink,
-            arrowprops={"arrowstyle": "-", "color": p.grid, "lw": 0.8},
-            annotation_clip=False,
-        )
-        ax.text(
-            1.91,
-            label_y,
-            f"{usd(v)} · {share(v / lvr)}",
-            transform=ax.transAxes,
-            va="center",
-            ha="right",
-            fontsize=9.5,
-            color=p.muted,
-            clip_on=False,
-        )
-    height = 1.0 - right[-1][1]
-    left, y = [], 0.5 + height / 2
-    for label, v, c in sources:
-        h = v * scale
+    children = [
+        [j for j, n in enumerate(drawn) if n[0] in FEE_SIDE],
+        [j for j, n in enumerate(drawn) if n[0] not in FEE_SIDE],
+    ]
+
+    # column 1: each middle node level with the top of its first end node
+    spans1 = []
+    for k, (_, v, c) in enumerate(st.middle):
+        top = spans2[children[k][0]][0] if children[k] else 1.0
+        spans1.append((top, top - v * scale))
+        ax.add_patch(Rectangle((COLS[1], top - v * scale), NODE_W, v * scale, color=c, lw=0))
+
+    # column 0: the sources, centred on the end column
+    heights = [n[1] * scale for n in st.sources]
+    extent = sum(heights) + GAP * (len(heights) - 1)
+    y = (1.0 + spans2[-1][1]) / 2 + extent / 2
+    spans0 = []
+    for (label, _, c), h in zip(st.sources, heights, strict=True):
+        spans0.append((y, y - h))
         ax.add_patch(
             Rectangle(
-                (X_LEFT, y - h),
+                (COLS[0], y - h),
                 NODE_W,
                 h,
                 color=c,
                 lw=0,
-                hatch="///" if label.startswith("Paid") else None,
-                fill=True,
+                hatch="///" if label in SOURCE_NAMES else None,
             )
         )
-        ax.text(
-            X_LEFT - 0.02,
-            y - h / 2,
-            f"{textwrap.fill(label, 18)}\n{usd(v)}",
-            va="center",
-            ha="right",
-            fontsize=9.5,
-            color=c,
-            fontweight="bold",
-            clip_on=False,
-        )
-        left.append([y, y - h])
-        y -= h
-    for i, j, a in pieces(sources, dests):
+        y -= h + GAP
+
+    # bands: each node hands out its flow from the top down
+    out0 = [s[0] for s in spans0]
+    in1 = [s[0] for s in spans1]
+    for i, m, a in st.stage1:
         h = a * scale
         _band(
             ax,
-            left[i][0],
-            left[i][0] - h,
-            right[j][0],
-            right[j][0] - h,
-            dests[j][2],
-            hatch=p.builder if dests[j][0] == UNCERTAIN else None,
+            (COLS[0] + NODE_W, COLS[1]),
+            (out0[i], out0[i] - h),
+            (in1[m], in1[m] - h),
+            (st.sources[i][2], st.middle[m][2]),
         )
-        left[i][0] -= h
-        right[j][0] -= h
-    share_bp = (float(dest["builder_margin_usd"]) + float(dest["proposer_usd"])) / lvr
+        out0[i] -= h
+        in1[m] -= h
+    out1 = [s[0] for s in spans1]
+    for k, kids in enumerate(children):
+        for j in kids:
+            h = drawn[j][1] * scale
+            _band(
+                ax,
+                (COLS[1] + NODE_W, COLS[2]),
+                (out1[k], out1[k] - h),
+                spans2[j],
+                (st.middle[k][2], drawn[j][2]),
+                hatch=p.builder if drawn[j][0] == UNCERTAIN else None,
+            )
+            out1[k] -= h
+
+    for x, text, ha in zip(
+        (COLS[0], COLS[1] + NODE_W / 2, COLS[2]),
+        COLUMN_HEADERS,
+        ("left", "center", "left"),
+        strict=True,
+    ):
+        ax.text(
+            x,
+            1.05,
+            text,
+            ha=ha,
+            va="bottom",
+            fontsize=8.5,
+            fontweight="semibold",
+            color=p.muted,
+            clip_on=False,
+        )
+    for (label, v, c), (top, bottom) in zip(st.sources, spans0, strict=True):
+        name = SOURCE_NAMES.get(label, label)
+        name = SOURCE_BREAKS.get(name) or textwrap.fill(name, 14)
+        ax.text(
+            COLS[0] - 0.02,
+            (top + bottom) / 2,
+            f"{name}\n{usd(v)}",
+            ha="right",
+            va="center",
+            fontsize=10,
+            fontweight="semibold",
+            color=c,
+            linespacing=1.3,
+            clip_on=False,
+        )
+    for (label, _, _), (top, bottom), passed in zip(st.middle, spans1, (fees, gross), strict=True):
+        yc = (top + bottom) / 2
+        ax.text(
+            COLS[1] - 0.015,
+            yc + 0.006,
+            label,
+            ha="right",
+            va="bottom",
+            fontsize=9.5,
+            fontweight="semibold",
+            color=p.ink,
+            zorder=6,
+        )
+        ax.text(
+            COLS[1] - 0.015,
+            yc - 0.006,
+            f"{usd(passed)} · {pct(passed / lvr)}",
+            ha="right",
+            va="top",
+            fontsize=9,
+            color=p.ink,
+            zorder=6,
+        )
+
+    # end labels, share first; the builders' and proposers' values span the sensitivity
+    spans = {n[0]: s for n, s in zip(drawn, spans2, strict=True)}
+    if UNCERTAIN in spans:  # the uncertain slice counts with the flow it came out of
+        owner = "Proposers" if moved < 0 else "Block builders"
+        spans[owner] = (
+            max(spans[owner][0], spans[UNCERTAIN][0]),
+            min(spans[owner][1], spans[UNCERTAIN][1]),
+        )
+    alt = {"Block builders": "builder_margin_usd", "Proposers": "proposer_usd"}
+    labels = []
+    x_text = COLS[2] + NODE_W + 0.08
+    for label, v, c in st.dests:
+        value = usd(v)
+        if moved != 0 and label in alt:
+            lo, hi = sorted((v, float(sens[alt[label]])))
+            value = f"{usd(lo)}–{usd(hi)}"
+        top, bottom = spans[label]
+        connector = Line2D([], [], color=p.faint, lw=0.8, clip_on=False)
+        ax.add_line(connector)
+        labels.append(
+            EndLabel(
+                (top + bottom) / 2,
+                ax.text(
+                    x_text,
+                    0,
+                    share(v / lvr),
+                    fontsize=17,
+                    fontweight="bold",
+                    color=p.muted if c == p.faint else c,
+                    va="bottom",
+                    clip_on=False,
+                ),
+                ax.text(
+                    x_text,
+                    0,
+                    f"{label} · {value}",
+                    fontsize=9.3,
+                    color=p.ink,
+                    va="top",
+                    clip_on=False,
+                ),
+                connector,
+            )
+        )
+    _place_end_labels(fig, ax, labels)
+
+    bp = float(dest["builder_margin_usd"]) + float(dest["proposer_usd"])
     kept = float(dest["searcher_kept_usd"])
     stats = (
-        (usd(float(lp["fees_minus_lvr_usd"])), "LP fees minus LVR\nover the window", p.lvr),
-        (pct(share_bp), "to block builders\nand proposers", p.builder),
+        (
+            usd(float(lp["fees_minus_lvr_usd"])),
+            "LP fees minus LVR over the\nwindow, all swaps",
+            p.lvr,
+        ),
+        (pct(bp / lvr), "of the arbitrage went to block\nbuilders and proposers", p.builder),
         (usd(kept), "kept by searchers at block\ntime (an upper bound)", p.searcher),
     )
+    sx = 0.80
+    divider = Line2D([sx - 0.02] * 2, [0.17, 0.74], color=p.grid, lw=1, transform=fig.transFigure)
+    fig.add_artist(divider)
     for n, (big, small, c) in enumerate(stats):
-        yy = 0.72 - n * 0.18
-        fig.text(0.80, yy, big, fontsize=25, fontweight="bold", color=c, va="top")
-        fig.text(0.80, yy - 0.075, small, fontsize=9.5, color=p.muted, va="top")
+        yy = 0.74 - n * 0.19
+        fig.text(sx, yy, big, fontsize=24, fontweight="bold", color=c, va="top")
+        fig.text(sx, yy - 0.07, small, fontsize=9.3, color=p.muted, va="top", linespacing=1.35)
+    took = "more than all of it" if bp > gross else f"{pct(bp / gross)} of it"
     frame(
         fig,
         f"Where {usd(lvr)} of arbitrage went",
-        f"LVR on searcher swaps, Uniswap V3 USDC/WETH 0.05%, {window_label(r.daily)}:\n"
-        f"{pct(float(dest['fees_on_searcher_swaps_usd']) / lvr)} came back to LPs as fees, "
-        f"{pct(share_bp)} went to block builders and proposers.",
-        _footnote(dests, moved, kept),
+        f"LVR on searcher swaps, Uniswap V3 USDC/WETH 0.05%, {window_label(r.daily)}. "
+        f"{pct(fees / lvr)} came back to the pool as swap fees; of the searchers' {usd(gross)} "
+        f"gross profit, builders and proposers took {took}.",
+        _footnote(drawn, moved, kept),
     )
+    _place_end_labels(fig, ax, labels)  # frame() resized the axes: restack at the final size
     return fig
 
 
 def _footnote(dests: list[Node], moved: float, kept: float) -> str:
-    parts = ["Primary split shown."]
+    parts = []
     m = next((n[1] for n in dests if n[0] == UNCERTAIN), 0.0)
     if m > 0:
         way = "proposers to builders" if moved < 0 else "builders to proposers"
         parts.append(
-            f"Hatched: the {usd(m)} that moves from {way} under the self-built-block sensitivity."
+            f"Hatched: the {usd(m)} that moves from {way} under the self-built-block sensitivity; "
+            "shares use the primary split."
         )
     if kept < 0:
         parts.append(
-            f"Searchers paid out {usd(-kept)} more than their arbitrage made, drawn as a second "
-            "source; kept is measured at block time."
+            f"Searchers' own money: the {usd(-kept)} they paid out beyond their arbitrage profit, "
+            "drawn as a second source; measured at block time."
         )
     else:
         parts.append("Searchers' kept is measured at block time.")
