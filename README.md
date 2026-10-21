@@ -10,10 +10,11 @@ make money, and where the LVR goes.
 ![Python](https://img.shields.io/badge/python-3.13-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-> **Status:** sub-projects 1 (data foundation), 2 (price discovery and markouts) and 3 (LP P&L and
-> where LVR goes) are complete; data checks C1–C6, analysis checks A1–A6 and LP checks L1–L7 all
-> pass. Next: reference robustness (sub-project 4: mid prices and OKX), then counterfactual LP
-> strategies (sub-project 5).
+> **Status:** sub-projects 1 (data foundation), 2 (price discovery and markouts), 3 (LP P&L and
+> where LVR goes) and 4 (reference and timing robustness) are complete; data checks C1–C6 and the
+> gated analysis and LP checks (A1–A4, L1–L7) all pass. Next: who keeps the arbitrage profit
+> (proposer-payment detection), then counterfactual LP strategies; see the
+> [roadmap](docs/roadmap.md).
 
 <img src="results/figures/00_hero.svg" alt="Two-stage Sankey: the LVR on searcher swaps splits into swap fees (to LPs and the protocol) and searchers' gross profit, which, topped up by searchers' own money, ends with block builders, proposers, gas and multi-pool arbitrage">
 
@@ -78,7 +79,10 @@ at the pool's price instead of Binance's)? Which LPs make money? And where does 
    LVR here is measured swap by swap against Binance's last trade at the block time, net of all
    flow: searcher swaps alone cost LPs $4.14M, and the rest of the flow gave $0.44M back. It is the
    loss against a portfolio that rebalances at Binance's price, not a loss against holding. The
-   theoretical value depends on sampling: 1-minute returns give $4.33M.
+   theoretical value depends on sampling: 1-minute returns give $4.33M. Other references and read
+   times ([Is it the reference price?](#is-it-the-reference-price)): a trade-side mid proxy gives
+   −$0.92M, ETHUSDT −$1.10M, and the median winning-bid time (+1.0 s) −$1.31M; the result turns
+   positive only if prices are read 3.3 s or more before the slot.
 5. **No LP type reliably makes money against a rebalancing portfolio.** Against a portfolio that
    rebalances at Binance's price, after gas and direct payments to block builders, the 7,874
    positions active in the window lost **$1.10M**. Just-in-time (JIT) positions (844, minted and
@@ -121,7 +125,7 @@ at the pool's price instead of Binance's)? Which LPs make money? And where does 
    payments ($0.30M, 37.7% of the primary proposer total). The sensitivity gives them the proposer
    share of the paid blocks (49.1% of builder revenue, volume-weighted). Finding those payments
    directly (not in the last transaction, or sent from a separate payout address) needs a new
-   query, planned for sub-project 4. The 34.8%, gas and kept do not depend on the split. Kept is
+   query, planned after sub-project 4 (see the roadmap). The 34.8%, gas and kept do not depend on the split. Kept is
    negative because the 34.8% exceeds the single-pool gross at 0 s (30.2% of searcher LVR). It is
    an upper bound (payments outside the transaction are missed) and, as in finding 3, a small
    difference of large totals measured at the block time; sub-project 2's positive kept at 12 s
@@ -131,7 +135,7 @@ at the pool's price instead of Binance's)? Which LPs make money? And where does 
 
 - [What is LVR?](#what-is-lvr) · [Does the pool follow Binance?](#does-the-pool-follow-binance) · [Who wins against the pool?](#who-wins-against-the-pool)
 - [How big is LVR, and when?](#how-big-is-lvr-and-when) · [Do arbitrage bots keep the edge?](#do-arbitrage-bots-keep-the-edge) · [Who pays?](#who-pays) · [Where LVR goes](#where-lvr-goes)
-- [Data](#data) · [Method](#method) · [Limitations](#limitations) · [Reproduce](#reproduce) · [Repo map](#repo-map) · [Further reading](#further-reading) · [Roadmap](docs/roadmap.md)
+- [Is it the reference price?](#is-it-the-reference-price) · [Data](#data) · [Method](#method) · [Limitations](#limitations) · [Reproduce](#reproduce) · [Repo map](#repo-map) · [Further reading](#further-reading) · [Roadmap](docs/roadmap.md)
 
 ## What is LVR?
 
@@ -535,9 +539,54 @@ below splits them differently):
   The primary method stays the published one, because it is what the data identify directly;
   the sensitivity is the better estimate of the split, and with it builders keep more than
   proposers receive. Finding the payment directly needs a new query and is planned for
-  sub-project 4. Nothing else in this section depends on the split.
+  a later sub-project (see the roadmap). Nothing else in this section depends on the split.
 
 > The split of builder payments between builder and proposer uses each block's ratio of proposer payment to builder revenue; how a builder prices an individual transaction is not observed. Proposer payments are identified as the block's last transaction from the fee recipient and cross-checked against relay data on a sample of blocks only.
+
+## Is it the reference price?
+
+<img src="results/figures/13_reference_and_timing.svg" alt="LP fees minus LVR against the time the reference price is read, from 5 s before to 4 s after slot start, for Binance's last trade, a trade-side mid proxy and ETHUSDT: every line is negative from about 3.3 s before the slot onward, and the measured winning-bid times sit about 1 s after slot start">
+
+Every number above reads Binance's last ETHUSDC trade at the block timestamp, the start of the
+slot. A natural objection is that the loss comes from that choice. It mostly does not: **LPs lost
+$1.06M at the block timestamp, and that is the conservative end.** Winning bids reach the relays
+about 1 s after slot start, where the loss is $1.31M. A mid-price proxy or a USDT reference moves
+it by $0.14M at most. It turns positive only if prices are read 3.3 s or more before the slot
+starts. And $0.88M (83%) of the gap is the protocol's cut of the fees, which no reference price
+changes.
+
+| reference, read at | LP fees − LVR | shift from the headline (95% paired interval) |
+|---|---|---|
+| Binance last trade, slot start (headline) | **−$1.06M** | |
+| Binance trade-side mid proxy, slot start | −$0.92M | +$137k (+$119k to +$155k) |
+| Binance ETHUSDT 1 s close, slot start | −$1.10M | −$41k (−$83k to +$8k) |
+| Binance last trade, 1 s before | −$0.79M | +$269k (+$206k to +$339k) |
+| Binance last trade, 1 s after | −$1.32M | −$260k (−$356k to −$193k) |
+| Binance last trade, median winning bid (+0.98 s) | −$1.31M | |
+
+- **When the price is read matters more than which price.** Each second near slot start moves
+  the result by about $0.26M; the mid proxy moves it by $0.14M, and ETHUSDT's −$41k is within
+  day-to-day noise. The three lines cross zero at 3.9 s (last trade), 3.5 s (ETHUSDT) and 3.3 s
+  (mid proxy) before the slot.
+- **The block timestamp is the early end of when a block is sealed.** For 536 of 1,000 sampled
+  blocks, the relay that delivered the block publishes when it received the winning bid: median
+  0.98 s after slot start, 10th–90th percentile 0.78 s to 2.57 s. Searchers can update bundles
+  until that bid, so it is close to the latest price they could act on. Past about +2 s the
+  curve flattens.
+- **The protocol fee switch turns a borderline result into a clear loss.** Before the protocol's
+  quarter, total swap fees ($3.53M) nearly cover LVR ($3.70M); the protocol's $0.88M is the
+  dashed line in the figure. Any reading above it means total fees beat LVR.
+
+*Caveats:* Binance publishes no bid/ask history for 2026, so the mid is a proxy: the average of
+the latest buyer-initiated and seller-initiated trades. One side goes stale, so the two are
+crossed at 18% of swap times (median spread 0.12 bp). The timing covers only blocks delivered
+through Titan (465), Aestus (50) and Flashbots (21). Ultrasound, the largest relay, keeps no bid
+history for this window, and its blocks could be sealed at other times. A bundle sent before the
+final bid reads an earlier price. Full tables:
+[`results/reference_robustness.md`](results/reference_robustness.md),
+[`results/block_timing.md`](results/block_timing.md) and
+[`results/reference_robustness_proxy.md`](results/reference_robustness_proxy.md); method in
+[`docs/methodology.md`](docs/methodology.md) section 18.
 
 ## Data
 
@@ -649,7 +698,8 @@ Every definition and formula: [`docs/methodology.md`](docs/methodology.md).
   robustness variant without them changes little.
 - **t0 = block timestamp** (whole seconds, the start of the 12-second slot), while Binance trades
   carry sub-second timestamps and the bots' decision and hedge times are not observed. Short-horizon
-  markouts depend on this choice (the searchers' 0 s edge is 1.80 bp with t0 − 2 s).
+  markouts depend on this choice (the searchers' 0 s edge is 1.80 bp with t0 − 2 s). For LP fees
+  − LVR, [Is it the reference price?](#is-it-the-reference-price) measures how far this goes.
 - **Available arbitrage ignores gas, Binance fees beyond the 1 bp sensitivity, and Binance depth.**
   It assumes the arbitrage is the first trade at the block-start state, and a gap that stays open is
   counted again at each block start, so it is not what one arbitrageur could have taken.
@@ -674,7 +724,8 @@ Every definition and formula: [`docs/methodology.md`](docs/methodology.md).
 > The split of builder payments between builder and proposer uses each block's ratio of proposer payment to builder revenue; how a builder prices an individual transaction is not observed. Proposer payments are identified as the block's last transaction from the fee recipient and cross-checked against relay data on a sample of blocks only.
 
 - **Reference price.** Measured LVR, fees in USD and every P&L use Binance's last ETHUSDC trade, as
-  above. Sub-project 4 tests a mid price and OKX.
+  above. [Is it the reference price?](#is-it-the-reference-price) re-measures it against a
+  trade-side mid proxy, ETHUSDT and other read times.
 - **Theory** assumes geometric Brownian motion and blocks arriving as a Poisson process, while
   Ethereum slots are a fixed 12 s. The 1-minute version gives about a third more LVR than the
   1-second one. Order-flow noise in last trades would push 1-second realised variance above the
@@ -706,10 +757,21 @@ Every definition and formula: [`docs/methodology.md`](docs/methodology.md).
   mismatches over 1% are such blocks; all 699 paid blocks found match within 1 wei). Giving them
   the paid-block share moves the proposer share from 19.0% to 15.4% of searcher LVR and the
   builder margin from 15.8% to 19.4%; their sum (34.8%) does not move. Proper detection needs a
-  new query (sub-project 4). The relay sample itself found 769 of 1,000 blocks, and some relays
+  new query (planned after sub-project 4). The relay sample itself found 769 of 1,000 blocks, and some relays
   were skipped after repeated time-outs.
 - **Statistics:** the P&L intervals bootstrap positions and treat them as independent, though many
   positions share an LP.
+
+### Reference and timing robustness (sub-project 4)
+
+- **The mid price is a proxy.** There is no Binance bid/ask history for the window; the
+  trade-side proxy is crossed at 18% of swap times. A true mid needs another venue's order book
+  (OKX publishes one, 2.9 GB for ETH-USDC), which would mix venue and mid effects.
+- **Timing covers three relays.** Winning-bid times come from Titan, Aestus and Flashbots
+  (536 of 1,000 sampled blocks); ultrasound keeps no bid history for the window. The received
+  time is when the final block reached the relay, not when each searcher read a price.
+- **The headline stays at the block timestamp.** Sub-projects 2 and 3 are not re-run at the
+  measured time; the robustness table re-prices LP fees − LVR only, through the L6 identity.
 
 ## Reproduce
 
@@ -789,6 +851,7 @@ uv run ulpe fetch-price-history                # Binance ETHUSDT 1-minute candle
 uv run ulpe fetch-builders --dry-run          # free: prints the size of the three paid builder queries
 uv run ulpe fetch-builders --confirm-cost     # BigQuery, paid (about 661 GB): builder revenue and payments
 uv run ulpe fetch-relays                       # relay data APIs: proposer payments for 1,000 sampled blocks
+uv run ulpe fetch-timing                       # relay data APIs: winning-bid times for the same blocks
 uv run ulpe lp                                 # checks L1-L7, then results/: tables, figure data, summary.json["lp"]
 ```
 
@@ -828,6 +891,7 @@ src/uniswap_lp_economics/
     chain_state.py  fee and position state at the snapshot, sample and end blocks; LP code (RPC)
     builders.py     builder revenue, proposer payment and per-transaction payments (BigQuery aggregates)
     relays.py       relay-reported proposer payments for a block sample, with a circuit breaker
+    block_timing.py winning-bid times from the relays that keep bid history
   build.py          raw downloads -> interim tables (events, swaps, CEX prices)
   validate.py       checks C1-C6 and the validation report
   replay.py         public event replay: pool state after every event and at every block start
@@ -840,7 +904,7 @@ src/uniswap_lp_economics/
   checks.py         analysis checks A1-A6
   report.py         results tables (CSV and markdown), summary.json, the limitation text
   analyze.py        `ulpe analyze`: validated data -> checks -> results/
-  lp/               sub-project 3: LP P&L and where LVR goes
+  lp/               sub-projects 3 and 4: LP P&L, where LVR goes, reference robustness
     swapfees.py     exact per-swap LP and protocol fees from the step-by-step re-simulation
     state.py        fee-growth accumulators as the contract keeps them, plus USD-fee and LVR accumulators
     positions.py    positions from the full history: NFT matching, direct-key episodes, LPs
@@ -850,7 +914,8 @@ src/uniswap_lp_economics/
     theory.py       theoretical LVR, P_trade, volatility regimes
     lifetime.py     lifetime P&L against holding
     destination.py  where LVR goes: fees, gas, builder margin, proposer payment, kept
-    checks.py       checks L1-L7 and the reported checks R1-R5
+    checks.py       checks L1-L7 and the reported checks R1-R6
+    robustness.py   LP fees - LVR by reference and t0 offset, with a paired day bootstrap
     figdata.py      the stale-pool episode and the JIT block picked for the figures
     analyze.py      `ulpe lp`: validated data -> checks -> results/ and summary.json["lp"]
   viz/              `ulpe figures`: house style (style.py), results loader (data.py), registry
