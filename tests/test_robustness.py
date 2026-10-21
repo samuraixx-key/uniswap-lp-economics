@@ -115,3 +115,13 @@ def test_crossing_offset() -> None:
     assert robustness.crossing_offset([-1, 0], [-0.1, -0.2]) is None
     # the last crossing counts when the curve crosses twice
     assert robustness.crossing_offset([-2, -1, 0, 1], [0.1, -0.1, 0.1, -0.1]) == pytest.approx(0.5)
+
+
+def test_cells_are_anchored_on_the_primary_zero_offset_cell() -> None:
+    # p_cex_0 off the primary reference (3000 at t0): the primary 0 s cell still is the headline
+    off = {**SWAP_1, "p_cex_0": 2990.0}
+    shifts = robustness.daily_shifts(swaps(off), REFS, END, offsets=(0.0, 1.0))
+    table = robustness.robustness_table(DAILY, shifts)
+    assert cell(table, "binance_last_trade", 0.0)["fees_minus_lvr_usd"] == pytest.approx(-5.0)
+    assert cell(table, "binance_last_trade", 0.0)["lp_fees_usd"] == pytest.approx(30.0)
+    assert cell(table, "binance_last_trade", 1.0)["shift_usd"] == pytest.approx(9.99)

@@ -58,6 +58,29 @@ def test_lp_analysis_end_to_end(tmp_path: Path) -> None:
     assert summary["lp"]["git_commit"] == "test"
     assert summary["lp"]["positions_window_active"] == 3
     assert "stale" not in summary["lp"]  # only the "lp" key is replaced (plan Ruling 10)
+    for name in (
+        "reference_robustness.csv",
+        "reference_robustness.md",
+        "block_timing.csv",
+        "block_timing.md",
+    ):
+        assert (results / name).exists(), name
+    rob = pl.read_csv(results / "reference_robustness.csv")
+    primary = rob.filter((pl.col("reference") == "binance_last_trade") & (pl.col("offset_s") == 0))
+    assert primary["fees_minus_lvr_usd"][0] == pytest.approx(summary["lp"]["fees_minus_lvr_usd"])
+    r = summary["lp"]["robustness"]
+    assert set(r) == {
+        "crossing_offset_s",
+        "timing",
+        "fees_minus_lvr_at_median_timing_usd",
+        "largest_reference_shift_0s_usd",
+        "protocol_fees_share_of_gap",
+        "proxy_quality",
+    }
+    assert r["timing"]["n_timed"] == 2 and r["timing"]["p50_ms"] == 1000
+    assert pl.read_csv(results / "block_timing.csv").height == 2
+    checks = (results / "lp_checks.md").read_text(encoding="utf-8")
+    assert "| R6 robustness table reproduces the headline (reported) | reported |" in checks
     assert summary["lp"]["collect_shortfalls"] == {"count": 0, "max_d0": 0, "max_d1": 0}
     assert summary["lp"]["n_excluded_carry"] == 0 == summary["lp"]["lifetime"]["n_excluded_carry"]
     assert any("L6" in name for name in summary["lp"]["checks"])

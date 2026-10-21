@@ -2,9 +2,9 @@
 
 LP fees - LVR under another reference price P or another t0 offset, through the L6 identity per
 swap: fees - LVR = amount_usdc + amount_eth x P - protocol fee in USD. Each cell is the headline
-plus the shift X(P_cell) - X(p_cex_0), summed by day, so the primary 0 s cell is the headline by
-construction (flash-loan fees included). One set of resampled days serves every cell, so shifts
-between cells get paired intervals.
+plus the shift X(P_cell) - X(P_primary at 0 s), summed by day, so the primary 0 s cell is the
+headline by construction (flash-loan fees included). One set of resampled days serves every
+cell, so shifts between cells get paired intervals.
 """
 
 import numpy as np
@@ -76,18 +76,26 @@ def robustness_table(
     # Drawn as theory.day_bootstrap_sum draws, so the primary 0 s interval is the headline's.
     idx = np.random.default_rng(seed).integers(0, len(days), size=(n_boot, len(days)))
 
-    def vectors(reference: str, offset: float) -> tuple[np.ndarray, float, int]:
+    def raw(reference: str, offset: float) -> tuple[np.ndarray, np.ndarray, int]:
         s = shifts.filter((pl.col("reference") == reference) & (pl.col("offset_s") == offset))
         s = grid.join(s, on="day", how="left").fill_null(0)
         return (
-            headline + s["d_fees_minus_lvr_usd"].to_numpy(),
-            float(s["d_lp_fees_usd"].sum()),
+            s["d_fees_minus_lvr_usd"].to_numpy(),
+            s["d_lp_fees_usd"].to_numpy(),
             int(s["n_unpriced"].sum()),
         )
 
     offsets = sorted(set(shifts["offset_s"].to_list()))
     if 0.0 not in offsets:
         raise ValueError("the offsets must include 0 s, the primary cell")
+    # Anchor on the primary 0 s cell, so it is the headline even where p_cex_0 is not exactly
+    # that reference (on the real data the two agree and this anchor is zero).
+    anchor_fml, anchor_lp, _ = raw(REFERENCES[0], 0.0)
+
+    def vectors(reference: str, offset: float) -> tuple[np.ndarray, float, int]:
+        d_fml, d_lp, unpriced = raw(reference, offset)
+        return headline + d_fml - anchor_fml, float((d_lp - anchor_lp).sum()), unpriced
+
     primary, _, _ = vectors(REFERENCES[0], 0.0)
     lp_fees = float(base["fees_usd"].sum())
     rows = []

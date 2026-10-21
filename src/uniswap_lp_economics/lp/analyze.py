@@ -6,12 +6,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import polars as pl
 
 from uniswap_lp_economics import align, config, flows, report, validate
 from uniswap_lp_economics.build import load_snapshot_meta
 from uniswap_lp_economics.data import (
     binance,
+    block_timing,
     builders,
     chain_state,
     history,
@@ -20,7 +22,7 @@ from uniswap_lp_economics.data import (
 )
 from uniswap_lp_economics.data import blocks as bq_blocks
 from uniswap_lp_economics.io import read_exact, write_exact, write_text_atomic
-from uniswap_lp_economics.lp import destination, figdata, lifetime, pnl, theory
+from uniswap_lp_economics.lp import destination, figdata, lifetime, pnl, robustness, theory
 from uniswap_lp_economics.lp.checks import (
     check_l1,
     check_l2,
@@ -34,6 +36,7 @@ from uniswap_lp_economics.lp.checks import (
     check_r3_lp_types,
     check_r4_transferred,
     check_r5_null_12s,
+    check_r6_robustness,
 )
 from uniswap_lp_economics.lp.engine import contexts_from_aligned, replay_window
 from uniswap_lp_economics.lp.ledger import Ledger
@@ -75,6 +78,21 @@ PNL_NOTE = (
     "position value x days). Intervals: 95% bootstrap over positions (1,000 resamples, seed 42)."
 )
 
+ROBUSTNESS_NOTE = (
+    "LP fees, LVR and fees - LVR with the reference price read at block time + offset_s, for "
+    "each reference. Each cell is the headline plus the per-swap shift of the L6 identity "
+    "(fees - LVR = amount_usdc + amount_eth x P - protocol fee), so the primary 0 s cell is the "
+    "headline. ci: 95% day bootstrap; shift: change from the primary 0 s cell, with a paired "
+    "interval (the same 1,000 resampled days, seed 42). n_unpriced: swaps with no price in the "
+    "cell (zero shift)."
+)
+TIMING_NOTE = (
+    "Winning-bid time = the earliest bid the delivering relay received with the delivered block "
+    "hash, minus slot start, in ms. Only Titan, Flashbots and Aestus publish July 2026 bids; "
+    "ultrasound, the largest relay, keeps no bid history for this window, so its blocks (and "
+    "any it timed differently) are missing."
+)
+
 
 @dataclass
 class LpInputs:
@@ -93,6 +111,7 @@ class LpInputs:
     end_positions: pl.DataFrame
     owner_code: pl.DataFrame
     minute_klines: pl.DataFrame
+    ethusdt_1s: pl.DataFrame
     lp_labels: pl.DataFrame
     blocks: pl.DataFrame
     block_revenue: pl.DataFrame
@@ -100,6 +119,7 @@ class LpInputs:
     tx_other_logs: pl.DataFrame
     relays: pl.DataFrame
     bot_transfers: pl.DataFrame
+    block_timing: pl.DataFrame
 
 
 def _need(path: Path, command: str) -> Path:
@@ -133,6 +153,7 @@ def load_lp_inputs(raw: Path, interim: Path, processed: Path, lp_labels_csv: Pat
         end_positions=read_exact(_need(cs / chain_state.END_POSITIONS, "fetch-chain-state")),
         owner_code=pl.read_parquet(_need(cs / chain_state.OWNER_CODE, "fetch-chain-state")),
         minute_klines=binance.load_minute_klines(raw),
+        ethusdt_1s=pl.read_parquet(_need(interim / "cex_ethusdt_1s.parquet", "build")),
         lp_labels=pnl.load_lp_labels(lp_labels_csv),
         blocks=pl.read_parquet(_need(raw / bq_blocks.BLOCKS_FILE, "fetch-blocks")),
         block_revenue=block_revenue,
@@ -140,6 +161,7 @@ def load_lp_inputs(raw: Path, interim: Path, processed: Path, lp_labels_csv: Pat
         tx_other_logs=tx_other_logs,
         relays=read_exact(_need(raw / relays.RELAY_FILE, "fetch-relays")),  # wei: Int128
         bot_transfers=transfers.load_bot_transfers(raw, top_bots),
+        block_timing=pl.read_parquet(_need(raw / block_timing.TIMING_FILE, "fetch-timing")),
     )
 
 
@@ -153,6 +175,67 @@ def hourly_grid(blocks_state: pl.DataFrame, start_us: int, end_us: int) -> pl.Da
     return hours.join_asof(
         blocks_state.select("ts_us", "sqrt_price_x96", "p_cex"), on="ts_us", strategy="backward"
     ).select("ts_us", sqrt=pl.col("sqrt_price_x96").cast(pl.Float64) / Q96, p_cex="p_cex")
+
+
+def reference_robustness(
+    inp: LpInputs,
+    daily: pl.DataFrame,
+    last_trade: pl.DataFrame,
+    totals: dict[str, Any],
+    end_us: int,
+) -> tuple[pl.DataFrame, dict[str, Any], float, float]:
+    """The robustness table, the numbers summary.json quotes from it, and the identity total at
+    the primary reference and 0 s (for R6). Sub-project 4 spec sections 5 and 7."""
+    swaps = inp.aligned.join(
+        inp.swap_fees.select("block_number", "log_index", "lp_fee_raw"),
+        on=["block_number", "log_index"],
+        how="left",
+        validate="1:1",
+    )
+    refs = {
+        "binance_last_trade": last_trade,
+        "binance_trade_side_mid": align.trade_side_mid_table(inp.trades),
+        "binance_ethusdt_1s_close": align.kline_reference_table(inp.ethusdt_1s),
+    }
+    shifts = robustness.daily_shifts(swaps, refs, end_us)
+    table = robustness.robustness_table(daily, shifts)
+    reprice = float(
+        shifts.filter(
+            (pl.col("reference") == robustness.REFERENCES[0]) & (pl.col("offset_s") == 0)
+        )["d_fees_minus_lvr_usd"].sum()
+    )
+
+    def line(name: str) -> tuple[list[float], list[float]]:
+        rows = table.filter(pl.col("reference") == name).sort("offset_s")
+        return rows["offset_s"].to_list(), rows["fees_minus_lvr_usd"].to_list()
+
+    timing = block_timing.timing_summary(inp.block_timing)
+    xs, ys = line(robustness.REFERENCES[0])
+    p50 = timing["p50_ms"]
+    at_zero = table.filter(pl.col("offset_s") == 0).sort(pl.col("shift_usd").abs(), descending=True)
+    gap = totals["fees_minus_lvr_usd"]
+    summary = {
+        "crossing_offset_s": {
+            n: robustness.crossing_offset(*line(n)) for n in robustness.REFERENCES
+        },
+        "timing": timing,
+        "fees_minus_lvr_at_median_timing_usd": None
+        if p50 is None
+        else float(np.interp(p50 / 1000, xs, ys)),
+        "largest_reference_shift_0s_usd": float(at_zero["shift_usd"][0]),
+        "protocol_fees_share_of_gap": totals["protocol_fees_usd"] / -gap if gap < 0 else None,
+        "proxy_quality": align.proxy_quality(inp.aligned["t0_us"], inp.trades, end_us),
+    }
+    identity = float(
+        inp.aligned.select(
+            (
+                pl.col("amount_usdc")
+                + pl.col("amount_eth") * pl.col("p_cex_0")
+                - pl.col("protocol_fee_usd")
+            ).sum()
+        ).item()
+    )
+    return table, summary, identity, reprice
 
 
 def lp_analysis(
@@ -343,12 +426,26 @@ def lp_analysis(
         inp.aligned, inp.events, inp.blocks, inp.tx_direct, inp.tx_other_logs, split
     )
     dest = destination.destination(steps, inp.aligned, costs, split)
+    robust, robust_summary, identity, reprice = reference_robustness(
+        inp, daily, ref, totals, end_us
+    )
+    flash_fees = float(
+        steps.filter(pl.col("accrued"))
+        .join(
+            inp.aligned.select("block_number", "log_index"),
+            on=["block_number", "log_index"],
+            how="anti",
+        )["fee_usd"]
+        .sum()
+    )
+    summary["lp"]["robustness"] = robust_summary
     reported = [
         check_r1_relays(inp.relays, split),
         check_r2_traces_vs_alchemy(inp.tx_direct, inp.bot_transfers, inp.blocks, inp.tx_other_logs),
         check_r3_lp_types(positions),
         check_r4_transferred(data.positions, positions["position_id"].to_list()),
         check_r5_null_12s(run.null_12s_steps, steps),
+        check_r6_robustness(identity, flash_fees, totals["fees_minus_lvr_usd"], reprice),
     ]
     summary["lp"]["destination"] = dest
     summary["lp"]["checks"].update({r.name: r.summary for r in reported})
@@ -420,6 +517,32 @@ def lp_analysis(
             ),
         ],
         notes=[DESTINATION_NOTE, SENSITIVITY_NOTE, destination.LIMITATION_TEXT],
+    )
+    report.write_table(
+        robust, out, "reference_robustness", "Reference and timing robustness", [ROBUSTNESS_NOTE]
+    )
+    report.write_markdown(
+        out,
+        "reference_robustness_proxy",
+        "Trade-side mid proxy: quality at swap times",
+        [("", report.metrics_table(robust_summary["proxy_quality"]))],
+    )
+    timed = inp.block_timing.filter(pl.col("found"))
+    write_text_atomic(out / "block_timing.csv", timed.write_csv())
+    report.write_markdown(
+        out,
+        "block_timing",
+        "When blocks were sealed: winning-bid times",
+        [
+            (
+                "Pooled",
+                report.metrics_table(
+                    {k: v for k, v in robust_summary["timing"].items() if k != "by_relay"}
+                ),
+            ),
+            ("By relay", pl.DataFrame(robust_summary["timing"]["by_relay"])),
+        ],
+        notes=[TIMING_NOTE],
     )
     fig_data = out / "figure_data"
     fig_data.mkdir(parents=True, exist_ok=True)

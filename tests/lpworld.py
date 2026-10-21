@@ -6,6 +6,7 @@ from typing import Any
 import polars as pl
 
 from uniswap_lp_economics.config import NPM_ADDRESS
+from uniswap_lp_economics.data.block_timing import TIMING_SCHEMA
 from uniswap_lp_economics.data.chain_state import FEE_SCHEMA, POSITION_STATE_SCHEMA
 from uniswap_lp_economics.io import u256_hex
 from uniswap_lp_economics.lp.analyze import LpInputs
@@ -246,6 +247,10 @@ def aligned_for(events: pl.DataFrame) -> pl.DataFrame:
             + pl.col("amount1").cast(pl.Float64) / 1e18 * pl.Series(p)
         ),
         protocol_fee_usd=pl.lit(0.0),
+        amount_usdc=pl.col("amount0").cast(pl.Float64) / 1e6,
+        amount_eth=pl.col("amount1").cast(pl.Float64) / 1e18,
+        fee_token=pl.when(pl.col("amount0") > 0).then(pl.lit("USDC")).otherwise(pl.lit("WETH")),
+        protocol_fee_raw=pl.lit(0, dtype=pl.Int64),  # the world's fee switch is off
     )
 
 
@@ -421,7 +426,7 @@ def world_inputs() -> LpInputs:
             "ts_us": seconds,
             "price": [2000.0 * (1 + 0.0005 * ((i % 7) - 3) / 3) for i in range(len(seconds))],
             "qty": [1.0] * len(seconds),
-            "is_buyer_maker": [True] * len(seconds),
+            "is_buyer_maker": [i % 2 == 0 for i in range(len(seconds))],  # both sides trade
         }
     )
     # The pre-window deposit (block 1) needs a 1-minute close within an hour of it.
@@ -462,6 +467,7 @@ def world_inputs() -> LpInputs:
         end_positions=end,
         owner_code=pl.DataFrame({"address": [WALLET, D, J], "has_code": [False, True, True]}),
         minute_klines=minute,
+        ethusdt_1s=trades.select("ts_us", close="price"),
         lp_labels=pl.DataFrame(
             schema={c: pl.String for c in ("address", "name", "category", "source_url", "notes")}
         ),
@@ -515,6 +521,14 @@ def world_inputs() -> LpInputs:
                 "proposer_fee_recipient": pl.String,
                 "builder_pubkey": pl.String,
             },
+        ),
+        block_timing=pl.DataFrame(
+            [
+                {"block_number": 7, "relay": "https://r", "found": True, "offset_ms": 900},
+                {"block_number": 8, "relay": "https://r", "found": True, "offset_ms": 1100},
+                {"block_number": 9, "relay": None, "found": False, "offset_ms": None},
+            ],
+            schema=TIMING_SCHEMA,
         ),
         bot_transfers=pl.DataFrame(
             schema={
