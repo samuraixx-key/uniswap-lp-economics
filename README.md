@@ -131,7 +131,7 @@ at the pool's price instead of Binance's)? Which LPs make money? And where does 
 
 - [What is LVR?](#what-is-lvr) · [Does the pool follow Binance?](#does-the-pool-follow-binance) · [Who wins against the pool?](#who-wins-against-the-pool)
 - [How big is LVR, and when?](#how-big-is-lvr-and-when) · [Do arbitrage bots keep the edge?](#do-arbitrage-bots-keep-the-edge) · [Who pays?](#who-pays) · [Where LVR goes](#where-lvr-goes)
-- [Data](#data) · [Method](#method) · [Limitations](#limitations) · [Reproduce](#reproduce) · [Repo map](#repo-map) · [Further reading](#further-reading)
+- [Data](#data) · [Method](#method) · [Limitations](#limitations) · [Reproduce](#reproduce) · [Repo map](#repo-map) · [Further reading](#further-reading) · [Roadmap](docs/roadmap.md)
 
 ## What is LVR?
 
@@ -858,7 +858,6 @@ src/uniswap_lp_economics/
   cli.py            `ulpe` command-line entry point (`ulpe all` runs every step in order)
 scripts/
   make_fixture.py   cut the small real-data test fixture
-  migrate_int128_to_decimal.py   one-off: convert early raw files from Int128 to Decimal(38,0)
 tests/              unit tests, the real-data fixture test and the end-to-end analysis test
   fixtures/         real pool events and tick book for the offline fixture test
 labels/             curated address labels (addresses.csv) and LP vaults (lp_addresses.csv), with a source link per address
@@ -866,6 +865,7 @@ results/            committed results: tables (.md, .csv), figure_data/, figures
 assets/fonts/       Inter (SIL Open Font License), the figures' font
 data_validation/    committed validation report (.md and .json)
 docs/methodology.md every definition and formula behind results/
+docs/roadmap.md     what is done, what comes next (sub-project 4) and later phases
 docs/superpowers/   design specs and implementation plans for sub-projects 1 to 3 and the chart redesign
 ```
 

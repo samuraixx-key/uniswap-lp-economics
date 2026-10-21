@@ -1,6 +1,6 @@
 """The figure registry and `ulpe figures`: light SVGs, the GIF and the social card.
 
-Stale exports, including earlier dark versions, are removed on regeneration.
+Stale exports are removed on regeneration.
 """
 
 from collections.abc import Callable

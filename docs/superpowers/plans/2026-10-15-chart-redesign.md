@@ -1,5 +1,9 @@
 # Chart and Presentation Redesign Implementation Plan
 
+> **Status (2026-10-21): done, kept as the execution record.** What shipped differs in one way: the
+> dark-theme SVGs and `<picture>` tags in this plan were dropped (PR #1); figures are light only.
+> The spec is the current description.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace the 12 default-matplotlib PNG charts with 13 figures plus a hero in one house style
