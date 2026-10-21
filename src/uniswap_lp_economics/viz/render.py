@@ -13,6 +13,7 @@ from uniswap_lp_economics.viz import bots, fees_vs_lvr, hero, what_is_lvr, who_p
 from uniswap_lp_economics.viz import discovery as viz_discovery
 from uniswap_lp_economics.viz import jit_block as viz_jit_block
 from uniswap_lp_economics.viz import markouts as viz_markouts
+from uniswap_lp_economics.viz import robustness as viz_robustness
 from uniswap_lp_economics.viz.data import Results, load_results
 from uniswap_lp_economics.viz.style import save_svg, theme
 
@@ -34,6 +35,7 @@ FIGURES: list[tuple[str, FigureFn]] = [
     ("10_pnl_by_group", who_pays.pnl_by_group),
     ("11_jit_block", viz_jit_block.jit_block),
     ("12_lifetime", who_pays.lifetime),
+    ("13_reference_and_timing", viz_robustness.reference_and_timing),
 ]
 EXTRAS: list[ExtraFn] = [what_is_lvr.episode_gif, hero.social_card]
 FIGURE_SUFFIXES = {".svg", ".png", ".gif"}
