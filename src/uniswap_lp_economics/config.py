@@ -57,3 +57,9 @@ RELAYS = (
     "https://titanrelay.xyz",
 )
 N_RELAY_SAMPLES = 1000
+# Relays that still publish July 2026 builder bids, tried in this order (sub-project 4 spec 5.5).
+TIMING_RELAYS = (
+    "https://titanrelay.xyz",
+    "https://boost-relay.flashbots.net",
+    "https://aestus.live",
+)

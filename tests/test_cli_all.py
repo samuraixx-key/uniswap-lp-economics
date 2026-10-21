@@ -21,6 +21,7 @@ def test_all_runs_every_step_in_order(monkeypatch: pytest.MonkeyPatch) -> None:
     assert e.value.code == 0
     assert ran == list(cli.ALL_STEPS)
     assert ran[-1] == "figures" and ran.index("lp") < ran.index("figures")
+    assert ran.index("fetch-relays") + 1 == ran.index("fetch-timing") < ran.index("lp")
     assert (
         ran.index("validate") < ran.index("analyze") < ran.index("fetch-history") < ran.index("lp")
     )

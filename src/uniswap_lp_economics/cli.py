@@ -12,6 +12,7 @@ from uniswap_lp_economics import build, config, flows, snapshot, validate
 from uniswap_lp_economics.data import (
     bigquery,
     binance,
+    block_timing,
     builders,
     chain_state,
     history,
@@ -212,6 +213,12 @@ def fetch_relays() -> None:
     relays.fetch_relay_sample(config.RAW_DIR, int(blocks.min()), int(blocks.max()))  # type: ignore[arg-type]
 
 
+def fetch_timing() -> None:
+    """Sub-project 4: winning-bid times for the relay sample's blocks (free relay calls)."""
+    blocks = pl.read_parquet(config.RAW_DIR / bq_blocks.BLOCKS_FILE)["block_number"]
+    block_timing.fetch_block_timing(config.RAW_DIR, int(blocks.min()), int(blocks.max()))  # type: ignore[arg-type]
+
+
 def fetch_logs(confirm_cost: bool) -> None:
     """Pool logs for every window month not yet on disk (`ulpe all`)."""
     missing = [
@@ -259,6 +266,7 @@ ALL_STEPS = (
     "fetch-price-history",
     "fetch-builders",
     "fetch-relays",
+    "fetch-timing",
     "lp",
     "figures",
 )
@@ -297,6 +305,8 @@ def run_step(name: str, confirm_cost: bool) -> str:
         fetch_builders(confirm_cost)
     elif name == "fetch-relays":
         fetch_relays()
+    elif name == "fetch-timing":
+        fetch_timing()
     elif name == "lp":
         return lp_analysis_module.run_lp()
     elif name == "figures":
@@ -349,6 +359,7 @@ def main() -> None:
         "--confirm-cost", action="store_true", help="allow the paid BigQuery queries"
     )
     sub.add_parser("fetch-relays", help="relay-reported proposer payments for a block sample")
+    sub.add_parser("fetch-timing", help="winning-bid times for the relay sample's blocks")
     sub.add_parser("build", help="decode raw data into interim tables")
     sub.add_parser("validate", help="run checks C1-C6 and write data_validation/validation_report")
     sub.add_parser("analyze", help="run checks A1-A6 and write results/ (tables, summary)")
@@ -399,6 +410,8 @@ def main() -> None:
         )
     elif args.command == "fetch-relays":
         fetch_relays()
+    elif args.command == "fetch-timing":
+        fetch_timing()
     elif args.command == "build":
         try:
             build.build_all(config.RAW_DIR, config.INTERIM_DIR)
