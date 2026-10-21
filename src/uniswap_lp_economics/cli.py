@@ -170,6 +170,10 @@ def fetch_chain_state() -> None:
     if not hist.exists():
         print("no history yet: position state comes after `ulpe fetch-history`")
         return
+    done = (chain_state.START_POSITIONS, chain_state.END_POSITIONS, chain_state.OWNER_CODE)
+    if all((folder / name).exists() for name in done):
+        print("position state and owner code already downloaded, skipping")
+        return
     data = build_positions(*history.load_history(config.RAW_DIR))
     snap = int(meta["block"])
     end_block = int(
