@@ -1,6 +1,6 @@
 {
-  "generated_utc": "2026-10-15T23:24:33+00:00",
-  "git_commit": "bd00be7",
+  "generated_utc": "2026-10-21T21:28:22+00:00",
+  "git_commit": "73cc004",
   "input_sha256_16": {
     "interim/cex_ethusdc.parquet": "2bb21f2bb6ca55b8",
     "interim/cex_ethusdt_1s.parquet": "02a5ea793a51eea0",
@@ -37,7 +37,7 @@
       "mean_bp": 0.2533863032608462,
       "median_bp": -2.190964682981687,
       "ci_lo_bp": -0.13707210662318492,
-      "ci_hi_bp": 0.7654885312344645
+      "ci_hi_bp": 0.7654885312344646
     },
     {
       "grouping": "all",
@@ -49,7 +49,7 @@
       "markout_usd": 564229.587743267,
       "mean_bp": 0.8003325761386547,
       "median_bp": -2.4475963231812514,
-      "ci_lo_bp": 0.30422292525156636,
+      "ci_lo_bp": 0.30422292525156625,
       "ci_hi_bp": 1.4765565673567533
     },
     {
@@ -62,8 +62,8 @@
       "markout_usd": 734805.8629110735,
       "mean_bp": 1.0422911133681172,
       "median_bp": -2.9388134655086806,
-      "ci_lo_bp": 0.256709733979416,
-      "ci_hi_bp": 2.1984177475625684
+      "ci_lo_bp": 0.2567097339794158,
+      "ci_hi_bp": 2.198417747562569
     },
     {
       "grouping": "all",
@@ -220,8 +220,8 @@
       "markout_usd": -857815.0407373641,
       "mean_bp": -10.485386659929718,
       "median_bp": -4.695237217661521,
-      "ci_lo_bp": -11.182200268106858,
-      "ci_hi_bp": -9.765685245428337
+      "ci_lo_bp": -11.182200268106852,
+      "ci_hi_bp": -9.765685245428335
     },
     {
       "grouping": "flow_label",
@@ -311,8 +311,8 @@
       "markout_usd": -11680.970550880947,
       "mean_bp": -3.326251958205484,
       "median_bp": -2.0616988159991916,
-      "ci_lo_bp": -6.452730172221624,
-      "ci_hi_bp": -0.3514002392252559
+      "ci_lo_bp": -6.452730172221628,
+      "ci_hi_bp": -0.35140023922525604
     },
     {
       "grouping": "flow_label",
@@ -376,8 +376,8 @@
       "markout_usd": 1944.7778192657472,
       "mean_bp": 0.5537965499338834,
       "median_bp": -1.975028464235236,
-      "ci_lo_bp": -11.204630257982478,
-      "ci_hi_bp": 14.490210532666998
+      "ci_lo_bp": -11.204630257982483,
+      "ci_hi_bp": 14.490210532667003
     },
     {
       "grouping": "flow_label",
@@ -561,8 +561,8 @@
       "markout_usd": -17804.90417592513,
       "mean_bp": -5.070092174521019,
       "median_bp": -1.4835029352934583,
-      "ci_lo_bp": -7.326576572752209,
-      "ci_hi_bp": -3.1815938573530875
+      "ci_lo_bp": -7.32657657275221,
+      "ci_hi_bp": -3.181593857353086
     },
     {
       "variant": "t0_minus_2s",
@@ -621,8 +621,8 @@
       "markout_usd": -16817.928777730624,
       "mean_bp": -5.318041642113704,
       "median_bp": -1.4266813747502496,
-      "ci_lo_bp": -7.6313885758180575,
-      "ci_hi_bp": -3.28984068897932
+      "ci_lo_bp": -7.63138857581806,
+      "ci_hi_bp": -3.289840688979321
     },
     {
       "variant": "exclude_stale_over_5s",
@@ -1155,38 +1155,38 @@
     {
       "flow_label": "searcher",
       "swaps": 253280,
-      "notional_usd": 5270211098.659836,
-      "notional_share": 0.7475541370056927
+      "notional_usd": 5270211098.659838,
+      "notional_share": 0.747554137005693
     },
     {
       "flow_label": "uniswap_router",
       "swaps": 167988,
-      "notional_usd": 818105300.7949966,
-      "notional_share": 0.11604430840941168
+      "notional_usd": 818105300.7949964,
+      "notional_share": 0.11604430840941164
     },
     {
       "flow_label": "other_contract",
       "swaps": 91722,
-      "notional_usd": 768248014.4768481,
-      "notional_share": 0.1089722917578421
+      "notional_usd": 768248014.4768476,
+      "notional_share": 0.10897229175784202
     },
     {
       "flow_label": "aggregator",
       "swaps": 17822,
-      "notional_usd": 158257115.23412302,
-      "notional_share": 0.022448011851733857
+      "notional_usd": 158257115.23412305,
+      "notional_share": 0.02244801185173386
     },
     {
       "flow_label": "intent_settlement",
       "swaps": 3565,
-      "notional_usd": 35117515.74340401,
-      "notional_share": 0.004981250975320497
+      "notional_usd": 35117515.743403986,
+      "notional_share": 0.004981250975320493
     }
   ],
   "limitation": "Builder payments are detected only as direct ETH transfers from the bot contract to the block's fee recipient within the same transaction. Payments routed elsewhere (another contract, a separate transaction in the bundle, off-chain agreements) are missed, so the reported net profit is an **upper bound** on what the bots keep. Binance-side trading fees, inventory and hedging costs are not observed.",
   "lp": {
-    "generated_utc": "2026-10-15T23:51:58+00:00",
-    "git_commit": "59716ff",
+    "generated_utc": "2026-10-21T22:00:09+00:00",
+    "git_commit": "73cc004-dirty",
     "lp_fees_usd": 2644187.170867051,
     "protocol_fees_usd": 881290.1311692027,
     "lvr_0_usd": 3703796.759283188,
@@ -1650,8 +1650,8 @@
         "swaps": 534377,
         "unreproduced": 0,
         "by_mode": {
-          "exact_output": 25846,
           "exact_input": 496936,
+          "exact_output": 25846,
           "to_price": 11595
         },
         "engine_unmatched": 0
@@ -1734,7 +1734,7 @@
           {
             "lp_type": "jit",
             "positions": 844,
-            "fee_usd": 4752.9155765646165
+            "fee_usd": 4752.915576564618
           },
           {
             "lp_type": "lp_vault",
@@ -1744,7 +1744,7 @@
           {
             "lp_type": "nft_wallet",
             "positions": 5788,
-            "fee_usd": 2572025.8377652233
+            "fee_usd": 2572025.837765224
           },
           {
             "lp_type": "nft_contract",
@@ -1754,7 +1754,7 @@
           {
             "lp_type": "direct_other",
             "positions": 397,
-            "fee_usd": 17100.830842600786
+            "fee_usd": 17100.830842600793
           }
         ]
       },
@@ -1765,6 +1765,53 @@
       "R5 steps without a 12 s reference (reported)": {
         "steps": 586360,
         "without_12s_reference": 0
+      },
+      "R6 robustness table reproduces the headline (reported)": {
+        "identity_primary_0s_usd": -1059925.9304495873,
+        "primary_reprice_usd": 0.0,
+        "flash_lp_fees_usd": 316.3420334412755,
+        "headline_fees_minus_lvr_usd": -1059609.5884161368
+      }
+    },
+    "robustness": {
+      "crossing_offset_s": {
+        "binance_last_trade": -3.8652608695155832,
+        "binance_trade_side_mid": -3.2722946213100657,
+        "binance_ethusdt_1s_close": -3.491808072106955
+      },
+      "timing": {
+        "n_timed": 536,
+        "n_queried": 1000,
+        "p10_ms": 779.0,
+        "p50_ms": 976.5,
+        "p90_ms": 2567.5,
+        "by_relay": [
+          {
+            "relay": "https://aestus.live",
+            "n": 50,
+            "p50_ms": 955.5
+          },
+          {
+            "relay": "https://boost-relay.flashbots.net",
+            "n": 21,
+            "p50_ms": 549.0
+          },
+          {
+            "relay": "https://titanrelay.xyz",
+            "n": 465,
+            "p50_ms": 984.0
+          }
+        ]
+      },
+      "fees_minus_lvr_at_median_timing_usd": -1313732.9429838646,
+      "largest_reference_shift_0s_usd": 137466.88185502976,
+      "protocol_fees_share_of_gap": 0.8317121143519671,
+      "proxy_quality": {
+        "crossed_share": 0.18038950029660708,
+        "spread_bp_p10": -0.3743225430400676,
+        "spread_bp_p50": 0.12343621742137666,
+        "spread_bp_p90": 2.5236322047687376,
+        "mean_abs_last_minus_mid_bp": 0.46908758752846896
       }
     },
     "destination": {

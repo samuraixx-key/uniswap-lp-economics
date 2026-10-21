@@ -1,7 +1,7 @@
 {
   "status": "PASS",
-  "generated_utc": "2026-10-15T23:51:58+00:00",
-  "git_commit": "59716ff",
+  "generated_utc": "2026-10-21T22:00:09+00:00",
+  "git_commit": "73cc004-dirty",
   "checks": [
     {
       "name": "L1 every swap reproduced bit-exactly",
@@ -11,8 +11,8 @@
         "swaps": 534377,
         "unreproduced": 0,
         "by_mode": {
-          "exact_output": 25846,
           "exact_input": 496936,
+          "exact_output": 25846,
           "to_price": 11595
         },
         "engine_unmatched": 0
@@ -149,7 +149,7 @@
           {
             "lp_type": "jit",
             "positions": 844,
-            "fee_usd": 4752.9155765646165
+            "fee_usd": 4752.915576564618
           },
           {
             "lp_type": "lp_vault",
@@ -159,7 +159,7 @@
           {
             "lp_type": "nft_wallet",
             "positions": 5788,
-            "fee_usd": 2572025.8377652233
+            "fee_usd": 2572025.837765224
           },
           {
             "lp_type": "nft_contract",
@@ -169,7 +169,7 @@
           {
             "lp_type": "direct_other",
             "positions": 397,
-            "fee_usd": 17100.830842600786
+            "fee_usd": 17100.830842600793
           }
         ]
       },
@@ -192,6 +192,18 @@
       "summary": {
         "steps": 586360,
         "without_12s_reference": 0
+      },
+      "mismatches": []
+    },
+    {
+      "name": "R6 robustness table reproduces the headline (reported)",
+      "passed": true,
+      "reported": true,
+      "summary": {
+        "identity_primary_0s_usd": -1059925.9304495873,
+        "primary_reprice_usd": 0.0,
+        "flash_lp_fees_usd": 316.3420334412755,
+        "headline_fees_minus_lvr_usd": -1059609.5884161368
       },
       "mismatches": []
     }
