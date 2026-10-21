@@ -14,11 +14,11 @@ if TYPE_CHECKING:
     from uniswap_lp_economics.lp.ledger import Ledger
 
 
-def check_l1(swap_fees: pl.DataFrame, engine_unmatched: int = 0) -> CheckResult:
+def check_l1(swap_fees: pl.DataFrame, engine_unmatched: int) -> CheckResult:
     """Every swap re-simulated bit-exactly in one of the reproduction modes, both in
     `swap_fees` (sub-project 2's replay) and in the LP engine's own replay (`engine_unmatched`:
     swaps the engine could not reproduce from its state, which would accrue no fees)."""
-    modes = swap_fees.group_by("mode").len().drop_nulls("mode")
+    modes = swap_fees.group_by("mode").len().drop_nulls("mode").sort("mode")  # stable order
     counts: dict[str, Any] = dict(zip(modes["mode"].to_list(), modes["len"].to_list(), strict=True))
     bad = swap_fees.filter(pl.col("mode").is_null())
     listed = [

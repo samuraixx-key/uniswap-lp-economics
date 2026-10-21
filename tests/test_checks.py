@@ -200,7 +200,7 @@ def test_a5_reports_other_contract_share_and_top_unlabelled() -> None:
         }
     )
     r = check_a5(labelled)
-    assert r.passed and r.summary["other_contract_notional_share"] == 0.4
+    assert r.passed and r.reported and r.summary["other_contract_notional_share"] == 0.4
     assert [m["address"] for m in r.mismatches] == ["0xb", "0xc"]
 
 
@@ -222,7 +222,7 @@ def test_a6_counts_miner_transfers_and_payments_in_top_bot_txs() -> None:
     )
     blocks = pl.DataFrame({"block_number": [1, 2, 3], "miner": ["m1", "mX", "m3"]})
     r = check_a6(transfers, aligned, blocks)
-    assert r.passed
+    assert r.passed and r.reported
     assert r.summary["top_bot_txs"] == 2
     assert r.summary["transfers_to_miner"] == 1 and r.summary["transfers_to_others"] == 2
     assert r.summary["share_txs_with_coinbase_payment"] == 0.5
