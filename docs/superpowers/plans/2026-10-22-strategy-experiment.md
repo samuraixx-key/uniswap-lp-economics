@@ -55,9 +55,10 @@ plan cites its sections as "spec N").
    would silently misalign the paired bootstrap. Test in Task 6.
 4. **Draws whose summed LVR is ≤ 0:** undefined, counted against "inside ±δ" and left out of
    "entirely above/below" (spec 7.1). Test in Task 6.
-5. **A freeze file that does not match the inputs or cannot be read:** the August–September step
-   stops with a message naming the file and never rewrites it; a July re-run with an existing
-   freeze refuses to write. Test in Task 9.
+5. **A freeze file that does not match the inputs or cannot be read:** the report-period run
+   stops with a message naming the file and never rewrites it; `write_freeze` on an existing file
+   refuses. And the first run (no freeze yet) writes no report-period number at all. Tests in
+   Task 9.
 
 ---
 
@@ -170,6 +171,7 @@ first step's is `book.tick`). `rule.end_block(pool_price)` after the block's las
 - [ ] **Step 4: Implement** `step_values` (and switch `PoolState.swap`/`flash` to it), `FixedFee`, `CfInputs`, `SwapInfo`, `prepare_inputs`, `reexecute`, `run_pool` (identity path: no arbitrage yet; `daily` may be empty until Task 3), `check_s2`. S2 compares, exactly: per block `sqrt_price_x96, tick, liquidity` after the block vs `blocks_state.end_sqrt_price_x96, end_tick, end_liquidity`; per step `liquidity, amount_in, amount_out, fee, protocol_fee, lp_fee, crossed_tick, fee_usd, lvr_0` vs `swap_steps.parquet` on `(block_number, log_index, step)` (flash rows included); row counts equal. Its summary: `blocks_compared, steps_compared, mismatches, first_mismatch`.
 - [ ] **Step 5: Run** `uv run pytest -q`. Expected: all PASS (existing L-check tests included).
 - [ ] **Step 6: Commit** `git commit -m "strategy: carried-forward pool, mode re-execution, check S2; synthetic world gains exact-output and to-price swaps"`.
+- [ ] **Step 7: Catch a `step_values` regression on real data now**, not after seven more tasks: start `uv run ulpe lp` in the background (`run_in_background`, log to the scratchpad); when it finishes, `git diff --stat results/` must show only `summary.json`'s `generated_utc` and `git_commit` lines; then `git checkout -- results/`. If any other number moved, stop and fix `step_values` before anything builds on it. Task 3 may start while it runs; Task 3's commit waits for its result.
 
 ---
 
@@ -194,8 +196,10 @@ first step's is `book.tick`). `rule.end_block(pool_price)` after the block's las
 Simulated arbitrage at each block start (spec 6.1, 6.3), when `replace`: `p_ref` = `p_ref_0` or
 `p_ref_1` by `ref_offset_s`; no reference → no trade, counted. `arb_to_price(book, p_ref, fee_pips,
 ARB_CEX_FEE_BP)`; trade only if `profit_usd > base_fee_wei × min_profit_gas / 1e18 × p_ref`,
-else count `below_min_profit`. A trade re-runs as `swap(book, zero_for_one, amount_in, limit,
-fee_pips)` to get its steps (source `"arb"`), valued for LVR at `p_ref_0` (the headline t0 price,
+else count `below_min_profit`. A trade re-runs as `swap(book, zero_for_one, r.amount_in,
+fee_pips=fee_pips)` (exact input, no limit: `ArbResult` carries no limit price) to get its steps
+(source `"arb"`); assert its `amount_out` equals `r.amount_out` (the same swap from the same
+state, so it lands where `arb_to_price` said). Steps are valued for LVR at `p_ref_0` (the headline t0 price,
 also in the +1 s run: only the arbitrage's decision price moves).
 
 - [ ] **Step 1: Write the failing tests:**
@@ -208,7 +212,8 @@ also in the +1 s run: only the arbitrage's decision price moves).
 - [ ] **Step 2: Run:** `uv run pytest tests/test_strategy_cfpool.py -q`. Expected: the new tests FAIL.
 - [ ] **Step 3: Implement** the three rules, `rule_grid`, the arbitrage in `run_pool`, the per-day aggregates, `replaced_keys`, `sandwich_legs`, `min_profit_gas`, `check_s3`.
 - [ ] **Step 4: Run:** `uv run pytest -q`. Expected: all PASS.
-- [ ] **Step 5: Commit** `git commit -m "strategy: simulated arbitrage, on-chain dynamic fees and the oracle bound, per-day aggregates, S3, sandwich count"`.
+- [ ] **Step 5: Measure runtime and memory on real data** (a throwaway script in the scratchpad, not committed): `prepare_inputs` on the real files cut to 2026-07-01 (one day), `run_pool(..., FixedFee(500), replace=True, min_profit_gas=<July median>)`; record wall time per day and the process's peak memory (`tracemalloc` for Python objects, and the working set from PowerShell `Get-Process`; `psutil` is not a dependency). Extrapolate to 92 days × 34 runs and put the numbers in the task report. Choose the default `workers` for Task 9 so that `workers × peak memory` stays under 70% of the machine's RAM (`Get-CimInstance Win32_ComputerSystem`), and state the expected wall time of a full `ulpe strategy` report run. If one full-window run would take more than about 30 minutes, report it before Task 9 starts; do not optimise speculatively.
+- [ ] **Step 6: Commit** `git commit -m "strategy: simulated arbitrage, on-chain dynamic fees and the oracle bound, per-day aggregates, S3, sandwich count"`.
 
 ---
 
@@ -314,7 +319,7 @@ taker_fee_bp / 1e4`. `twv_usd` per day = mean of that day's hourly position valu
   - `stats.paired(a: np.ndarray, b: np.ndarray, point: float, delta: float) -> Paired` (draws of a − b; `nan` if either is `nan`).
   - `stats.delta_from(r0: float) -> float` = `(1 − r0) / DELTA_DIVISOR`; raises `ValueError("full range broke even in July (r0 = …): the pre-registered margin is undefined")` if `r0 >= 1`.
   - `stats.range_verdict(cells: dict[str, Paired]) -> str` (`"holds" | "fails" | "inconclusive"`).
-  - `stats.fee_verdicts(levels: dict[float, Paired], calibrated: bool) -> tuple[dict[float, str], str]` (per level `"holds" | "fails" | "inconclusive"`, summary `"holds from <f> bp" | "fails" | "not tested (calibration failed)"`).
+  - `stats.fee_verdicts(levels: dict[float, Paired], calibrated: bool, baseline_bp: float = BASELINE_FEE_BP) -> tuple[dict[float, str], str]` (per level: `"holds" | "fails" | "inconclusive"` for f > baseline, `"not tested (below baseline)"` for f < baseline, the baseline itself left out; summary `"holds from <f> bp" | "fails" | "not tested (calibration failed)"`, judged on levels above the baseline only; spec 7.2).
   - `stats.break_even_share(r_f: float, r_5: float, fees_kept_f: float, lvr_kept_f: float) -> float | None` (spec 6.5; `None` if the denominator ≤ 0).
   - `stats.break_even_fee(fees_bp: list[float], ratios: list[float]) -> float | None` (lowest fee where the ratio reaches 1, linear between grid points; `None` if never).
   - `stats.interp(xs: list[float], ys: list[float], x: float) -> float`.
@@ -328,14 +333,15 @@ Interval and decision rules (spec 7), not left to judgement:
 - `above` = `lo > δ` on defined draws; `below` = `hi < δ` on defined draws.
 - Range: `"fails"` if any counted cell is `above`; else `"holds"` if every one is `inside`; else
   `"inconclusive"`.
-- Fee level: `"holds"` if `above`, `"fails"` if `below`, else `"inconclusive"`; summary is the
-  lowest level that holds, `"fails"` if none does.
+- Fee level (f > 5 bp only; lower levels are `"not tested (below baseline)"`): `"holds"` if
+  `above`, `"fails"` if `below`, else `"inconclusive"`; summary is the lowest level above 5 bp
+  that holds, `"fails"` if none does.
 
 - [ ] **Step 1: Write the failing tests:**
   - `test_index_matches_theory`: `day_index(61)[0]` equals the first row `theory.day_bootstrap_sum` would draw (same rng call).
   - `test_on_grid_zero_fills` (Review Focus 3): a frame missing a day gets a zero row in grid order.
   - `test_undefined_draws` (Review Focus 4): with 3% of draws `nan`, `inside is False` even when the defined draws sit at 0; with 2% `nan` at 0 and δ = 0.07, `inside is True`; `nan` draws never make `above` true.
-  - `test_verdicts`: three cells inside → `"holds"`; one above → `"fails"`; one straddling → `"inconclusive"`; fee levels `{10: inconclusive, 20: holds, 30: holds}` → summary `"holds from 20 bp"`; `calibrated=False` → `"not tested (calibration failed)"`.
+  - `test_verdicts`: three cells inside → `"holds"`; one above → `"fails"`; one straddling → `"inconclusive"`; fee levels `{1: below +δ, 10: inconclusive, 20: holds, 30: holds}` → level 1 is `"not tested (below baseline)"` and the summary is `"holds from 20 bp"` (level 1 lying below +δ does not make anything `"fails"`); `calibrated=False` → `"not tested (calibration failed)"`.
   - `test_delta`: `delta_from(0.72) == 0.07`; `delta_from(1.0)` raises.
   - `test_break_even`: `break_even_fee([5, 10, 20], [0.8, 0.9, 1.1]) == 15.0`; `break_even_share(1.0, 0.0, 4.0, 2.0) == 0.5`; denominator 0 → `None`; `protocol_cut(75.0, 0.0) == 100.0`.
 - [ ] **Step 2: Run:** `uv run pytest tests/test_strategy_stats.py -q`. Expected: FAIL.
@@ -382,7 +388,7 @@ Interval and decision rules (spec 7), not left to judgement:
 - Produces:
   - `hedge.position_path(segs: pl.DataFrame, starts: pl.DataFrame, minutes: pl.DataFrame) -> pl.DataFrame` (`ts_us, eth, value_usd`: the position's WETH amount and token value at spot, per minute, as-of the block-start pool price).
   - `hedge.simulate(path: pl.DataFrame, perp: pl.DataFrame, funding: pl.DataFrame, rule: str, taker_fee_bp: float) -> pl.DataFrame` (per day: `day, hedge_pnl_usd, funding_usd, trade_usd, rehedges`).
-  - `hedge.hedge_table(lp_daily: pl.DataFrame, path: pl.DataFrame, perp: pl.DataFrame, funding: pl.DataFrame, capital: float) -> pl.DataFrame` (`strategy, rule, taker_fee_bp, bp_per_day, sd_daily_usd_per_1m, mean_daily_usd_per_1m`, plus rows `unhedged` and `rebalancing_benchmark`).
+  - `hedge.hedge_table(lp_daily: pl.DataFrame, path: pl.DataFrame, perp: pl.DataFrame, funding: pl.DataFrame, capital: float) -> pl.DataFrame` (`strategy, rule, taker_fee_bp, bp_per_day, sd_daily_usd_per_1m, mean_daily_usd_per_1m`, plus a `rebalancing_benchmark` row; the `never` rule is the unhedged position, listed once with taker fee 0).
 
 Rules (spec 8): hedge `h` = short `eth` perp contracts, re-set to the current `eth` at: `never` (h = 0),
 `daily` (first minute of each UTC day), `hourly`, `drift` (any minute where `|eth − h| × close >
@@ -395,7 +401,7 @@ P&L by construction);
 `rebalancing_benchmark` = `fee_usd − lvr_usd − gas_usd − trade_usd`. The README states the identity:
 the hedge changes the spread, not fees − LVR.
 
-- [ ] **Step 1: Write the failing tests:** `test_never_has_no_cost`; `test_hourly_on_a_linear_path`: with `eth` constant and the perp rising $1 per minute for 120 minutes, `hourly` has hedge P&L `−eth × 120` and 2 re-hedges after the first; `test_funding_sign`: a positive rate pays the short; `test_drift_rule` re-hedges only past 10%; `test_table_rows`: 4 rules × 3 taker fees + `unhedged` + `rebalancing_benchmark` per strategy.
+- [ ] **Step 1: Write the failing tests:** `test_never_has_no_cost`; `test_hourly_on_a_linear_path`: with `eth` constant and the perp rising $1 per minute for 120 minutes, `hourly` has hedge P&L `−eth × 120` and 2 re-hedges after the first; `test_funding_sign`: a positive rate pays the short; `test_drift_rule` re-hedges only past 10%; `test_table_rows`: per strategy, `never` once + 3 rules × 3 taker fees + `rebalancing_benchmark` = 11 rows, and no row named `unhedged`.
 - [ ] **Step 2: Run:** `uv run pytest tests/test_strategy_hedge.py -q`. Expected: FAIL.
 - [ ] **Step 3: Implement** `hedge.py`.
 - [ ] **Step 4: Run:** same. Expected: PASS.
@@ -413,6 +419,7 @@ the hedge changes the spread, not fees − LVR.
 **Interfaces:**
 - Consumes: everything above; `lp.analyze.load_lp_inputs`, `lp.analyze.hourly_grid`, `validate.require_validated`, `validate.file_hash`, `validate.git_commit`, `report.write_markdown/write_table/metrics_table`, `io.write_text_atomic`.
 - Produces:
+  - `analyze.PREREG_TAG = "strategy-preregistered"`.
   - `analyze.FREEZE_FILE = "strategy_freeze.json"` (in `results/`).
   - `analyze.write_freeze(path: Path, payload: dict[str, Any]) -> None` (refuses with `FileExistsError` if the file exists; writes atomically).
   - `analyze.read_freeze(path: Path, hashes: dict[str, str]) -> dict[str, Any]` (raises `SystemExit` with a message naming the file if it cannot be parsed or its `input_hashes` differ from `hashes`; never writes).
@@ -420,20 +427,27 @@ the hedge changes the spread, not fees − LVR.
   - `analyze.StrategyExtras` (dataclass): `positions, position_flows, swap_steps: pl.DataFrame; funding, perp: pl.DataFrame`.
   - `analyze.run_strategy() -> str` (refuses unless `results/summary.json` has `"lp"` and the processed LP files exist).
 
-Flow of `strategy_analysis` (spec 4, 9):
+Flow of `strategy_analysis` (spec 4, 9), in **two runs** (spec 4: "the first run computes July
+only and writes the freeze"). With no freeze file, the run does steps 1, 3 (July only) and 4,
+writes the freeze and `strategy_checks.md`, prints `July frozen: commit results/strategy_freeze.json,
+tag it strategy-preregistered, then run ulpe strategy again`, and returns `"FROZEN"`, having
+computed no report-period number (its cfpool runs use `prepare_inputs(..., end_us=split_us)`).
+With a freeze file, it does steps 1, 2, 3 (report period), 5 and 6, taking every July value from
+the freeze.
 1. `replaced = replaced_keys(...)`; `ci = prepare_inputs(...)`; identity run `run_pool(ci, FixedFee(500), replace=False, keep_steps=True)`; `check_s2`; `check_s1` on its steps. Either fails → write `strategy_checks.md` (via `validate.write_report(..., stem="strategy_checks", title="Strategy checks")`) and return `"FAIL"`, no other file written.
-2. Fee runs, in a `concurrent.futures.ProcessPoolExecutor` (`workers` default `os.cpu_count() − 1`; the worker initializer receives `ci` once; Windows spawns processes, so the worker function and the rules must be top-level and picklable; `workers=1` runs in-process, which the tests use): every rule in `rule_grid()` with `replace=True, ref_offset_s=0`, plus the 10 fixed levels at `ref_offset_s=1`. Each run covers the whole window from the snapshot (the counterfactual pool is carried through July into August, *plan's call*); `daily` is split by period afterwards.
-3. Range cells on the identity steps, with `starts` = `blocks_state` (`block_number, ts_us, tick, sqrt_price_x96`) joined to `ci.blocks` (`day, p_ref_0`): for each period separately (July and report), fresh capital at the period's first block (spec 4): 9 widths × 4 rules + full range, `score` at `PRIMARY_CAPITAL` and taker fee 5 bp; the 1 and 10 bp taker variants re-price `trade_usd` linearly.
-4. **July:** `r0` = July full-range fees ÷ LVR; `delta = delta_from(r0)`; S3 on July (5 bp model and its +1 s run); best strategy = tested cell (rule in `TESTED_RULES`) with the highest July `bp_per_day` at $1M. If the freeze file is missing → `write_freeze` with `delta, r0, calibration (passed, ratios), best_strategy, input_hashes` (`validate.file_hash` of every input file this step reads, keyed by data-relative path), `git_commit, generated_utc`. If it exists → `read_freeze` (Review Focus 5) and use its values, never July's recomputed ones; print one line if a recomputed value differs.
-5. **Report period** with the frozen values: range test (27 tested cells at $1M, `paired` against full range on `ratio_draws` of daily fees and LVR; static cells descriptive with `in_range_share`, `days_in_range`), size flags (`peak_share > PEAK_SHARE_FLAG` at each capital), fee per-level verdicts on the arbitrage side (`fee_arb_pl / lvr_arb_pl` at f against the 5 bp model run), whole-pool ratios (`(fee_arb_pl + fee_kept_pl) / (lvr_arb_pl + lvr_kept_pl)`), `break_even_share` per configuration, `X = break_even_fee` on the fixed levels and `Y = interp(levels, shares, X)`, dynamic and oracle rows with their average charged fee (`fee_pips_sum / n_blocks / 100`), a reference row for the real pool (the identity run's ratios), the +1 s rows of the fixed levels, protocol cut rows on the real full range, the hedge table for full range and the best strategy.
-6. Write (nothing before every number is computed, as `lp_analysis` does): `strategy_checks.md` (S1, S2, S3, size flags, sandwich count, the cfpool counts), `strategy_ranges.md/.csv` (`STRATEGY_COLUMNS`; tested and static tables separately), `strategy_fees.md/.csv`, `strategy_hedge.md/.csv`, `strategy_test.md` (δ, r0, both verdicts, the lowest holding fee, X, Y, which cells are flagged and whether a verdict depends on one); `summary.json["strategy"]` (read the existing file, replace only that key); figure data under `results/figure_data/strategy_*.csv` for Task 11. Every table carries the counterfactual note (`COUNTERFACTUAL_NOTE`, one sentence: "Counterfactual: holds other traders' behaviour fixed; they would react to a different range, fee or hedge.") and fee tables also `FEE_NOTE` naming the fixed-volume shortcut and the break-even beside it, and "model-only" if calibration failed.
+2. (Report run.) Fee runs, in a `concurrent.futures.ProcessPoolExecutor` (`workers` default `os.cpu_count() − 1`; the worker initializer receives `ci` once; Windows spawns processes, so the worker function and the rules must be top-level and picklable; `workers=1` runs in-process, which the tests use): every rule in `rule_grid()` with `replace=True, ref_offset_s=0`, plus the 10 fixed levels at `ref_offset_s=1`. Each run covers the whole window from the snapshot (the counterfactual pool is carried through July into August, *plan's call*); `daily` is split by period afterwards.
+3. Range cells on the identity steps, with `starts` = `blocks_state` (`block_number, ts_us, tick, sqrt_price_x96`) joined to `ci.blocks` (`day, p_ref_0`): for the run's period (July in the first run, the report period in the second), fresh capital at the period's first block (spec 4): 9 widths × 4 rules + full range, `score` at `PRIMARY_CAPITAL` and taker fee 5 bp; the 1 and 10 bp taker variants re-price `trade_usd` linearly.
+4. **July (first run only):** `min_profit_gas = checks.min_profit_gas(...)` on July; `r0` = July full-range fees ÷ LVR; `delta = delta_from(r0)`; S3 on July (two 5 bp runs on the July-cut `ci`, the model and its +1 s variant, both with that `min_profit_gas`); best strategy = the tested cell (rule in `TESTED_RULES`) with the highest July `bp_per_day` at $1M. `write_freeze` with `delta, r0, min_profit_gas, calibration (passed, ratios), best_strategy, cfpool_counts` (both July runs) `, input_hashes` (`validate.file_hash` of every input file the strategy step reads, keyed by data-relative path), `git_commit, generated_utc`. In the report run, `read_freeze` (Review Focus 5) supplies `delta`, `min_profit_gas`, the calibration verdict and the best strategy; July is not recomputed.
+5. **Report period** (report run) with the frozen values: range test (27 tested cells at $1M, `paired` against full range on `ratio_draws` of daily fees and LVR; static cells descriptive with `in_range_share`, `days_in_range`), size flags (`peak_share > PEAK_SHARE_FLAG` at each capital), fee per-level verdicts on the arbitrage side (`fee_arb_pl / lvr_arb_pl` at f against the 5 bp model run), whole-pool ratios (`(fee_arb_pl + fee_kept_pl) / (lvr_arb_pl + lvr_kept_pl)`), `break_even_share` per configuration, `X = break_even_fee` on the fixed levels and `Y = interp(levels, shares, X)`, dynamic and oracle rows with their average charged fee (`fee_pips_sum / n_blocks / 100`), a reference row for the real pool (the identity run's ratios), the +1 s rows of the fixed levels, protocol cut rows on the real full range, the hedge table for full range and the best strategy.
+6. (Report run.) Write (nothing before every number is computed, as `lp_analysis` does): `strategy_checks.md` (S1, S2, S3, size flags, sandwich count, the cfpool counts), `strategy_ranges.md/.csv` (`STRATEGY_COLUMNS`; tested and static tables separately), `strategy_fees.md/.csv`, `strategy_hedge.md/.csv`, `strategy_test.md` (δ, r0, both verdicts, the lowest holding fee, X, Y, which cells are flagged and whether a verdict depends on one); `summary.json["strategy"]` (read the existing file, replace only that key); figure data under `results/figure_data/strategy_*.csv` for Task 11. Every table carries the counterfactual note (`COUNTERFACTUAL_NOTE`, one sentence: "Counterfactual: holds other traders' behaviour fixed; they would react to a different range, fee or hedge.") and fee tables also `FEE_NOTE` naming the fixed-volume shortcut and the break-even beside it, and "model-only" if calibration failed.
 
 - [ ] **Step 1: Write the failing tests** (on lpworld inputs with a `split_us` inside the world and synthetic futures frames):
-  - `test_end_to_end_writes_every_file`: `strategy_analysis` returns `"PASS"` and writes the six results files and the freeze; `summary.json` keeps its `"lp"` key unchanged and gains `"strategy"`.
+  - `test_first_run_freezes_and_stops`: with no freeze, `strategy_analysis` returns `"FROZEN"` and writes only `strategy_freeze.json` (carrying `delta, r0, min_profit_gas, calibration, best_strategy, input_hashes`) and `strategy_checks.md`: no `strategy_ranges*`, `strategy_fees*`, `strategy_hedge*`, `strategy_test.md` or `figure_data/strategy_*`, and `summary.json` byte-identical.
+  - `test_second_run_writes_every_file`: a second call returns `"PASS"`, writes the six results files, leaves the freeze byte-identical, and `summary.json` keeps its `"lp"` key unchanged and gains `"strategy"`.
   - `test_failed_gate_writes_only_checks`: monkeypatch `check_s1` to fail → `"FAIL"`, `strategy_checks.md` exists, no other strategy file and no freeze.
-  - `test_freeze_is_write_once` (Review Focus 5): a second run reads the freeze and does not rewrite it (mtime and bytes unchanged); `write_freeze` on an existing path raises `FileExistsError`.
+  - `test_freeze_is_write_once` (Review Focus 5): `write_freeze` on an existing path raises `FileExistsError` and leaves it unchanged.
   - `test_freeze_mismatch_stops`: a freeze whose `input_hashes` differ, and one with invalid JSON → `SystemExit` naming the file; the file is unchanged.
-  - `test_frozen_values_win`: a hand-edited frozen `delta` is the δ used in `strategy_test.md`.
+  - `test_frozen_values_win`: a hand-edited frozen `delta` and `min_profit_gas` are what the report run uses (δ in `strategy_test.md`; `min_profit_gas` in every `run_pool` call).
   - `test_all_steps_order` (in `test_cli_all.py`): `"fetch-futures"` precedes `"lp"`, `"strategy"` sits between `"lp"` and `"figures"`.
 - [ ] **Step 2: Run:** `uv run pytest tests/test_strategy_analyze.py tests/test_cli_all.py -q`. Expected: FAIL.
 - [ ] **Step 3: Implement** `analyze.py` and the CLI wiring.
@@ -447,11 +461,12 @@ Flow of `strategy_analysis` (spec 4, 9):
 **Files:**
 - Modify: `results/` (new strategy files, `summary.json` `"strategy"` key, the freeze), nothing else.
 
-- [ ] **Step 1: Confirm `ulpe lp` results are untouched by the branch:** run `uv run ulpe lp` (in the background; it is long) and `git diff --stat results/` → expected: only `summary.json` `generated_utc`/`git_commit` lines change. If anything else changes, stop: the `step_values` refactor changed a number.
-- [ ] **Step 2: Run** `uv run ulpe strategy` in the background (`run_in_background`), logging to the scratchpad. Expected first lines: `PASS  S2 identity replay: …mismatches 0…` and `PASS  S1 range attribution vs engine: …failures 0…`; then the freeze written (`results/strategy_freeze.json`), then the report period.
-- [ ] **Step 3: Commit the freeze on its own, before reading any report-period table:** `git add results/strategy_freeze.json && git commit -m "strategy: July freeze (delta, r0, calibration verdict, best strategy)"`. This commit's timestamp is the pre-registration record.
-- [ ] **Step 4: Read the results** (`results/strategy_test.md` first) and check the sanity points: identity-run full-range July r0 within 0.05 of the builder check's 0.73 estimate (a larger gap means a bug, not a finding: investigate with superpowers:systematic-debugging); every tested cell has an interval; the fee curve is monotone in level on the arbitrage side or the deviation is explained.
-- [ ] **Step 5: Commit results** `git add results/ && git commit -m "Results: Phase 5 strategy experiment (range test, fee curves, hedge)"`; push the branch.
+- [ ] **Step 1: First run (July only):** `uv run ulpe strategy` in the background (`run_in_background`, log to the scratchpad). Expected: `PASS  S2 identity replay: …mismatches 0…`, `PASS  S1 range attribution vs engine: …failures 0…`, then `July frozen: …` and status `FROZEN`; `results/` gains only `strategy_freeze.json` and `strategy_checks.md`.
+- [ ] **Step 2: Sanity-check July before committing anything:** `r0` within 0.05 of the builder check's 0.73 estimate; S3's `lvr_ratio` and `fee_ratio` finite and positive; the cfpool counts plausible (`arb_trades` in the tens of thousands for July, `to_price_skipped` and `no_reference_blocks` small, `below_min_profit` reported). A failure here is a bug, not a finding: delete the uncommitted freeze, fix it with superpowers:systematic-debugging, and repeat Step 1. Nothing about the report period is known yet, so this is allowed.
+- [ ] **Step 3: Pre-register:** `git add results/strategy_freeze.json results/strategy_checks.md && git commit -m "strategy: July freeze (delta, r0, min_profit_gas, calibration verdict, best strategy)" && git tag strategy-preregistered && git push --follow-tags`. From here on the freeze is never edited or deleted.
+- [ ] **Step 4: Report run:** `uv run ulpe strategy` again, in the background. Expected status `PASS` and the report-period files of Task 9.
+- [ ] **Step 5: Read the results** (`results/strategy_test.md` first): every tested cell has an interval; the arbitrage-side fee curve rises with the level, or the deviation is explained in the task report. Whatever the verdicts are, they are reported as computed.
+- [ ] **Step 6: Commit results** `git add results/ && git commit -m "Results: Phase 5 strategy experiment (range test, fee curves, hedge)"`; push the branch.
 
 ---
 
@@ -470,8 +485,8 @@ Figure content (spec 9): (14) Δ(fees ÷ LVR) with paired intervals per tested c
 x axis, one marker style per rule, the ±δ band shaded; static cells not drawn. (15) two panels:
 arbitrage-side fees ÷ LVR against fee level with +δ above the 5 bp value marked and the dynamic
 points at their average fee; break-even volume loss against fee level, with whole-pool fees ÷ LVR
-and X marked. (16) hedge: mean daily return against the SD of daily P&L per rule, unhedged and
-the rebalancing benchmark marked. Every figure's source note carries the counterfactual caveat;
+and X marked. (16) hedge: mean daily return against the SD of daily P&L per rule (`never` is the
+unhedged position) and the rebalancing benchmark marked. Every figure's source note carries the counterfactual caveat;
 figure 15 says "model-only" when calibration failed.
 
 - [ ] **Step 1: Write the failing tests:** titles: `title_range("holds", 0.068)` starts `"No range or rebalancing rule moves fees ÷ LVR by more than 0.07"`; `"fails"` and `"inconclusive"` give titles that claim nothing beyond the verdict; `title_fee(18.0, 0.31, False)` contains `"about 18 bp"` and `"31%"`; `title_fee(..., True)` starts `"Model only:"`; each figure renders from `vizfix` and its source text contains `"ignores how other traders would react"`; render is byte-stable twice (as the other figure tests).
