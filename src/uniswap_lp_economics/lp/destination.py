@@ -33,9 +33,10 @@ def block_split(block_revenue: pl.DataFrame, classes: pl.DataFrame, payouts: boo
     (`payouts.block_classes`). A `paid` block pays its last transaction's value; a `payout` block
     does so only when `payouts` is set (the payout rule). Every other non-empty block is classed
     self-built: the fee recipient is taken to be the proposer and Q_b = R_b. That is the primary
-    method. The relay sample shows that most such blocks are in fact MEV-Boost blocks that pay the
-    proposer some other way, so `destination` also reports a sensitivity with these blocks at the
-    paid-block share. An empty block pays nothing and is not self-built."""
+    method. Under the hedge (the holdout did not support one split) the relay sample shows that
+    most such blocks are in fact MEV-Boost blocks that pay the proposer some other way, so
+    `destination` also reports a sensitivity with these blocks at the paid-block share; under the
+    one split it does not. An empty block pays nothing and is not self-built."""
     revenue = pl.col("priority_wei") + pl.col("direct_wei")
     empty = pl.col("cls") == payouts_mod.EMPTY
     from_last = (pl.col("cls") == payouts_mod.PAID) | (

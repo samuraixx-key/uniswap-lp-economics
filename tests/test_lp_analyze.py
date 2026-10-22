@@ -154,7 +154,31 @@ def test_lp_analysis_end_to_end(tmp_path: Path) -> None:
         assert (processed / name).exists(), name
 
 
-def _run_world(tmp_path: Path) -> tuple[dict[str, Any], str]:
+PAYOUT_BLOCK = 7  # a world block with a searcher swap; last_value 5e14, builder revenue 1e15
+
+
+def _run_world(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> tuple[dict[str, Any], str, pl.DataFrame]:
+    """Run the world with block 7 classed `payout` and return the summary's "lp" part, the
+    destination file and the split that `searcher_costs` was given (the published split)."""
+    real_classes, real_costs = lp.payouts.block_classes, destination.searcher_costs
+    seen: list[pl.DataFrame] = []
+
+    def classes(rev: pl.DataFrame, last: pl.DataFrame) -> pl.DataFrame:
+        c = real_classes(rev, last)
+        return c.with_columns(
+            cls=pl.when(pl.col("block_number") == PAYOUT_BLOCK)
+            .then(pl.lit("payout"))
+            .otherwise(pl.col("cls"))
+        )
+
+    def costs(*args: Any) -> pl.DataFrame:
+        seen.append(args[-1])
+        return real_costs(*args)
+
+    monkeypatch.setattr(lp.payouts, "block_classes", classes)
+    monkeypatch.setattr(destination, "searcher_costs", costs)
     results = tmp_path / "results"
     results.mkdir()
     (results / "summary.json").write_text(json.dumps({"swaps": 4}))
@@ -162,31 +186,49 @@ def _run_world(tmp_path: Path) -> tuple[dict[str, Any], str]:
         world_inputs(), results, tmp_path / "processed", {"git_commit": "t"}, end_us=world_end_us()
     )
     summary = json.loads((results / "summary.json").read_text(encoding="utf-8"))
-    return summary["lp"], (results / "lvr_destination.md").read_text(encoding="utf-8")
+    text = (results / "lvr_destination.md").read_text(encoding="utf-8")
+    return summary["lp"], text, seen[0]
 
 
-def test_hedge_keeps_the_sensitivity(tmp_path: Path) -> None:
+def _payment(split: pl.DataFrame) -> int:
+    return int(split.filter(pl.col("block_number") == PAYOUT_BLOCK)["payment_wei"].item())
+
+
+def test_hedge_keeps_the_sensitivity(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # the world has no holdout blocks, so the decision fails and the hedge stays
-    lpd, text = _run_world(tmp_path)
+    lpd, text, split = _run_world(tmp_path, monkeypatch)
     dest = lpd["destination"]
     assert dest["proposer_split"] == "hedge" and dest["holdout_decision"]["one_split"] is False
+    assert _payment(split) == 10**15  # payouts=False: the payout block takes the revenue fallback
     assert "sensitivity_self_built" in dest and "Sensitivity" in text
     assert lpd["destination_limitation"] == destination.LIMITATION_TEXT_HEDGE
-    assert [r["cls"] for r in dest["block_classes"]][:2] == ["empty", "paid"]
-    assert dest["block_classes"][1]["blocks"] > 0
+    assert [r["cls"] for r in dest["block_classes"]][:3] == ["empty", "paid", "payout"]
+    assert dest["block_classes"][1]["blocks"] > 0 and dest["block_classes"][2]["blocks"] == 1
     assert [r["type"] for r in dest["recipient_types"]] == ["wallet", "7702_wallet", "contract"]
+    assert dest["recipient_types"][0]["payments"] == 1
     assert dest["n_recipients_reads_differ"] == 0 and dest["n_top_up"] == 0
+    _assert_classes_note(dest, text)
 
 
 def test_one_split_drops_the_sensitivity(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     passing = {"bar": 0.95, "n_found_payout": 300, "one_split": True}
     monkeypatch.setattr(lp, "holdout_decision", lambda relays, split: passing)
-    lpd, text = _run_world(tmp_path)
+    lpd, text, split = _run_world(tmp_path, monkeypatch)
     dest = lpd["destination"]
     assert dest["proposer_split"] == "one" and dest["holdout_decision"] == passing
+    assert _payment(split) == 5 * 10**14  # payouts=True: the payout block pays its last value
     assert "sensitivity_self_built" not in dest
     assert "Sensitivity" not in text and "sensitivity" not in text.replace("Sensitivity", "")
     assert lpd["destination_limitation"] == destination.LIMITATION_TEXT
+    _assert_classes_note(dest, text)
+
+
+def _assert_classes_note(dest: dict[str, Any], text: str) -> None:
+    un = next(r for r in dest["block_classes"] if r["cls"] == "unexplained")
+    flat = " ".join(text.split())
+    assert f"{un['share_blocks']:.2%} of blocks and {un['share_builder_paid_usd']:.2%}" in flat
+    assert f"(${un['builder_paid_usd']:,.2f})" in flat
+    assert "at least 50 of the fee recipient's blocks" in flat and "at least 99%" in flat
 
 
 def positions_jit_rebal(results: Path) -> float:
