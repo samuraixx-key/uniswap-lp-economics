@@ -454,8 +454,15 @@ def lp_analysis(
         .sum()
     )
     summary["lp"]["robustness"] = robust_summary
+    # R1 tests the payout rule, so it runs on the payouts=True split, not the published one.
+    block_usd = (
+        costs.filter(pl.col("scope") == destination.SINGLE)
+        .group_by("block_number")
+        .agg(pl.col("builder_paid_usd").sum())
+    )
+    split_rule = destination.block_split(inp.block_revenue, classes, payouts=True)
     reported = [
-        check_r1_relays(inp.relays, split),
+        check_r1_relays(inp.relays, split_rule, block_usd),
         check_r2_traces_vs_alchemy(inp.tx_direct, inp.bot_transfers, inp.blocks, inp.tx_other_logs),
         check_r3_lp_types(positions),
         check_r4_transferred(data.positions, positions["position_id"].to_list()),

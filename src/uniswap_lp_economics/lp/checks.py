@@ -6,6 +6,8 @@ import polars as pl
 
 from uniswap_lp_economics.arbprofit import coinbase_payments
 from uniswap_lp_economics.io import hex_u256
+from uniswap_lp_economics.lp import payouts
+from uniswap_lp_economics.lp.payouts import CLASSES
 from uniswap_lp_economics.lp.pnl import LP_TYPES
 from uniswap_lp_economics.lp.positions import LedgerData
 from uniswap_lp_economics.validate import MAX_LISTED, CheckResult
@@ -327,46 +329,114 @@ def _relay_matches(found: pl.DataFrame) -> tuple[int, int]:
     return int((diff <= 1).sum()), int(within.sum())
 
 
-def check_r1_relays(relays: pl.DataFrame, split: pl.DataFrame) -> CheckResult:
-    """Relay-reported proposer payment vs Q_b, with a breakdown by block type: `paid` (the last
-    transaction is from the fee recipient) and `self_built` (it is not, so Q_b = R_b). Not-found
-    blocks are split by whether some relay gave no answer (`relays_unchecked`); both counts are
-    None for a relay file written before that column existed."""
-    found = relays.filter(pl.col("found"))
-    both = found.join(split.select("block_number", "payment_wei"), on="block_number", how="inner")
-    exact, within = _relay_matches(both)
-    typed = relays.join(
-        split.select("block_number", "miner", "revenue_wei", "payment_wei", "self_built"),
-        on="block_number",
-        how="inner",
+HOLDOUT_BAR = 0.95
+ROUNDS = ("seen", "retry", "holdout")
+_PAYING = [payouts.PAID, payouts.PAYOUT]
+
+
+def _normalize(relays: pl.DataFrame) -> pl.DataFrame:
+    """Columns a relay file from before they existed lacks are added as null; a null `round`
+    counts as `seen`."""
+    missing = [
+        pl.lit(None, dtype=pl.String).alias(c)
+        for c in ("relay", "proposer_fee_recipient", "relays_unchecked", "round")
+        if c not in relays.columns
+    ]
+    return relays.with_columns(missing).with_columns(pl.col("round").fill_null("seen"))
+
+
+def _relay_rows(relays: pl.DataFrame, split: pl.DataFrame) -> pl.DataFrame:
+    cols = ["block_number", "miner", "payment_wei", "cls", "to_address"]
+    return _normalize(relays).join(split.select(cols), on="block_number", how="inner")
+
+
+def _recipient(rows: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFrame]:
+    """Found paid/payout rows that name a proposer fee recipient, and those whose recipient is the
+    last transaction's `to_address` (compared lowercased)."""
+    compared = rows.filter(
+        pl.col("found")
+        & pl.col("cls").is_in(_PAYING)
+        & pl.col("proposer_fee_recipient").is_not_null()
+        & (pl.col("proposer_fee_recipient") != "")
     )
-    has_recipient = "proposer_fee_recipient" in relays.columns
-    by_type: dict[str, dict[str, Any]] = {}
-    for name, flag in (("paid", False), ("self_built", True)):
-        rows = typed.filter(pl.col("self_built") == flag)
-        hits = rows.filter(pl.col("found"))
-        m1, m1pct = _relay_matches(hits)
-        with_revenue = hits.filter(pl.col("revenue_wei") > 0)
-        ratio = with_revenue["value_wei"].cast(pl.Float64) / with_revenue["revenue_wei"].cast(
-            pl.Float64
+    same = (
+        pl.col("proposer_fee_recipient").str.to_lowercase()
+        == pl.col("to_address").str.to_lowercase()
+    )
+    return compared, compared.filter(same.fill_null(False))
+
+
+def _part(rows: pl.DataFrame) -> dict[str, int]:
+    hits = rows.filter(pl.col("found"))
+    m1, m1pct = _relay_matches(hits)
+    compared, matched = _recipient(rows)
+    return {
+        "sampled": rows.height,
+        "found": hits.height,
+        "match_within_1_wei": m1,
+        "match_within_1pct": m1pct,
+        "recipient_match": matched.height,
+        "recipient_compared": compared.height,
+    }
+
+
+def check_r1_relays(
+    relays: pl.DataFrame, split: pl.DataFrame, block_usd: pl.DataFrame
+) -> CheckResult:
+    """Relay-reported proposer payment vs Q_b (R1, value), per round (seen / retry / holdout) and
+    block class, with the recipient check R1b (a paid or payout block's last transaction goes to the
+    relay's `proposer_fee_recipient`) and R1c (a proposer_is_fee_recipient block delivered for a
+    different recipient: listed with its single-pool builder dollars from `block_usd`). The
+    top-level counts cover the original sample (seen and retry rows) and are taken before the join
+    with the split; not-found blocks are split by whether some relay gave no answer
+    (`relays_unchecked`), None for a file written before that column existed. Run it on a
+    `payouts=True` split."""
+    rows = _relay_rows(relays, split)
+    base = _normalize(relays).filter(pl.col("round") != "holdout")
+    base_found = base.filter(pl.col("found"))
+    base_rows = rows.filter(pl.col("round") != "holdout")
+    both = base_rows.filter(pl.col("found"))
+    exact, within = _relay_matches(both)
+    by_round = {
+        r: {c: _part(rows.filter((pl.col("round") == r) & (pl.col("cls") == c))) for c in CLASSES}
+        for r in ROUNDS
+    }
+    holdout = rows.filter(pl.col("round") == "holdout")
+    by_stratum = {
+        "payout": _part(holdout.filter(pl.col("cls") == payouts.PAYOUT)),
+        "rest": _part(holdout.filter(pl.col("cls") != payouts.PAYOUT)),
+    }
+    compared, matched = _recipient(holdout.filter(pl.col("cls") == payouts.PAYOUT))
+    failures = (
+        holdout.filter((pl.col("cls") == payouts.PAYOUT) & pl.col("found"))
+        .join(matched.select("block_number"), on="block_number", how="anti")
+        .sort("block_number")
+        .select("block_number", "to_address", "proposer_fee_recipient")
+    )
+    usd = block_usd.group_by("block_number").agg(pl.col("builder_paid_usd").sum())
+    breaking = (
+        rows.filter(
+            pl.col("found")
+            & (pl.col("cls") == payouts.PROPOSER_IS_FEE_RECIPIENT)
+            & pl.col("proposer_fee_recipient").is_not_null()
+            & (
+                pl.col("proposer_fee_recipient").str.to_lowercase()
+                != pl.col("miner").str.to_lowercase()
+            )
         )
-        by_type[name] = {
-            "sampled": rows.height,
-            "found": hits.height,
-            "match_within_1_wei": m1,
-            "match_within_1pct": m1pct,
-            # Relay-reported payment / on-chain builder revenue R_b, and found blocks whose relay
-            # names a proposer fee recipient other than the block's fee recipient.
-            "median_relay_value_over_revenue": (
-                float(ratio.median()) if with_revenue.height else None  # type: ignore[arg-type]
-            ),
-            "relay_recipient_not_fee_recipient": (
-                int((hits["proposer_fee_recipient"] != hits["miner"]).sum())
-                if has_recipient
-                else None
-            ),
-        }
-    not_found = relays.filter(~pl.col("found"))
+        .join(usd, on="block_number", how="left")
+        .unique("block_number")
+        .sort("block_number")
+        .select("block_number", pl.col("builder_paid_usd").fill_null(0.0))
+    )
+    unexplained = rows.filter(pl.col("cls") == payouts.UNEXPLAINED)
+    by_relay: dict[str, int] = {}
+    for relay in unexplained.filter(pl.col("found"))["relay"].drop_nulls().to_list():
+        by_relay[relay] = by_relay.get(relay, 0) + 1
+    for text in unexplained.filter(~pl.col("found"))["relays_unchecked"].drop_nulls().to_list():
+        for relay in text.split(","):
+            by_relay[relay] = by_relay.get(relay, 0) + 1
+    not_found = base.filter(~pl.col("found"))
     unchecked: int | None = None
     answered: int | None = None
     if "relays_unchecked" in relays.columns:
@@ -376,17 +446,42 @@ def check_r1_relays(relays: pl.DataFrame, split: pl.DataFrame) -> CheckResult:
         "R1 relay vs on-chain proposer payment (reported)",
         True,
         {
-            "sampled": relays.height,
-            "found_on_a_relay": found.height,  # before the join with our per-block split
+            "sampled": base.height,
+            "found_on_a_relay": base_found.height,  # before the join with our per-block split
             "compared_with_on_chain": both.height,
             "match_within_1_wei": exact,
             "match_within_1pct": within,
-            "by_block_type": by_type,
+            "by_round": by_round,
+            "holdout_by_stratum": by_stratum,
+            "holdout_recipient_failures": failures.to_dicts(),
+            "r1c_breaking_blocks": breaking.to_dicts(),
+            "unexplained_by_relay": dict(sorted(by_relay.items())),
             "not_found_unchecked": unchecked,
             "not_found_all_answered": answered,
         },
         reported=True,
     )
+
+
+def holdout_decision(relays: pl.DataFrame, split: pl.DataFrame) -> dict[str, Any]:
+    """The pre-registered decision (spec section 6): among found holdout blocks in class 3, one
+    split only if at least HOLDOUT_BAR match the relay within 1 wei and at least HOLDOUT_BAR have
+    the relay's recipient as the payment's `to_address` (a row with no relay recipient fails)."""
+    rows = _relay_rows(relays, split).filter(
+        (pl.col("round") == "holdout") & pl.col("found") & (pl.col("cls") == payouts.PAYOUT)
+    )
+    n = rows.height
+    exact, within = _relay_matches(rows)
+    recipient = _recipient(rows)[1].height
+    share = [x / n if n else None for x in (exact, within, recipient)]
+    return {
+        "bar": HOLDOUT_BAR,
+        "n_found_payout": n,
+        "share_within_1_wei": share[0],
+        "share_within_1pct": share[1],
+        "share_recipient_match": share[2],
+        "one_split": n > 0 and (exact / n) >= HOLDOUT_BAR and (recipient / n) >= HOLDOUT_BAR,
+    }
 
 
 def check_r2_traces_vs_alchemy(

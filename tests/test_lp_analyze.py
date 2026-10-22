@@ -94,7 +94,7 @@ def test_lp_analysis_end_to_end(tmp_path: Path) -> None:
     l1 = next(v for k, v in summary["lp"]["checks"].items() if k.startswith("L1"))
     assert l1["engine_unmatched"] == 0
     r1 = next(v for k, v in summary["lp"]["checks"].items() if k.startswith("R1"))
-    assert r1["by_block_type"]["paid"]["found"] == 1  # the world's relay row: block 7, paid
+    assert r1["by_round"]["seen"]["paid"]["found"] == 1  # the world's relay row: block 7, paid
     jit = summary["lp"]["jit_per_swap"]
     assert jit["positions"] == 1 and jit["swaps"] >= 1
     assert jit["pnl_rebal_usd_per_swap"] == pytest.approx(
