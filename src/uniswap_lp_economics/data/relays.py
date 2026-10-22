@@ -18,6 +18,10 @@ from uniswap_lp_economics.lp.payouts import HOLDOUT_PER_STRATUM, HOLDOUT_SEED, d
 
 RELAY_FILE = "relays.parquet"
 HOLDOUT_FILE = "relay_holdout.parquet"
+HOLDOUT2_FILE = "relay_holdout_2.parquet"  # the seed-45 holdout (forwarder spec section 5)
+HOLDOUT2_ROUND = "holdout2"
+# Rounds already published: their rows in the relay file never change (forwarder spec section 5).
+PUBLISHED_ROUNDS = ("seen", "retry", "holdout")
 PATH = "/relay/v1/data/bidtraces/proposer_payload_delivered"
 RELAY_SCHEMA: dict[str, Any] = {
     "block_number": pl.Int64,
@@ -31,7 +35,8 @@ RELAY_SCHEMA: dict[str, Any] = {
     # answered, or (rows fetched before this column existed) unknown.
     "relays_unchecked": pl.String,
     # Which pass produced the row: "seen" (the base sample, or rows fetched before this column
-    # existed), "retry" (re-queried by `retry_unchecked`), "holdout" (the holdout draw).
+    # existed), "retry" (re-queried by the first retry pass), "holdout" (the seed-44 draw),
+    # "holdout2" (the seed-45 draw).
     "round": pl.String,
 }
 _RETRIES = 3
@@ -143,6 +148,19 @@ def _read(out: Path) -> pl.DataFrame:
     return done.select(list(RELAY_SCHEMA))
 
 
+def _write(df: pl.DataFrame, out: Path) -> None:
+    """Write the relay file, refusing if a row of a published round on disk would change or go."""
+    if out.exists():
+        published = _read(out).filter(pl.col("round").is_in(PUBLISHED_ROUNDS))
+        lost = published.join(df, on=list(RELAY_SCHEMA), how="anti", nulls_equal=True)
+        if lost.height:
+            raise ValueError(
+                f"refusing to write {out}: {lost.height} published relay row(s) would change, "
+                f"e.g. block {lost['block_number'][0]}"
+            )
+    write_exact(df, out)
+
+
 def fetch_relay_sample(
     raw_dir: Path,
     first: int,
@@ -164,12 +182,12 @@ def fetch_relay_sample(
         for i, b in enumerate(todo):
             rows.append({**query_block(http, b, relay_urls, breaker=breaker), "round": "seen"})
             if (i + 1) % 100 == 0:
-                write_exact(pl.concat([done, pl.DataFrame(rows, schema=RELAY_SCHEMA)]), out)
+                _write(pl.concat([done, pl.DataFrame(rows, schema=RELAY_SCHEMA)]), out)
                 print(f"  {i + 1}/{len(todo)} blocks")
     finally:
         # Also on an error or interrupt: keep every block queried so far.
         if rows or not out.exists():
-            write_exact(pl.concat([done, pl.DataFrame(rows, schema=RELAY_SCHEMA)]), out)
+            _write(pl.concat([done, pl.DataFrame(rows, schema=RELAY_SCHEMA)]), out)
         if own:
             http.close()
     return out
@@ -181,16 +199,19 @@ def retry_unchecked(
     relay_urls: tuple[str, ...] = RELAYS,
     pace_s: float = 0.5,
     timeout_s: float = 60,
+    rounds: tuple[str, ...] = (HOLDOUT2_ROUND,),
 ) -> int:
-    """Re-query the not-found blocks a relay never answered (`relays_unchecked` set), paced and
-    with a fresh breaker and a longer timeout. Each such row is replaced in place and marked
-    `round = "retry"`, found or not; holdout rows are retried too but stay "holdout". Returns the
-    number of blocks retried."""
+    """Re-query the not-found blocks of `rounds` a relay never answered (`relays_unchecked` set),
+    paced and with a fresh breaker and a longer timeout. Each such row is replaced in place and
+    keeps its round, found or not. A published round cannot be rewritten (`_write` refuses).
+    Returns the number of blocks retried."""
     out = raw_dir / RELAY_FILE
     done = _read(out)
-    todo = done.filter(~pl.col("found") & pl.col("relays_unchecked").is_not_null())
+    todo = done.filter(
+        ~pl.col("found") & pl.col("relays_unchecked").is_not_null() & pl.col("round").is_in(rounds)
+    )
     todo_blocks = todo["block_number"].to_list()
-    holdout = set(todo.filter(pl.col("round") == "holdout")["block_number"].to_list())
+    round_of = dict(todo.select("block_number", "round").iter_rows())
     keep = done.filter(~pl.col("block_number").is_in(todo_blocks))
     breaker = RelayBreaker()
     rows: list[dict[str, Any]] = []
@@ -199,15 +220,14 @@ def retry_unchecked(
 
     def save() -> None:  # blocks not retried yet stay in the file as they were
         pending = todo.filter(~pl.col("block_number").is_in([r["block_number"] for r in rows]))
-        write_exact(pl.concat([keep, pending, pl.DataFrame(rows, schema=RELAY_SCHEMA)]), out)
+        _write(pl.concat([keep, pending, pl.DataFrame(rows, schema=RELAY_SCHEMA)]), out)
 
     try:
         for i, b in enumerate(todo_blocks):
             if i:
                 time.sleep(pace_s)
             row = query_block(http, b, relay_urls, breaker=breaker, timeout_s=timeout_s)
-            # A holdout row stays in the holdout: its membership is not a retry's to rewrite.
-            rows.append({**row, "round": "holdout" if b in holdout else "retry"})
+            rows.append({**row, "round": round_of[b]})  # a retry never moves a row's round
             if (i + 1) % 100 == 0:
                 # Rows not retried yet must stay in the file: write them back with the new ones.
                 save()
@@ -232,21 +252,26 @@ def fetch_holdout(
     pace_s: float = 0.5,
     timeout_s: float = 60,
     n: int = HOLDOUT_PER_STRATUM,
+    seed: int = HOLDOUT_SEED,
+    holdout_file: str = HOLDOUT_FILE,
+    round_label: str = "holdout",
 ) -> Path:
-    """The holdout that checks the payout rule against the relay: `n` payout blocks and `n` others,
-    seed 44, the blocks already in the relay file excluded. The draw is written to disk before the
-    first relay call and never redrawn; a rerun reads it and queries only the blocks still missing
-    from the relay file (rows marked `round = "holdout"`). Returns the holdout file's path."""
+    """A holdout that checks the payout rule against the relay: `n` payout blocks and `n` others,
+    drawn with `seed`, every block already in the relay file excluded. The draw is written to
+    `holdout_file` before the first relay call and never redrawn; a rerun reads it and queries
+    only the blocks still missing from the relay file (rows marked `round = round_label`).
+    Defaults: the seed-44 holdout; the seed-45 one passes HOLDOUT2_SEED, HOLDOUT2_FILE and
+    HOLDOUT2_ROUND. Returns the holdout file's path."""
     out = raw_dir / RELAY_FILE
-    path = raw_dir / HOLDOUT_FILE
+    path = raw_dir / holdout_file
     raw_dir.mkdir(parents=True, exist_ok=True)
     done = _read(out)
     if path.exists():
         holdout = read_exact(path)
-        if set(holdout["seed"].to_list()) != {HOLDOUT_SEED}:
-            raise ValueError(f"{path} was drawn with another seed than {HOLDOUT_SEED}")
+        if set(holdout["seed"].to_list()) != {seed}:
+            raise ValueError(f"{path} was drawn with another seed than {seed}")
     else:
-        holdout = draw_holdout(classes, set(done["block_number"].to_list()), n=n)
+        holdout = draw_holdout(classes, set(done["block_number"].to_list()), seed=seed, n=n)
         write_exact(holdout, path)
     seen = set(done["block_number"].to_list())
     todo = [b for b in holdout["block_number"].to_list() if b not in seen]
@@ -256,14 +281,14 @@ def fetch_holdout(
     http = client or httpx.Client(follow_redirects=True)
 
     def save() -> None:
-        write_exact(pl.concat([done, pl.DataFrame(rows, schema=RELAY_SCHEMA)]), out)
+        _write(pl.concat([done, pl.DataFrame(rows, schema=RELAY_SCHEMA)]), out)
 
     try:
         for i, b in enumerate(todo):
             if i:
                 time.sleep(pace_s)
             row = query_block(http, b, relay_urls, breaker=breaker, timeout_s=timeout_s)
-            rows.append({**row, "round": "holdout"})
+            rows.append({**row, "round": round_label})
             if (i + 1) % 100 == 0:
                 save()
                 print(f"  {i + 1}/{len(todo)} holdout blocks")
