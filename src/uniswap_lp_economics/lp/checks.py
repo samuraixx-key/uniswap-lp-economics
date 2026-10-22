@@ -1,11 +1,15 @@
 """Checks L1-L7 (gated) and the reported checks of sub-project 3 (spec section 9)."""
 
+import json
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import polars as pl
 
 from uniswap_lp_economics.arbprofit import coinbase_payments
-from uniswap_lp_economics.io import hex_u256
+from uniswap_lp_economics.data.relays import HOLDOUT_FILE
+from uniswap_lp_economics.io import hex_u256, read_exact, write_text_atomic
 from uniswap_lp_economics.lp import payouts
 from uniswap_lp_economics.lp.payouts import CLASSES
 from uniswap_lp_economics.lp.pnl import LP_TYPES
@@ -511,6 +515,48 @@ def holdout_decision(relays: pl.DataFrame, split: pl.DataFrame) -> dict[str, Any
         "share_recipient_match": share[2],
         "one_split": n > 0 and (exact / n) >= HOLDOUT_BAR and (recipient / n) >= HOLDOUT_BAR,
     }
+
+
+HOLDOUT_DECISION_FILE = "holdout_decision.json"
+
+
+def _holdout_blocks(raw_dir: Path, relays: pl.DataFrame) -> tuple[int, int] | None:
+    """(holdout blocks drawn, holdout blocks with a "holdout" row in `relays`) when the draw is on
+    disk and readable, else None."""
+    try:
+        drawn = set(read_exact(raw_dir / HOLDOUT_FILE)["block_number"].to_list())
+    except (OSError, pl.exceptions.PolarsError):
+        return None
+    rows = _normalize(relays).filter(pl.col("round") == "holdout")
+    return len(drawn), len(drawn & set(rows["block_number"].to_list()))
+
+
+def settle_decision(
+    raw_dir: Path, relays: pl.DataFrame, fresh: dict[str, Any]
+) -> tuple[dict[str, Any], bool, dict[str, Any] | None]:
+    """(decision to publish, frozen, recomputed) for the stopping rule (spec section 6). Once every
+    holdout block has a relay row, the first call writes `fresh` to HOLDOUT_DECISION_FILE and
+    publishes it; later calls publish the file's decision and return `fresh` as `recomputed`.
+    Before that, `fresh` is published, not frozen. A frozen file that cannot be read is left alone
+    and `fresh` is published, not frozen. Never raises."""
+    path = raw_dir / HOLDOUT_DECISION_FILE
+    if path.exists():
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))["decision"], True, fresh
+        except (OSError, ValueError, KeyError, TypeError):
+            return fresh, False, None
+    counts = _holdout_blocks(raw_dir, relays)
+    if counts is None or counts[0] == 0 or counts[1] < counts[0]:
+        return fresh, False, None
+    record = {
+        "decision": fresh,
+        "frozen_utc": datetime.now(UTC).date().isoformat(),
+        "n_holdout_blocks": counts[0],
+        "n_holdout_rows": counts[1],
+        "n_found_payout": fresh["n_found_payout"],
+    }
+    write_text_atomic(path, json.dumps(record, indent=2, sort_keys=True) + "\n")
+    return fresh, True, None
 
 
 def check_r2_traces_vs_alchemy(

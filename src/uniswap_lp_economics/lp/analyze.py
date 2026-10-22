@@ -46,6 +46,7 @@ from uniswap_lp_economics.lp.checks import (
     check_r5_null_12s,
     check_r6_robustness,
     holdout_decision,
+    settle_decision,
 )
 from uniswap_lp_economics.lp.engine import contexts_from_aligned, replay_window
 from uniswap_lp_economics.lp.ledger import Ledger
@@ -272,13 +273,26 @@ def reference_robustness(
     return table, summary, identity, reprice
 
 
+def _decision_line(decision: dict[str, Any], one: bool, frozen: bool) -> str:
+    def pct(x: float | None) -> str:
+        return "n/a" if x is None else f"{x:.1%}"
+
+    return (
+        f"proposer split {'one' if one else 'hedge'}, {decision['n_found_payout']} found payout "
+        f"blocks, within 1 wei {pct(decision.get('share_within_1_wei'))}, recipient "
+        f"{pct(decision.get('share_recipient_match'))}, {'frozen' if frozen else 'not frozen'}"
+    )
+
+
 def lp_analysis(
     inp: LpInputs,
     results_dir: Path,
     processed_dir: Path,
     provenance: dict[str, Any],
     end_us: int | None = None,
+    raw_dir: Path | None = None,
 ) -> str:
+    """`raw_dir` holds the holdout files the decision is frozen against; None never freezes."""
     end_us = align.window_end_us() if end_us is None else end_us
     snap = int(inp.meta["block"])
     data = build_positions(inp.pool_history, inp.npm_history)
@@ -459,8 +473,12 @@ def lp_analysis(
     # R1 and the decision test the payout rule, so they use the payouts=True split; the published
     # split is that one only when the blind holdout supports it (spec section 7).
     split_rule = destination.block_split(inp.block_revenue, classes, payouts=True)
-    decision = holdout_decision(inp.relays, split_rule)
+    fresh = holdout_decision(inp.relays, split_rule)
+    decision, frozen, recomputed = (
+        settle_decision(raw_dir, inp.relays, fresh) if raw_dir else (fresh, False, None)
+    )
     one = bool(decision["one_split"])
+    print(_decision_line(decision, one, frozen))
     split = (
         split_rule if one else destination.block_split(inp.block_revenue, classes, payouts=False)
     )
@@ -497,11 +515,18 @@ def lp_analysis(
     dest.update(
         proposer_split="one" if one else "hedge",
         holdout_decision=decision,
+        decision_frozen=frozen,
         block_classes=class_tbl.to_dicts(),
         recipient_types=recipients.to_dicts(),
         n_recipients_reads_differ=n_differ,
         n_top_up=payouts.class_counts(classes)["n_top_up"],
     )
+    if recomputed is not None:
+        dest["holdout_decision_recomputed"] = recomputed
+    dest["class_counts_by_n"] = {  # how many blocks each class gets at other pair thresholds
+        str(n): payouts.class_counts(payouts.block_classes(inp.block_revenue, inp.last_tx, n))
+        for n in (20, 50, 100)
+    }
     limitation = destination.LIMITATION_TEXT if one else destination.LIMITATION_TEXT_HEDGE
     summary["lp"]["destination"] = dest
     summary["lp"]["checks"].update({r.name: r.summary for r in reported})
@@ -627,4 +652,6 @@ def run_lp() -> str:
         "generated_utc": datetime.now(UTC).isoformat(timespec="seconds"),
         "git_commit": validate.git_commit(),
     }
-    return lp_analysis(inp, config.RESULTS_DIR, config.PROCESSED_DIR, provenance)
+    return lp_analysis(
+        inp, config.RESULTS_DIR, config.PROCESSED_DIR, provenance, raw_dir=config.RAW_DIR
+    )
