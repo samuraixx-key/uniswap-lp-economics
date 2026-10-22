@@ -1,5 +1,6 @@
 """`ulpe analyze`: validated data -> results/ (analysis checks, tables, summary.json)."""
 
+import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -24,6 +25,30 @@ from uniswap_lp_economics.data import transfers
 from uniswap_lp_economics.io import read_exact, write_exact, write_text_atomic
 from uniswap_lp_economics.lp import swapfees
 from uniswap_lp_economics.tickbook import TickBook
+
+DOWNSTREAM_KEYS: tuple[str, ...] = ("lp", "strategy")  # written by `ulpe lp` / `ulpe strategy`
+PROVENANCE_ONLY: tuple[str, ...] = ("generated_utc", "git_commit")
+
+
+def carry_downstream(summary: dict[str, Any], path: Path) -> dict[str, Any]:
+    """`summary` plus the existing file's `lp` and `strategy` keys, but only when analyze's own
+    part of the file is unchanged (provenance aside): otherwise those keys may be stale, and
+    leaving them out keeps `ulpe strategy` and `ulpe figures` refusing until they are rebuilt."""
+    try:
+        old = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return summary
+    if not isinstance(old, dict):
+        return summary
+    skip = DOWNSTREAM_KEYS + PROVENANCE_ONLY
+
+    def own(d: dict[str, Any]) -> dict[str, Any]:
+        return {k: v for k, v in d.items() if k not in skip}
+
+    if own(old) != own(json.loads(json.dumps(report.clean(summary)))):
+        return summary
+    return {**summary, **{k: old[k] for k in DOWNSTREAM_KEYS if k in old}}
+
 
 MARKOUT_NOTE = (
     "Trader side, after the 0.05% swap fee: "
@@ -275,30 +300,28 @@ def _write_results(
     )
 
     total = bot_profit.filter(pl.col("sender") == "TOTAL").to_dicts()
-    report.write_summary(
-        {
-            **provenance,
-            "window": f"[{config.WINDOW_START}, {config.WINDOW_END})",
-            "swaps": aligned.height,
-            "notional_usd": float(aligned["notional_usd"].sum()),
-            "top_bots": inp.bots,
-            "markouts_all": tables.filter(pl.col("grouping") == "all").to_dicts(),
-            "markouts_by_label": by_label.to_dicts(),
-            "markouts_robustness_0s": robustness.filter(pl.col("horizon_s") == 0).to_dicts(),
-            "markouts_by_label_x_size_0s": tables.filter(
-                (pl.col("grouping") == "flow_label_x_size") & (pl.col("horizon_s") == 0)
-            ).to_dicts(),
-            "basis": basis,
-            "episodes": {f"{k:g}bp": s.to_dicts() for k, s in summaries.items()},
-            "episode_counts": {f"{k:g}bp": e.height for k, e in episodes.items()},
-            "lead_lag": {"cross_correlation": xc.to_dicts(), "ar1": ar1},
-            "arbitrage": {**w, **ratios},
-            "bot_profit_total": total[0] if total else None,
-            "label_coverage": coverage.to_dicts(),
-            "limitation": report.LIMITATION_TEXT,
-        },
-        out,
-    )
+    summary = {
+        **provenance,
+        "window": f"[{config.WINDOW_START}, {config.WINDOW_END})",
+        "swaps": aligned.height,
+        "notional_usd": float(aligned["notional_usd"].sum()),
+        "top_bots": inp.bots,
+        "markouts_all": tables.filter(pl.col("grouping") == "all").to_dicts(),
+        "markouts_by_label": by_label.to_dicts(),
+        "markouts_robustness_0s": robustness.filter(pl.col("horizon_s") == 0).to_dicts(),
+        "markouts_by_label_x_size_0s": tables.filter(
+            (pl.col("grouping") == "flow_label_x_size") & (pl.col("horizon_s") == 0)
+        ).to_dicts(),
+        "basis": basis,
+        "episodes": {f"{k:g}bp": s.to_dicts() for k, s in summaries.items()},
+        "episode_counts": {f"{k:g}bp": e.height for k, e in episodes.items()},
+        "lead_lag": {"cross_correlation": xc.to_dicts(), "ar1": ar1},
+        "arbitrage": {**w, **ratios},
+        "bot_profit_total": total[0] if total else None,
+        "label_coverage": coverage.to_dicts(),
+        "limitation": report.LIMITATION_TEXT,
+    }
+    report.write_summary(carry_downstream(summary, out / "summary.json"), out)
 
 
 def run_analysis() -> str:

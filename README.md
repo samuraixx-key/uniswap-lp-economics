@@ -1211,7 +1211,9 @@ one, the first `ulpe all` writes the July freeze and then stops at `figures`, wh
 `ulpe strategy` (the report results do not exist yet); commit and tag the freeze, then run
 `ulpe strategy` (or `ulpe all`) again. The report run checks the freeze's input hashes; a fresh
 `ulpe analyze` and `ulpe lp` rewrite the hashed processed files byte-identically (verified
-2026-10-22), so re-running the pipeline keeps matching the committed freeze. The fee runs use 4 worker processes by default (about 1.35 GB of memory each).
+2026-10-22), so re-running the pipeline keeps matching the committed freeze. `ulpe analyze` keeps `summary.json`'s `lp` and `strategy` results only when its own
+results are unchanged (run timestamps aside); otherwise it drops them, so `ulpe strategy` and
+`ulpe figures` refuse to run until `ulpe lp` and `ulpe strategy` run again. The fee runs use 4 worker processes by default (about 1.35 GB of memory each).
 
 Figures:
 
