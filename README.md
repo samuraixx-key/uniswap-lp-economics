@@ -12,10 +12,10 @@ make money, and where the LVR goes.
 
 > **Status:** sub-projects 1 (data foundation), 2 (price discovery and markouts), 3 (LP P&L and
 > where LVR goes) and 4 (reference and timing robustness) are complete; data checks C1–C6 and the
-> gated analysis and LP checks (A1–A4, L1–L7) all pass. Proposer-payment detection is done and
-> its pre-registered test kept the two-sided proposer/builder split. Next: a recipient check that
-> follows forwarding contracts, then counterfactual LP strategies; see the
-> [roadmap](docs/roadmap.md).
+> gated analysis and LP checks (A1–A4, L1–L7) all pass. Proposer-payment detection is done: its
+> first pre-registered test kept a two-sided proposer/builder split, and a second one, with a
+> recipient check that follows forwarding contracts, passed, so one split is reported. Next:
+> counterfactual LP strategies; see the [roadmap](docs/roadmap.md).
 
 <img src="results/figures/00_hero.svg" alt="Two-stage Sankey: the LVR on searcher swaps splits into swap fees (to LPs and the protocol) and searchers' gross profit, which, topped up by searchers' own money, ends with block builders, proposers, gas and multi-pool arbitrage">
 
@@ -113,15 +113,14 @@ at the pool's price instead of Binance's)? Which LPs make money? And where does 
    nothing measurable at block time.** Of the $4.14M of LVR on searcher swaps, 47.7% went to LPs as
    fees, 15.9% to the protocol and **34.8% to builders and proposers together**; 6.2% is the gross
    of multi-pool transactions (not split), 0.2% gas burned, and the searchers kept **−4.9%**
-   (−$0.20M). How the 34.8% divides between proposers and builders stays two-sided, as
-   pre-registered: 19.0% to proposers and 15.8% to builders by the primary method, 15.4% and 19.4%
-   in a sensitivity. The uncertainty is narrower than it was: the blocks whose payment the primary
-   method could not find (16.0%) are now measured, and in a blind relay holdout all 289 such
-   blocks found match the relay's payment to the wei. Only one thing kept the measured split from
-   replacing the two: a pre-registered check of *who* was paid failed, because about half of all
-   payments pass through one forwarding contract that the check cannot see through. The measured
-   split, 14.4% to proposers and 20.5% to builders, is reported as a third number and not adopted
-   (see [Where LVR goes](#where-lvr-goes)). The 34.8%, gas and kept do not depend on the split. Kept is
+   (−$0.20M). Of the 34.8%, **14.4% went to proposers and 20.5% to builders**. The split comes from
+   measured payments (each block's last transaction, sent by the fee recipient or by a payout
+   address learned from chain data), tested on two blind relay holdouts: every holdout block of
+   the payout rule found on a relay matches its payment to the wei (289 of 289, then 290 of 290).
+   The first test's check of *who* was paid failed, because about half of all payments pass through
+   one forwarding contract; a check that follows the contract, written down before a second holdout
+   was drawn, passed 290 of 290, so this split replaces the earlier two-sided one (see
+   [Where LVR goes](#where-lvr-goes)). The 34.8%, gas and kept do not depend on the split. Kept is
    negative because the 34.8% exceeds the single-pool gross at 0 s (30.2% of searcher LVR). It is
    an upper bound (payments outside the transaction are missed) and, as in finding 3, a small
    difference of large totals measured at the block time; sub-project 2's positive kept at 12 s
@@ -472,8 +471,7 @@ their gas and builder payments count: 57% of the 844 JIT positions
 ## Where LVR goes
 
 The hero figure at the top draws this split. From [`results/lvr_destination.md`](results/lvr_destination.md), in USD and as shares of the LVR
-on searcher swaps (builder margin and proposer payment by the primary method; the sensitivity
-and the measured split below divide them differently):
+on searcher swaps (builder margin and proposer payment from the measured payments below):
 
 | Step | USD | share |
 |---|---|---|
@@ -486,8 +484,8 @@ and the measured split below divide them differently):
 | of which multi-pool transactions, gross only | 257,681.73 | 0.0622 |
 | of which single-pool transactions | 1,251,576.57 | |
 | → gas burned | 9,715.89 | 0.0023 |
-| → builder margin | 654,139.41 | 0.1578 |
-| → proposer payment | 789,291.15 | 0.1905 |
+| → builder margin | 848,648.09 | 0.2048 |
+| → proposer payment | 594,782.47 | 0.1435 |
 | → kept by searchers (upper bound) | -201,569.88 | -0.0486 |
 
 - 253,280 searcher swaps, all of them costed: every one has an other-logs row, a block in the
@@ -498,51 +496,53 @@ and the measured split below divide them differently):
   prices worse than Binance's and give part of it back.
 - LPs recover about half of the searcher LVR as fees and the protocol about a sixth; most of the
   rest goes to the block's builder and proposer (34.8% together).
-- **Why kept is negative.** Builder margin plus proposer payment (0.1578 + 0.1905 = 0.3483 of
+- **Why kept is negative.** Builder margin plus proposer payment (0.2048 + 0.1435 = 0.3483 of
   searcher LVR) is more than the single-pool gross at 0 s (1,251,576.57, 0.3020 of searcher LVR).
   Gross is measured at the block time against Binance's last trade, so this is a small difference
   of large totals, as in finding 3. Sub-project 2's positive kept at 12 s (+$0.06M) covers the
   top 4 bots only, not every searcher.
-- **Proposer versus builder: still two-sided, as pre-registered.** The primary method finds the
-  proposer payment as the block's last transaction, sent by the fee recipient; a block without one
-  is taken to be self-built, with the fee recipient as proposer (proposer share 1). That is 105,361
-  of the 659,799 window blocks (16.0%; the 175 blocks with no transactions at all are no longer
-  counted). These blocks carry 20.6% of the $1,443,430.55 that single-pool searcher transactions
-  paid builders. The sensitivity gives them the paid blocks' proposer share instead (Σ payment /
-  Σ builder revenue over the 554,263 paid blocks, 0.4915, revenue-weighted because what is split
-  is a sum of dollars).
+- **Proposer versus builder: one split, tested twice.** Each block gets one class from chain
+  data only ([methodology section 19](docs/methodology.md#19-proposer-payment-detection)). Its last
+  transaction is sent by the fee recipient (554,263 blocks, 79.4% of the $1,443,430.55 that
+  single-pool searcher transactions paid builders), or by a payout address the builder keeps apart
+  from its fee recipient (44,073 blocks, 20.6%; Titan's fee recipient `0x4838…`, for example, pays
+  through `0x9fc3…`). Otherwise the fee recipient is taken to be the proposer, who then receives
+  the whole builder revenue: a fee recipient that never pays anyone (56,501 blocks, $23.42), an
+  empty block (175) or an unexplained one (4,787 blocks, below). A payout address sent the last
+  transaction in at least 50 of a fee recipient's blocks, with value > 0 in at least 99% of them,
+  and its fee recipient pays from itself at least once.
+- **The two tests.** Both were fixed before their holdout was drawn, with the same bar: 95%
+  of the found holdout blocks of the payout class must match the relay within 1 wei and pass a
+  check that the relay's proposer was the one paid.
 
-  | | primary (self-built share 1) | sensitivity (self-built share 0.4915) | measured payments; not adopted |
-  |---|---|---|---|
-  | proposer payment | 789,291.15 (0.1905) | 638,079.53 (0.1540) | 594,782.47 (0.1435) |
-  | builder margin | 654,139.41 (0.1578) | 805,351.02 (0.1943) | 848,648.09 (0.2048) |
-  | together | 1,443,430.55 (0.3483) | 1,443,430.55 (0.3483) | 1,443,430.56 (0.3483) |
+  | | first holdout (seed 44) | second holdout (seed 45) |
+  |---|---|---|
+  | payout-class blocks found on a relay | 289 | 290 |
+  | match the relay's payment within 1 wei | 289 (100%) | 290 (100%) |
+  | recipient check | last transaction's `to_address`: 132 (45.7%) | follows forwarders: 290 (100%) |
+  | decision | two-sided split kept | one split |
 
-- **The uncertainty is narrower than before.** Before, we did not know how those 16% of blocks
-  paid their proposer. Now we know how much was paid: $296,703.85 of their $297,357.38 sits in
-  blocks that pay in the last transaction, sent from a payout address the builder keeps apart
-  from its fee recipient
-  (Titan's fee recipient `0x4838…`, for example, pays through `0x9fc3…`). Payout addresses are
-  learned from chain data only (a sender of the last transaction in at least 50 of a fee
-  recipient's blocks, with value > 0 in at least 99% of them), and the rule was fixed and tested
-  on a blind relay sample drawn afterwards: **289 of 289** holdout blocks found match the relay's
-  payment to the wei. What is still open is only where one forwarding contract sends the money.
-- **Why the pre-registered bar failed.** The recipient check compares the last transaction's
-  `to_address` with the proposer the relay names, and 615 of its 616 failures are payments into
-  `0xfeeeeee…7ffc`, a contract that passes the ETH on (about 29k gas), so the check cannot see
-  where it ends up. It fails the primary method's own blocks the same way: in the original sample
-  377 of 699 paid blocks pass it, though all 699 match the relay's value to the wei. The bar
-  needed 95% on both checks among the holdout's payout-address blocks; it got 100% on value and
-  45.7% on recipient, so the two-sided split stands. The third column is the payout rule's own
-  split, fixed with the rule before the run: measured payments, not adopted because its
-  pre-registered recipient check failed. A check that follows the forwarder, with a new bar and a
-  fresh holdout, is on the [roadmap](docs/roadmap.md).
-- **What is left unexplained:** $633.49 (0.044%) of builder dollars, in blocks that neither pay
+  The first recipient check failed on one contract: 615 of its 616 failures were payments into
+  `0xfeeeeee…7ffc`, 20 bytes of code that pass the whole payment on, by `SELFDESTRUCT`, to an
+  address in the calldata. Redefining that check and re-scoring the same blocks would have been
+  fishing. Instead a check that follows the payment through internal transfers in the same
+  transaction was written down and tagged (`forwarder-preregistered`) before a fresh holdout was
+  drawn, together with a fix to the classes (two fee recipients that never pay, one of them Lido's
+  rewards vault, had been given a spurious payout address). On the fresh holdout it passed 290 of
+  290 payout-class blocks, and 232 of 232 blocks paid by the fee recipient (the old check: 117
+  and 108). The first decision stays on file as the record of the first test
+  ([methodology section 20](docs/methodology.md#20-recipient-check-through-forwarders)).
+- **What it replaces.** The README used to give two splits: a primary method that counted the
+  16.0% of blocks without a payment from the fee recipient as self-built (proposers 19.0%,
+  builders 15.8% of searcher LVR) and a sensitivity (15.4% and 19.4%). The measured split sits
+  outside both because most of those blocks were MEV-Boost blocks that paid the proposer from a
+  payout address.
+- **What is left unexplained:** $630.11 (0.044%) of builder dollars, in blocks that neither pay
   from the fee recipient nor from a payout address. That is too small to move the split, so the
   261 GB trace query once planned for it is not needed. Nothing else in this section depends on
   the split.
 
-> The split of builder payments between builder and proposer uses each block's ratio of proposer payment to builder revenue; how a builder prices an individual transaction is not observed. Proposer payments are identified as the block's last transaction from the fee recipient and cross-checked against relay data on a sample of blocks only.
+> The split of builder payments between builder and proposer uses each block's ratio of proposer payment to builder revenue; how a builder prices an individual transaction is not observed. Proposer payments are identified as the block's last transaction, sent by the fee recipient or by a payout address learned from chain data, and tested on a blind stratified relay sample; blocks where neither applies give the proposer the whole builder revenue.
 
 ## Is it the reference price?
 
@@ -629,7 +629,7 @@ the pool's full history is needed to know their state and their LP:
 | Pool and NonfungiblePositionManager logs, 2021-05-04 to the window end | Every `Mint`/`Burn`/`Collect`, and the NFT positions' `IncreaseLiquidity`/`DecreaseLiquidity`/`Collect`/`Transfer` | BigQuery, one paid query (2.98 TB scanned) |
 | Archive RPC | Fee-growth state at the snapshot and at the 500 sample blocks; every position's stored state at the window's start and end; whether each LP address has contract code | `eth_call` batched through Multicall3, `eth_getCode` |
 | BigQuery transactions, traces and logs | Per block: builder revenue, proposer payment and the last transaction's recipient and gas; per transaction touching the pool: payments to the block's fee recipient and logs from other contracts | Aggregated inside BigQuery (about 676 GB scanned) |
-| MEV-Boost relays | Relay-reported proposer payments for 1,000 random window blocks | Public data APIs, cross-check only |
+| MEV-Boost relays | Relay-reported proposer payments for 1,000 random window blocks and two 600-block holdouts | Public data APIs, cross-check only |
 | Binance | ETHUSDT 1-minute candles since the pool's creation | data.binance.vision, checksum-verified |
 | `labels/lp_addresses.csv` | Four LP vaults named on Etherscan, with source links | Curated |
 
@@ -725,7 +725,7 @@ Every definition and formula: [`docs/methodology.md`](docs/methodology.md).
 
 ### LP P&L and where LVR goes (sub-project 3)
 
-> The split of builder payments between builder and proposer uses each block's ratio of proposer payment to builder revenue; how a builder prices an individual transaction is not observed. Proposer payments are identified as the block's last transaction from the fee recipient and cross-checked against relay data on a sample of blocks only.
+> The split of builder payments between builder and proposer uses each block's ratio of proposer payment to builder revenue; how a builder prices an individual transaction is not observed. Proposer payments are identified as the block's last transaction, sent by the fee recipient or by a payout address learned from chain data, and tested on a blind stratified relay sample; blocks where neither applies give the proposer the whole builder revenue.
 
 - **Reference price.** Measured LVR, fees in USD and every P&L use Binance's last ETHUSDC trade, as
   above. [Is it the reference price?](#is-it-the-reference-price) re-measures it against a
@@ -755,14 +755,13 @@ Every definition and formula: [`docs/methodology.md`](docs/methodology.md).
   failed transactions are missed). A transaction that both swaps and moves JIT liquidity has its
   gas and builder payments counted twice, as the searcher's cost here and as the LP's cost in the
   P&L tables: at most $19,017 in this window (the 265 such transactions).
-  The two analyses are never added together. The proposer/builder split stays two-sided: the
-  primary method treats the 16.0% of blocks without a last-transaction payment from the fee
-  recipient as self-built (proposer 19.0%, builders 15.8% of searcher LVR); the sensitivity gives
-  them the paid-block share (15.4% and 19.4%). The payments in those blocks are now measured
-  (14.4% and 20.5%, matching the relay to the wei in a blind holdout), but that split is not
-  adopted because its pre-registered recipient check failed on a forwarding contract. Their sum
-  (34.8%) does not move. The relay sample found 771 of 1,000 blocks; bloXroute's max-profit relay
-  did not answer for the other 188 it was asked about.
+  The two analyses are never added together. The proposer/builder split (proposers 14.4%, builders 20.5% of searcher LVR) comes
+  from measured payments that passed a pre-registered relay test on the second attempt; the
+  first attempt's failed recipient check stays published beside it (methodology sections 19 and
+  20). Blocks left unexplained ($630.11 of builder dollars, 0.044%) give the proposer the whole
+  builder revenue. The sum (34.8%) does not depend on the split. The relay sample found 771 of
+  1,000 blocks; bloXroute's max-profit relay, down throughout, left 188 of them and 75 and 78
+  blocks of the two holdouts without an answer.
 - **Statistics:** the P&L intervals bootstrap positions and treat them as independent, though many
   positions share an LP.
 
@@ -857,17 +856,21 @@ uv run ulpe fetch-price-history                # Binance ETHUSDT 1-minute candle
 uv run ulpe fetch-builders --dry-run          # free: prints the size of the four paid builder queries
 uv run ulpe fetch-builders --confirm-cost     # BigQuery, paid (about 676 GB): builder revenue and payments
 uv run ulpe fetch-payout-code                  # RPC: code of payout recipients (wallet, EIP-7702 wallet, contract)
-uv run ulpe fetch-relays                       # relay data APIs: 1,000 sampled blocks, retries, the 600-block holdout
-uv run ulpe fetch-relays                       # again: one retry pass, as the holdout's stopping rule says
+uv run ulpe fetch-relays                       # relay data APIs: 1,000 sampled blocks, the two 600-block holdouts
+uv run ulpe fetch-relays                       # again: one retry pass of the seed-45 holdout, as its stopping rule says
 uv run ulpe fetch-timing                       # relay data APIs: winning-bid times for the same blocks
+uv run ulpe fetch-paths                        # RPC: where each seed-45 paid/payout block's payment ends up
 uv run ulpe lp                                 # checks L1-L7, then results/: tables, figure data, summary.json["lp"]
 ```
 
 `fetch-chain-state` runs twice because its position part needs the history. `fetch-builders` refuses
 to query without `--confirm-cost` and stops before querying if a dry run exceeds its 700 GB cap. `fetch-relays` is resumable and skips a relay
-after three consecutive failed blocks; each run retries the blocks a relay never answered, and
-once `fetch-builders` has run it draws the holdout and writes it to disk before any of its relay
-calls. The first `lp` after every holdout block has a row freezes the proposer-split decision. `lp` refuses to run unless validation passed on the interim
+after three consecutive failed blocks. Once `fetch-builders` has run it draws each holdout and
+writes it to disk before any of its relay calls (a copy of the relay file is kept first); a run
+that finds the seed-45 draw already on disk retries its blocks a relay never answered. Rows of
+the earlier rounds are never re-queried or changed: a write that would change them is refused.
+The first `lp` after every seed-45 block has a relay row and a payment path freezes the
+proposer-split decision. `lp` refuses to run unless validation passed on the interim
 files on disk and the `analyze` outputs exist; if a check L1–L7 fails it writes the checks file
 and no results.
 

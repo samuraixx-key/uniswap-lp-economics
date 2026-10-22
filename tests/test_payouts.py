@@ -85,7 +85,8 @@ def test_each_block_gets_one_class() -> None:
 def test_payout_threshold_is_50_blocks_and_99_percent() -> None:
     def pair_blocks(miner: str, n: int, zeros: int) -> list[Row]:
         sender = addr(int(miner[2:4], 16) + 100)
-        return [(i, miner, sender, 0 if i < zeros else 1, P) for i in range(n)]
+        paid: Row = (0, miner, miner, 1, X)  # the fee recipient pays from itself once
+        return [paid] + [(i, miner, sender, 0 if i < zeros else 1, P) for i in range(n)]
 
     c, d, e = addr(10), addr(11), addr(12)
     rows = pair_blocks(c, 49, 0) + pair_blocks(d, 50, 0) + pair_blocks(e, 50, 1)
@@ -207,8 +208,17 @@ def test_a_missing_code_read_names_the_address() -> None:
 
 
 def test_min_blocks_moves_the_pair_threshold() -> None:
-    rev, last = frames([(n, A, S_A, 10, P) for n in range(30)])  # a pair with 30 blocks
+    rows: list[Row] = [(n, A, S_A, 10, P) for n in range(30)]  # a pair with 30 blocks
+    rev, last = frames([*rows, (30, A, A, 1, X)])  # A also pays from itself once
     assert payout_pairs(rev).height == 0 and payout_pairs(rev, min_blocks=20).height == 1
     assert class_counts(block_classes(rev, last))[PAYOUT] == 0
     assert class_counts(block_classes(rev, last, min_blocks=20))[PAYOUT] == 30
     assert class_counts(block_classes(rev, last, min_blocks=31))[PAYOUT] == 0
+
+
+def test_a_fee_recipient_that_never_pays_has_no_payout_pair() -> None:
+    lido, w = addr(20), addr(21)
+    rows: list[Row] = [(n, lido, w, 6, addr(100 + n)) for n in range(60)]  # never from lido
+    rev, last = frames(rows)
+    assert payout_pairs(rev).height == 0
+    assert set(block_classes(rev, last)["cls"].to_list()) == {PROPOSER_IS_FEE_RECIPIENT}

@@ -257,7 +257,8 @@ def test_retry_requeries_only_unchecked_not_found_rows(
 ) -> None:
     sleeps: list[float] = []
     monkeypatch.setattr(relays.time, "sleep", sleeps.append)
-    rows = [_row(1, True, None), _row(2, False, None), _row(3, False, R1), _row(4, False, R1)]
+    rows = [_row(b, f, u, "holdout2") for b, f, u in ((1, True, None), (2, False, None))]
+    rows += [_row(3, False, R1, "holdout2"), _row(4, False, R1, "holdout2")]
     write_exact(pl.DataFrame(rows, schema=relays.RELAY_SCHEMA), tmp_path / relays.RELAY_FILE)
     big = 7 * 10**20
     payload = [{"value": str(big), "proposer_fee_recipient": "0xCD", "builder_pubkey": "0x1"}]
@@ -275,7 +276,7 @@ def test_retry_requeries_only_unchecked_not_found_rows(
     assert n == 2 and blocks == [3, 4] and timeouts == [60, 60]
     assert sleeps == [0.25]  # between blocks only
     assert df["block_number"].to_list() == [1, 2, 3, 4]  # replaced in place, no duplicate
-    assert df["round"].to_list() == ["seen", "seen", "retry", "retry"]
+    assert df["round"].to_list() == ["holdout2"] * 4  # a retried row keeps its round
     assert df["value_wei"].to_list() == [3 * 10**20, None, big, big]
     assert df["relays_unchecked"].to_list() == [None] * 4
     assert relays.retry_unchecked(tmp_path, client, (R1,), pace_s=0) == 0  # nothing left
@@ -285,13 +286,13 @@ def test_a_retried_block_still_unfound_keeps_its_unchecked_relays(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setattr(relays.time, "sleep", lambda s: None)
-    rows = [_row(3, False, R1 + "," + R2)]
+    rows = [_row(3, False, R1 + "," + R2, "holdout2")]
     write_exact(pl.DataFrame(rows, schema=relays.RELAY_SCHEMA), tmp_path / relays.RELAY_FILE)
     client, _ = _counting({R1: httpx.Response(503), R2: httpx.Response(200, json=[])})
     assert relays.retry_unchecked(tmp_path, client, (R1, R2), pace_s=0) == 1
     df = read_exact(tmp_path / relays.RELAY_FILE)
     assert df.height == 1 and not df["found"][0]
-    assert df["round"][0] == "retry" and df["relays_unchecked"][0] == R1
+    assert df["round"][0] == "holdout2" and df["relays_unchecked"][0] == R1
     assert R1 in capsys.readouterr().out
 
 
@@ -299,7 +300,7 @@ def test_an_error_mid_retry_keeps_every_row(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(relays.time, "sleep", lambda s: None)
-    rows = [_row(b, False, R1) for b in (1, 2, 3)]
+    rows = [_row(b, False, R1, "holdout2") for b in (1, 2, 3)]
     write_exact(pl.DataFrame(rows, schema=relays.RELAY_SCHEMA), tmp_path / relays.RELAY_FILE)
     calls: list[int] = []
 
@@ -313,21 +314,76 @@ def test_an_error_mid_retry_keeps_every_row(
     with pytest.raises(RuntimeError):
         relays.retry_unchecked(tmp_path, client, (R1,), pace_s=0)
     df = read_exact(tmp_path / relays.RELAY_FILE).sort("block_number")
-    assert df["round"].to_list() == ["retry", "seen", "seen"]  # block 1 retried; 2, 3 untouched
+    # block 1 retried (every relay answered); 2 and 3 untouched
+    assert df["relays_unchecked"].to_list() == [None, R1, R1]
 
 
-@pytest.mark.parametrize("answer", [[], [{"value": "9", "proposer_fee_recipient": "0xab"}]])
-def test_a_retried_holdout_row_stays_in_the_holdout(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, answer: list[object]
+def test_retry_limited_to_holdout2_leaves_other_rounds_alone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(relays.time, "sleep", lambda s: None)
-    rows = [_row(3, False, R1, "holdout"), _row(4, False, R1, "seen")]
+    rows = [_row(3, False, R1, "holdout"), _row(4, False, R1, "holdout2"), _row(5, False, R1)]
     write_exact(pl.DataFrame(rows, schema=relays.RELAY_SCHEMA), tmp_path / relays.RELAY_FILE)
-    client = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(200, json=answer)))
-    assert relays.retry_unchecked(tmp_path, client, (R1,), pace_s=0) == 2
+    asked: list[int] = []
+    answer = [{"value": "9", "proposer_fee_recipient": "0xab"}]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        asked.append(int(request.url.params["block_number"]))
+        return httpx.Response(200, json=answer)
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    assert relays.retry_unchecked(tmp_path, client, (R1,), pace_s=0) == 1
     df = read_exact(tmp_path / relays.RELAY_FILE).sort("block_number")
-    assert df["round"].to_list() == ["holdout", "retry"]
-    assert df["found"].to_list() == [bool(answer)] * 2 and df["relays_unchecked"].null_count() == 2
+    assert asked == [4] and df["round"].to_list() == ["holdout", "holdout2", "seen"]
+    assert df["found"].to_list() == [False, True, False]
+
+
+def test_a_write_that_changes_a_published_row_refuses(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(relays.time, "sleep", lambda s: None)
+    out = tmp_path / relays.RELAY_FILE
+    write_exact(pl.DataFrame([_row(3, False, R1, "holdout")], schema=relays.RELAY_SCHEMA), out)
+    before = out.read_bytes()
+    answer = [{"value": "9", "proposer_fee_recipient": "0xab"}]
+    client = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(200, json=answer)))
+    with pytest.raises(ValueError, match="published"):
+        relays.retry_unchecked(tmp_path, client, (R1,), pace_s=0, rounds=("holdout",))
+    assert out.read_bytes() == before
+
+
+def test_second_holdout_has_its_own_file_seed_and_round(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(relays.time, "sleep", lambda s: None)
+    rows = [_row(1, True, None), _row(2, False, R1, "holdout"), _row(12, True, None, "holdout")]
+    write_exact(pl.DataFrame(rows, schema=relays.RELAY_SCHEMA), tmp_path / relays.RELAY_FILE)
+    first = pl.DataFrame({"block_number": [2, 12], "stratum": ["payout", "rest"], "seed": [44, 44]})
+    write_exact(first, tmp_path / relays.HOLDOUT_FILE)
+    first_bytes = (tmp_path / relays.HOLDOUT_FILE).read_bytes()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert (tmp_path / relays.HOLDOUT2_FILE).exists()  # written before the first relay call
+        return httpx.Response(200, json=[])
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    kw = {"seed": 45, "holdout_file": relays.HOLDOUT2_FILE, "round_label": relays.HOLDOUT2_ROUND}
+    path = relays.fetch_holdout(
+        tmp_path, _holdout_classes(10, 10), client, (R1,), pace_s=0, n=3, **kw
+    )
+    h = read_exact(path)
+    assert path == tmp_path / relays.HOLDOUT2_FILE and set(h["seed"]) == {45} and h.height == 6
+    assert not set(h["block_number"]) & {1, 2, 12}  # every block already fetched is excluded
+    df = read_exact(tmp_path / relays.RELAY_FILE)
+    assert set(df.filter(pl.col("round") == "holdout2")["block_number"]) == set(h["block_number"])
+    assert (
+        df.filter(pl.col("round") != "holdout2")
+        .sort("block_number")
+        .equals(pl.DataFrame(rows, schema=relays.RELAY_SCHEMA))
+    )
+    assert (tmp_path / relays.HOLDOUT_FILE).read_bytes() == first_bytes
+    with pytest.raises(ValueError, match="seed"):
+        relays.fetch_holdout(tmp_path, _holdout_classes(10, 10), client, **{**kw, "seed": 46})
 
 
 def _holdout_classes(n_payout: int, n_rest: int) -> pl.DataFrame:
@@ -443,3 +499,39 @@ def test_missing_recipient_is_stored_as_none(recipient: dict[str, Any]) -> None:
     client = httpx.Client(transport=transport({R1: [httpx.Response(200, json=payload)]}))
     row = relays.query_block(client, 7, (R1,), backoff_s=0)
     assert row["found"] and row["proposer_fee_recipient"] is None
+
+
+def test_a_write_that_adds_rows_to_a_published_round_refuses(tmp_path: Path) -> None:
+    out = tmp_path / relays.RELAY_FILE
+    write_exact(pl.DataFrame([_row(1, True, None)], schema=relays.RELAY_SCHEMA), out)
+    before = out.read_bytes()
+    (tmp_path / "relays.before_holdout2.parquet").write_bytes(before)  # taken at the seed-45 draw
+    client = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(200, json=[])))
+    with pytest.raises(ValueError, match="published"):  # a changed block range adds seen rows
+        relays.fetch_relay_sample(tmp_path, 1, 100, n=3, client=client, relay_urls=(R1,))
+    assert out.read_bytes() == before
+
+
+def test_a_lost_draw_file_is_never_redrawn_over_existing_round_rows(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(relays.time, "sleep", lambda s: None)
+    out = tmp_path / relays.RELAY_FILE
+    rows = [_row(1, True, None), _row(2, False, R1, "holdout")]  # seed-44 rows, draw file gone
+    write_exact(pl.DataFrame(rows, schema=relays.RELAY_SCHEMA), out)
+    with pytest.raises(ValueError, match="holdout"):
+        relays.fetch_holdout(tmp_path, _holdout_classes(10, 10), httpx.Client(), (R1,), n=3)
+    assert not (tmp_path / relays.HOLDOUT_FILE).exists()
+
+
+def test_the_relay_file_is_copied_before_a_new_draw(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(relays.time, "sleep", lambda s: None)
+    out = tmp_path / relays.RELAY_FILE
+    write_exact(pl.DataFrame([_row(1, True, None)], schema=relays.RELAY_SCHEMA), out)
+    before = out.read_bytes()
+    client = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(200, json=[])))
+    kw = {"seed": 45, "holdout_file": relays.HOLDOUT2_FILE, "round_label": relays.HOLDOUT2_ROUND}
+    relays.fetch_holdout(tmp_path, _holdout_classes(10, 10), client, (R1,), pace_s=0, n=3, **kw)
+    assert (tmp_path / "relays.before_holdout2.parquet").read_bytes() == before

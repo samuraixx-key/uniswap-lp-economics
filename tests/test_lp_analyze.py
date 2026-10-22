@@ -10,11 +10,12 @@ from lpworld import JIT_DIRECT_WEI, T0, US, WALLET, D, J, L, T, world_end_us, wo
 
 from uniswap_lp_economics.config import HOUR_US
 from uniswap_lp_economics.data import relays
+from uniswap_lp_economics.data.transfers import PATH_SCHEMA
 from uniswap_lp_economics.io import write_exact
 from uniswap_lp_economics.lp import analyze as lp
 from uniswap_lp_economics.lp import destination
 from uniswap_lp_economics.lp.analyze import LpInputs
-from uniswap_lp_economics.lp.checks import HOLDOUT_DECISION_FILE, check_l6
+from uniswap_lp_economics.lp.checks import HOLDOUT2_DECISION_FILE, HOLDOUT_DECISION_FILE, check_l6
 from uniswap_lp_economics.lp.pnl import (
     Edge,
     liquidity_path,
@@ -250,7 +251,7 @@ def test_hedge_keeps_the_sensitivity(tmp_path: Path, monkeypatch: pytest.MonkeyP
 
 def test_one_split_drops_the_sensitivity(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     passing = {"bar": 0.95, "n_found_payout": 300, "one_split": True}
-    monkeypatch.setattr(lp, "holdout_decision", lambda relays, split: passing)
+    monkeypatch.setattr(lp, "holdout_decision", lambda relays, split, *a, **kw: passing)
     lpd, text, split = _run_world(tmp_path, monkeypatch)
     dest = lpd["destination"]
     assert dest["proposer_split"] == "one" and dest["holdout_decision"] == passing
@@ -297,7 +298,7 @@ def test_incomplete_holdout_is_not_frozen(
 ) -> None:
     raw = tmp_path / "raw"
     inp = _holdout_world(raw, [7])  # block 8 has no relay row yet
-    monkeypatch.setattr(lp, "holdout_decision", lambda relays, split: PASSING)
+    monkeypatch.setattr(lp, "holdout_decision", lambda relays, split, *a, **kw: PASSING)
     lpd, _, _ = _run_world(tmp_path, monkeypatch, inp, raw)
     dest = lpd["destination"]
     assert dest["decision_frozen"] is False and dest["holdout_decision"] == PASSING
@@ -314,7 +315,7 @@ def test_complete_holdout_freezes_and_later_runs_publish_the_frozen_decision(
 ) -> None:
     raw = tmp_path / "raw"
     inp = _holdout_world(raw, [7, 8])
-    monkeypatch.setattr(lp, "holdout_decision", lambda relays, split: PASSING)
+    monkeypatch.setattr(lp, "holdout_decision", lambda relays, split, *a, **kw: PASSING)
     dest = _run_world(tmp_path, monkeypatch, inp, raw)[0]["destination"]
     frozen = json.loads((raw / HOLDOUT_DECISION_FILE).read_text(encoding="utf-8"))
     assert frozen["decision"] == PASSING and frozen["n_holdout_blocks"] == 2
@@ -323,7 +324,7 @@ def test_complete_holdout_freezes_and_later_runs_publish_the_frozen_decision(
     assert "holdout_decision_recomputed" not in dest  # nothing to compare on the freezing run
     assert capsys.readouterr().out.rstrip().endswith(", frozen")
     # a later run recomputes a different answer: the frozen one still picks the split
-    monkeypatch.setattr(lp, "holdout_decision", lambda relays, split: FAILING)
+    monkeypatch.setattr(lp, "holdout_decision", lambda relays, split, *a, **kw: FAILING)
     lpd, text, split = _run_world(tmp_path, monkeypatch, inp, raw)
     dest = lpd["destination"]
     assert dest["holdout_decision"] == PASSING and dest["holdout_decision_recomputed"] == FAILING
@@ -593,3 +594,86 @@ def test_l6_shortfall_beyond_the_tolerance_fails() -> None:
     assert check_l6(steps, accounts(16), aligned, swap_fees, 0).passed
     assert not check_l6(steps, accounts(15), aligned, swap_fees, 0).passed
     assert check_l6(steps, accounts(15), aligned, swap_fees, 1).passed  # a window flow adds one
+
+
+SECOND_PASS = {**PASSING, "round": "holdout2", "recipient_check": "R1d"}
+SECOND_FAIL = {**FAILING, "round": "holdout2", "recipient_check": "R1d"}
+
+
+def _holdout2_world(raw: Path, paths_for: list[int]) -> LpInputs:
+    """The world with the seed-44 decision frozen as a hedge on disk, and a complete 2-block
+    seed-45 holdout (blocks 7 and 8, both with relay rows) whose paths exist for `paths_for`."""
+    inp = _holdout_world(raw, [7, 8])
+    (raw / HOLDOUT_DECISION_FILE).write_text(
+        json.dumps({"decision": FAILING}) + "\n", encoding="utf-8"
+    )
+    drawn = pl.DataFrame({"block_number": [7, 8], "stratum": ["payout", "rest"], "seed": [45, 45]})
+    write_exact(drawn, raw / relays.HOLDOUT2_FILE)
+    held2 = inp.relays.with_columns(round=pl.lit(relays.HOLDOUT2_ROUND))
+    paths = pl.DataFrame(
+        {
+            "block_number": paths_for,
+            "tx_hash": ["0x"] * len(paths_for),
+            "path": ["0x"] * len(paths_for),
+        },
+        schema=PATH_SCHEMA,
+    )
+    return replace(inp, relays=held2, payment_paths=paths)
+
+
+def _by_round(second: dict[str, Any]) -> Any:
+    return lambda relays, split, round_label="holdout", paths=None: (
+        second if round_label == "holdout2" else FAILING
+    )
+
+
+def test_without_a_seed45_draw_the_first_decision_is_published(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    raw = tmp_path / "raw"
+    inp = _holdout_world(raw, [7, 8])
+    monkeypatch.setattr(lp, "holdout_decision", _by_round(SECOND_PASS))
+    dest = _run_world(tmp_path, monkeypatch, inp, raw)[0]["destination"]
+    assert dest["published_decision"] == "holdout" and dest["proposer_split"] == "hedge"
+    assert dest["decision_2_frozen"] is False and dest["holdout_decision_2"] == SECOND_PASS
+    assert not (raw / HOLDOUT2_DECISION_FILE).exists()
+
+
+def test_holdout2_waits_for_every_payment_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    raw = tmp_path / "raw"
+    inp = _holdout2_world(raw, [8])  # block 7 is payout-class and has no path yet
+    monkeypatch.setattr(lp, "holdout_decision", _by_round(SECOND_PASS))
+    dest = _run_world(tmp_path, monkeypatch, inp, raw)[0]["destination"]
+    assert dest["decision_2_frozen"] is False and dest["published_decision"] == "holdout"
+    assert dest["proposer_split"] == "hedge" and not (raw / HOLDOUT2_DECISION_FILE).exists()
+
+
+def test_a_frozen_passing_seed45_decision_publishes_one_split(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    raw = tmp_path / "raw"
+    inp = _holdout2_world(raw, [7, 8])
+    first = (raw / HOLDOUT_DECISION_FILE).read_bytes()
+    monkeypatch.setattr(lp, "holdout_decision", _by_round(SECOND_PASS))
+    lpd, text, _ = _run_world(tmp_path, monkeypatch, inp, raw)
+    dest = lpd["destination"]
+    assert dest["published_decision"] == "holdout2" and dest["proposer_split"] == "one"
+    assert dest["decision_2_frozen"] is True and dest["holdout_decision"] == FAILING
+    frozen = json.loads((raw / HOLDOUT2_DECISION_FILE).read_text(encoding="utf-8"))
+    assert frozen["decision"] == SECOND_PASS and frozen["n_holdout_blocks"] == 2
+    assert (raw / HOLDOUT_DECISION_FILE).read_bytes() == first
+    assert "Seed-45 holdout (R1d)" in text and "sensitivity_self_built" not in dest
+    assert "proposer split one" in capsys.readouterr().out.splitlines()[-1]
+
+
+def test_a_frozen_failing_seed45_decision_keeps_the_hedge(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    raw = tmp_path / "raw"
+    inp = _holdout2_world(raw, [7, 8])
+    monkeypatch.setattr(lp, "holdout_decision", _by_round(SECOND_FAIL))
+    dest = _run_world(tmp_path, monkeypatch, inp, raw)[0]["destination"]
+    assert dest["published_decision"] == "holdout2" and dest["proposer_split"] == "hedge"
+    assert "rule_split" in dest and "sensitivity_self_built" in dest

@@ -8,7 +8,7 @@ import polars as pl
 import pytest
 
 from uniswap_lp_economics import cli, config
-from uniswap_lp_economics.data import bigquery, builders, history
+from uniswap_lp_economics.data import bigquery, builders, history, relays
 from uniswap_lp_economics.data import blocks as bq_blocks
 
 
@@ -22,6 +22,7 @@ def test_all_runs_every_step_in_order(monkeypatch: pytest.MonkeyPatch) -> None:
     assert ran == list(cli.ALL_STEPS)
     assert ran[-1] == "figures" and ran.index("lp") < ran.index("figures")
     assert ran.index("fetch-relays") + 1 == ran.index("fetch-timing") < ran.index("lp")
+    assert ran.index("fetch-timing") + 1 == ran.index("fetch-paths") < ran.index("lp")
     assert ran.index("fetch-builders") + 1 == ran.index("fetch-payout-code")
     assert ran.index("fetch-payout-code") + 1 == ran.index("fetch-relays")
     assert (
@@ -280,7 +281,58 @@ def test_the_holdout_waits_for_the_last_tx_table(
     pl.DataFrame({"block_number": [1, 2]}).write_parquet(tmp_path / bq_blocks.BLOCKS_FILE)
     monkeypatch.setattr(config, "RAW_DIR", tmp_path)
     monkeypatch.setattr(cli.relays, "fetch_relay_sample", lambda *a: None)
-    monkeypatch.setattr(cli.relays, "retry_unchecked", lambda *a: 0)
+    monkeypatch.setattr(cli.relays, "retry_unchecked", lambda *a, **kw: 0)
     monkeypatch.setattr(cli.relays, "fetch_holdout", lambda *a: pytest.fail("drew a holdout"))
     cli.fetch_relays()
     assert "fetch-builders" in capsys.readouterr().out
+
+
+def test_fetch_relays_retries_only_holdout2(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    pl.DataFrame({"block_number": [1, 2]}).write_parquet(tmp_path / bq_blocks.BLOCKS_FILE)
+    (tmp_path / builders.BUILDERS_DIR).mkdir()
+    (tmp_path / builders.BUILDERS_DIR / builders.LAST_TX).write_bytes(b"")
+    monkeypatch.setattr(config, "RAW_DIR", tmp_path)
+    monkeypatch.setattr(cli, "_block_classes", lambda: "classes")
+    monkeypatch.setattr(cli.relays, "fetch_relay_sample", lambda *a: None)
+    holdouts: list[dict[str, object]] = []
+    monkeypatch.setattr(cli.relays, "fetch_holdout", lambda *a, **kw: holdouts.append(kw))
+    retried: list[dict[str, object]] = []
+    monkeypatch.setattr(cli.relays, "retry_unchecked", lambda *a, **kw: retried.append(kw) or 0)
+    cli.fetch_relays()  # first run: draws and fetches the seed-45 holdout, no retry yet
+    assert holdouts == [
+        {},
+        {"seed": 45, "holdout_file": "relay_holdout_2.parquet", "round_label": "holdout2"},
+    ]
+    assert retried == []
+    (tmp_path / relays.HOLDOUT2_FILE).write_bytes(b"")  # the draw now exists
+    cli.fetch_relays()  # second run: the one retry, of the seed-45 round only
+    assert retried == [{"rounds": ("holdout2",)}]
+
+
+def test_fetch_paths_targets_paid_and_payout_holdout2_blocks(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(config, "RAW_DIR", tmp_path)
+    monkeypatch.setattr(cli, "_rpc", lambda: "rpc")
+    got: list[pl.DataFrame] = []
+    monkeypatch.setattr(cli.transfers, "fetch_payment_paths", lambda c, d, t: got.append(t))
+    cli.fetch_paths()  # no seed-45 draw yet: nothing to do
+    assert got == []
+    pl.DataFrame(
+        {"block_number": [1, 2, 3, 4], "stratum": ["payout"] * 4, "seed": [45] * 4}
+    ).write_parquet(tmp_path / relays.HOLDOUT2_FILE)
+    classes = pl.DataFrame(
+        {
+            "block_number": [1, 2, 3, 4, 5],
+            "cls": ["paid", "payout", "proposer_is_fee_recipient", "unexplained", "payout"],
+            "to_address": ["0xa", "0xb", None, "0xd", "0xe"],
+            "last_value_wei": [1, 2, 3, 4, 5],
+        },
+        schema_overrides={"last_value_wei": pl.Int128},
+    )
+    monkeypatch.setattr(cli, "_block_classes", lambda: classes)
+    cli.fetch_paths()
+    assert got[0]["block_number"].to_list() == [1, 2]
+    assert got[0].columns == ["block_number", "to_address", "last_value_wei"]

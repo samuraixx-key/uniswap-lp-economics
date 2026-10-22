@@ -13,6 +13,7 @@ CLASSES = (EMPTY, PAID, PAYOUT, PROPOSER_IS_FEE_RECIPIENT, UNEXPLAINED)
 PAYOUT_MIN_BLOCKS = 50
 PAYOUT_MIN_POSITIVE_SHARE = 0.99
 HOLDOUT_SEED = 44
+HOLDOUT2_SEED = 45
 HOLDOUT_PER_STRATUM = 300
 SIMPLE_TRANSFER_GAS = 21_000
 RECIPIENT_TYPES = ("wallet", "7702_wallet", "contract")
@@ -21,9 +22,13 @@ RECIPIENT_TYPES = ("wallet", "7702_wallet", "contract")
 def payout_pairs(block_revenue: pl.DataFrame, min_blocks: int = PAYOUT_MIN_BLOCKS) -> pl.DataFrame:
     """(miner, last_from) where a sender other than the fee recipient sent the block's last
     transaction in at least `min_blocks` (PAYOUT_MIN_BLOCKS) of the miner's blocks, with value > 0
-    in at least PAYOUT_MIN_POSITIVE_SHARE of them. Learned from block_revenue only."""
+    in at least PAYOUT_MIN_POSITIVE_SHARE of them, and the miner itself sent the last transaction
+    in at least one of its blocks (a fee recipient that never pays is a proposer, not a builder:
+    forwarder spec section 3). Learned from block_revenue only."""
+    paying = block_revenue.filter(pl.col("last_from") == pl.col("miner")).select("miner").unique()
     return (
-        block_revenue.filter(pl.col("last_from").is_not_null())
+        block_revenue.join(paying, on="miner", how="semi")
+        .filter(pl.col("last_from").is_not_null())
         .filter(pl.col("last_from") != pl.col("miner"))
         .group_by("miner", "last_from")
         .agg(n=pl.len(), positive=(pl.col("last_value_wei") > 0).sum())

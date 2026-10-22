@@ -1,7 +1,7 @@
 {
   "status": "PASS",
-  "generated_utc": "2026-10-22T03:09:31+00:00",
-  "git_commit": "af1ad7d",
+  "generated_utc": "2026-10-22T04:50:46+00:00",
+  "git_commit": "forwarder-preregistered-8-g99ae1de",
   "checks": [
     {
       "name": "L1 every swap reproduced bit-exactly",
@@ -134,7 +134,7 @@
               "recipient_compared": 66
             },
             "proposer_is_fee_recipient": {
-              "sampled": 15,
+              "sampled": 22,
               "found": 0,
               "match_within_1_wei": 0,
               "match_within_1pct": 0,
@@ -142,7 +142,7 @@
               "recipient_compared": 0
             },
             "unexplained": {
-              "sampled": 11,
+              "sampled": 4,
               "found": 4,
               "match_within_1_wei": 0,
               "match_within_1pct": 0,
@@ -168,7 +168,7 @@
               "recipient_compared": 2
             },
             "payout": {
-              "sampled": 5,
+              "sampled": 4,
               "found": 0,
               "match_within_1_wei": 0,
               "match_within_1pct": 0,
@@ -176,7 +176,7 @@
               "recipient_compared": 0
             },
             "proposer_is_fee_recipient": {
-              "sampled": 52,
+              "sampled": 80,
               "found": 0,
               "match_within_1_wei": 0,
               "match_within_1pct": 0,
@@ -184,7 +184,7 @@
               "recipient_compared": 0
             },
             "unexplained": {
-              "sampled": 27,
+              "sampled": 0,
               "found": 0,
               "match_within_1_wei": 0,
               "match_within_1pct": 0,
@@ -218,7 +218,7 @@
               "recipient_compared": 289
             },
             "proposer_is_fee_recipient": {
-              "sampled": 16,
+              "sampled": 26,
               "found": 0,
               "match_within_1_wei": 0,
               "match_within_1pct": 0,
@@ -226,12 +226,59 @@
               "recipient_compared": 0
             },
             "unexplained": {
-              "sampled": 14,
+              "sampled": 4,
               "found": 4,
               "match_within_1_wei": 0,
               "match_within_1pct": 0,
               "recipient_match": 0,
               "recipient_compared": 0
+            }
+          },
+          "holdout2": {
+            "empty": {
+              "sampled": 0,
+              "found": 0,
+              "match_within_1_wei": 0,
+              "match_within_1pct": 0,
+              "recipient_match": 0,
+              "recipient_compared": 0,
+              "recipient_match_fwd": 0
+            },
+            "paid": {
+              "sampled": 280,
+              "found": 232,
+              "match_within_1_wei": 232,
+              "match_within_1pct": 232,
+              "recipient_match": 108,
+              "recipient_compared": 232,
+              "recipient_match_fwd": 232
+            },
+            "payout": {
+              "sampled": 300,
+              "found": 290,
+              "match_within_1_wei": 290,
+              "match_within_1pct": 290,
+              "recipient_match": 117,
+              "recipient_compared": 290,
+              "recipient_match_fwd": 290
+            },
+            "proposer_is_fee_recipient": {
+              "sampled": 20,
+              "found": 0,
+              "match_within_1_wei": 0,
+              "match_within_1pct": 0,
+              "recipient_match": 0,
+              "recipient_compared": 0,
+              "recipient_match_fwd": 0
+            },
+            "unexplained": {
+              "sampled": 0,
+              "found": 0,
+              "match_within_1_wei": 0,
+              "match_within_1pct": 0,
+              "recipient_match": 0,
+              "recipient_compared": 0,
+              "recipient_match_fwd": 0
             }
           }
         },
@@ -1042,6 +1089,29 @@
             "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
           }
         ],
+        "holdout2_by_stratum": {
+          "payout": {
+            "sampled": 300,
+            "found": 290,
+            "match_within_1_wei": 290,
+            "match_within_1pct": 290,
+            "recipient_match": 117,
+            "recipient_compared": 290,
+            "recipient_match_fwd": 290,
+            "unchecked": 10
+          },
+          "rest": {
+            "sampled": 300,
+            "found": 232,
+            "match_within_1_wei": 232,
+            "match_within_1pct": 232,
+            "recipient_match": 108,
+            "recipient_compared": 232,
+            "recipient_match_fwd": 232,
+            "unchecked": 68
+          }
+        },
+        "holdout2_recipient_failures": [],
         "recipient_failures": [
           {
             "round": "holdout",
@@ -1052,6 +1122,24 @@
           {
             "round": "holdout",
             "block_number": 25733948,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25739421,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xffee087852cb4898e6c3532e776e68bc68b1143b"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25739499,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x51b4096d4bde1b883f6d6ca3b1b7eb54dc20b913"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25740289,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
           },
@@ -1074,16 +1162,46 @@
             "proposer_fee_recipient": "0x09af713dfa98d66c606dd30227bf8d815df3fc92"
           },
           {
+            "round": "holdout2",
+            "block_number": 25745092,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25746564,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xd4d3fde5145141ddf7c465889923f29154526de3"
+          },
+          {
             "round": "holdout",
             "block_number": 25748379,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
           },
           {
+            "round": "holdout2",
+            "block_number": 25751538,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25751896,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x8556d473090974bbdba49687b8b4dd4b9dbd80fb"
+          },
+          {
             "round": "holdout",
             "block_number": 25752311,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25752486,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xc26fca96587271fd9c89a9754d7407d848a2ce72"
           },
           {
             "round": "holdout",
@@ -1096,6 +1214,12 @@
             "block_number": 25753404,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25753562,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x155a59fd6bd7839a0c9b1d3f56fdd4d8784897ac"
           },
           {
             "round": "holdout",
@@ -1122,6 +1246,12 @@
             "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
           },
           {
+            "round": "holdout2",
+            "block_number": 25761402,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xbe691ba3c196b8179ed6c607785b81c751759386"
+          },
+          {
             "round": "holdout",
             "block_number": 25762960,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
@@ -1132,6 +1262,12 @@
             "block_number": 25767532,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25768309,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xd4d3fde5145141ddf7c465889923f29154526de3"
           },
           {
             "round": "holdout",
@@ -1150,6 +1286,12 @@
             "block_number": 25773610,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0xb8c4b9e9f23f72c50c41365490a3c250ebea86a4"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25775186,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x155a59fd6bd7839a0c9b1d3f56fdd4d8784897ac"
           },
           {
             "round": "holdout",
@@ -1176,10 +1318,28 @@
             "proposer_fee_recipient": "0x7d16d2c4e96bcfc8f815e15b771ac847ecbdb48b"
           },
           {
+            "round": "holdout2",
+            "block_number": 25783481,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x4ad393206569465ffa4f3e0fc34aa181887a5d3e"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25783612,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x4ad393206569465ffa4f3e0fc34aa181887a5d3e"
+          },
+          {
             "round": "holdout",
             "block_number": 25786220,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0x4675c7e5baafbffbca748158becba61ef3b0a263"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25786252,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
           },
           {
             "round": "holdout",
@@ -1188,10 +1348,22 @@
             "proposer_fee_recipient": "0xffee087852cb4898e6c3532e776e68bc68b1143b"
           },
           {
+            "round": "holdout2",
+            "block_number": 25788169,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x28456995b9f754dee9a32bde61d129d0c7a53f27"
+          },
+          {
             "round": "holdout",
             "block_number": 25788851,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0x1e1c2bd340c65da0e99a7c415689930feb8ec89f"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25789380,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xfcefa8c6e193f750982030e0e05e65c9be6d607f"
           },
           {
             "round": "holdout",
@@ -1200,8 +1372,32 @@
             "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
           },
           {
+            "round": "holdout2",
+            "block_number": 25790144,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25790465,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x57aa372608793981b2999b8b8eda73b511349965"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25790815,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xffee087852cb4898e6c3532e776e68bc68b1143b"
+          },
+          {
             "round": "holdout",
             "block_number": 25790859,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25790971,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
           },
@@ -1224,10 +1420,40 @@
             "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
           },
           {
+            "round": "holdout2",
+            "block_number": 25794977,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25795046,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25795247,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25795823,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x51b4096d4bde1b883f6d6ca3b1b7eb54dc20b913"
+          },
+          {
             "round": "holdout",
             "block_number": 25795885,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0x4ad393206569465ffa4f3e0fc34aa181887a5d3e"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25796276,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x8556d473090974bbdba49687b8b4dd4b9dbd80fb"
           },
           {
             "round": "seen",
@@ -1254,10 +1480,34 @@
             "proposer_fee_recipient": "0x27f06f6886b3adf40514ccd05cbaf745bb6e1eda"
           },
           {
+            "round": "holdout2",
+            "block_number": 25801706,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
             "round": "seen",
             "block_number": 25802839,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0xc42f80913b33ba0b6002f3b5b8ad335ed9a137e3"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25803150,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x6d2e03b7effeae98bd302a9f836d0d6ab0002766"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25803246,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x417356b32e36cc7457f153df04dbc0a8941f9123"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25803941,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xffee087852cb4898e6c3532e776e68bc68b1143b"
           },
           {
             "round": "holdout",
@@ -1284,16 +1534,34 @@
             "proposer_fee_recipient": "0x7a1a489c0ed8a07e25f03f3ddfad885a0d5390d6"
           },
           {
+            "round": "holdout2",
+            "block_number": 25808432,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
             "round": "holdout",
             "block_number": 25810939,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0xe556bf2a4452dba4b02598c1810900e0dd3c1f58"
           },
           {
+            "round": "holdout2",
+            "block_number": 25812379,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x5e3b62e38808fc9582c23bc05e8a19a091d979c9"
+          },
+          {
             "round": "holdout",
             "block_number": 25814372,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0xd4a24fe19b5e0ed77137012b95b4433293e2ff8e"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25814590,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
           },
           {
             "round": "holdout",
@@ -1320,10 +1588,40 @@
             "proposer_fee_recipient": "0xb93c71048c229ccd56d25536d0d386f2b40aab5e"
           },
           {
+            "round": "holdout2",
+            "block_number": 25818061,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25818653,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xd6a7ac86df3017a164d7d3991fe76c9fdc8a4a61"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25818864,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xe688b84b23f322a994a53dbf8e15fa82cdb71127"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25820212,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x27673631a8b8a84337f3c5fc7806c9ad97d5516b"
+          },
+          {
             "round": "holdout",
             "block_number": 25820489,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0xe556bf2a4452dba4b02598c1810900e0dd3c1f58"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25824483,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x4ad393206569465ffa4f3e0fc34aa181887a5d3e"
           },
           {
             "round": "holdout",
@@ -1344,10 +1642,22 @@
             "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
           },
           {
+            "round": "holdout2",
+            "block_number": 25826278,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xb096269d0cb8f5e2abff0565af58b021ecf64f9d"
+          },
+          {
             "round": "holdout",
             "block_number": 25826964,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0x4675c7e5baafbffbca748158becba61ef3b0a263"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25828745,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xaac36b0571e0f5c5d0de82209fe1532b5797d0bd"
           },
           {
             "round": "holdout",
@@ -1356,10 +1666,40 @@
             "proposer_fee_recipient": "0xffee087852cb4898e6c3532e776e68bc68b1143b"
           },
           {
+            "round": "holdout2",
+            "block_number": 25829187,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x73f7b1184b5cd361cc0f7654998953e2a251dd58"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25831224,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x06db50807d887958001af32e9303128e49b6704e"
+          },
+          {
             "round": "holdout",
             "block_number": 25831307,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0xe688b84b23f322a994a53dbf8e15fa82cdb71127"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25831558,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xe556bf2a4452dba4b02598c1810900e0dd3c1f58"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25831702,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x771604aeb30fb0fa3029cc56983cecb2a238db3d"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25832311,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x4675c7e5baafbffbca748158becba61ef3b0a263"
           },
           {
             "round": "seen",
@@ -1374,10 +1714,46 @@
             "proposer_fee_recipient": "0x06db50807d887958001af32e9303128e49b6704e"
           },
           {
+            "round": "holdout2",
+            "block_number": 25833507,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25833785,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25833812,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x6d2e03b7effeae98bd302a9f836d0d6ab0002766"
+          },
+          {
             "round": "holdout",
             "block_number": 25834238,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0xa1a547358a9ca8e7b320d7742729e3334ad96546"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25834361,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x27f06f6886b3adf40514ccd05cbaf745bb6e1eda"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25835494,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xe556bf2a4452dba4b02598c1810900e0dd3c1f58"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25835569,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xf2a030cd953b4dcad9563f5a1d58bb3342fea458"
           },
           {
             "round": "seen",
@@ -1390,6 +1766,24 @@
             "block_number": 25837130,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25837717,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25838208,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x4ad393206569465ffa4f3e0fc34aa181887a5d3e"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25840345,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xf02e86d9e0efd57ad034faf52201b79917fe0713"
           },
           {
             "round": "holdout",
@@ -1416,6 +1810,12 @@
             "proposer_fee_recipient": "0x1d0f55b2bcc52b9a92838e6afff2336438e0e7f9"
           },
           {
+            "round": "holdout2",
+            "block_number": 25842804,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x86f911deb6bb8ca5c36eddf9ef86a9dc1f694446"
+          },
+          {
             "round": "holdout",
             "block_number": 25842903,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
@@ -1440,10 +1840,34 @@
             "proposer_fee_recipient": "0x0189fddf631db6b2bd74d1f1bb74cd01bdcf64fd"
           },
           {
+            "round": "holdout2",
+            "block_number": 25843554,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25843967,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xd11d7d2cb0aff72a61df37fd016ee1bd9f180633"
+          },
+          {
             "round": "holdout",
             "block_number": 25844874,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0xfcefa8c6e193f750982030e0e05e65c9be6d607f"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25845325,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25846439,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x4ad393206569465ffa4f3e0fc34aa181887a5d3e"
           },
           {
             "round": "holdout",
@@ -1458,6 +1882,78 @@
             "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
           },
           {
+            "round": "holdout2",
+            "block_number": 25847380,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xa5ae83579aacc8b154da373456fa81e829e0b7e4"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25848242,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25849810,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xd4d3fde5145141ddf7c465889923f29154526de3"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25850099,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x418eee2e8645a1cd62d885a947c063d41e8773cb"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25850248,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xdbc3363de051550d122d9c623cbaff441afb477c"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25850548,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xaccbe68b164e7142ceb6854121e14b264dbbd8d9"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25850581,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xa27cef8af2b6575903b676e5644657fae96f491f"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25851205,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x6be457e04092b28865e0cba84e3b2cfa0f871e67"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25851369,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25851517,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xf445577b98551e29c92577ed8007bb87defa2e8a"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25853838,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xffee087852cb4898e6c3532e776e68bc68b1143b"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25854261,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x8aef39211bdafbce373917c389dc71614f749e90"
+          },
+          {
             "round": "holdout",
             "block_number": 25855317,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
@@ -1470,6 +1966,12 @@
             "proposer_fee_recipient": "0xe688b84b23f322a994a53dbf8e15fa82cdb71127"
           },
           {
+            "round": "holdout2",
+            "block_number": 25857982,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xe688b84b23f322a994a53dbf8e15fa82cdb71127"
+          },
+          {
             "round": "holdout",
             "block_number": 25858081,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
@@ -1478,6 +1980,12 @@
           {
             "round": "holdout",
             "block_number": 25859770,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25859926,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
           },
@@ -1506,10 +2014,28 @@
             "proposer_fee_recipient": "0x6be457e04092b28865e0cba84e3b2cfa0f871e67"
           },
           {
+            "round": "holdout2",
+            "block_number": 25866649,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x1b2b241f96441e4a9f0c4ed465f2d4f872531827"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25867169,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xe556bf2a4452dba4b02598c1810900e0dd3c1f58"
+          },
+          {
             "round": "holdout",
             "block_number": 25867412,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0xa27cef8af2b6575903b676e5644657fae96f491f"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25868462,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
           },
           {
             "round": "holdout",
@@ -1530,6 +2056,12 @@
             "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
           },
           {
+            "round": "holdout2",
+            "block_number": 25873152,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x27f06f6886b3adf40514ccd05cbaf745bb6e1eda"
+          },
+          {
             "round": "holdout",
             "block_number": 25873602,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
@@ -1540,6 +2072,12 @@
             "block_number": 25874600,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25875863,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x27f06f6886b3adf40514ccd05cbaf745bb6e1eda"
           },
           {
             "round": "holdout",
@@ -1554,8 +2092,32 @@
             "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
           },
           {
+            "round": "holdout2",
+            "block_number": 25878836,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25879112,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xe688b84b23f322a994a53dbf8e15fa82cdb71127"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25879585,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x06db50807d887958001af32e9303128e49b6704e"
+          },
+          {
             "round": "seen",
             "block_number": 25879737,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25884444,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
           },
@@ -1564,6 +2126,12 @@
             "block_number": 25885808,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0x30c8107fab97e70545c4875cebb64ac9e4fb5385"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25885948,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xb9ac41519b3c748eb753db9c9cdd011e3eb8dc90"
           },
           {
             "round": "seen",
@@ -1576,6 +2144,12 @@
             "block_number": 25886430,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0x155a59fd6bd7839a0c9b1d3f56fdd4d8784897ac"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25886612,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xe688b84b23f322a994a53dbf8e15fa82cdb71127"
           },
           {
             "round": "holdout",
@@ -1632,6 +2206,12 @@
             "proposer_fee_recipient": "0xe688b84b23f322a994a53dbf8e15fa82cdb71127"
           },
           {
+            "round": "holdout2",
+            "block_number": 25896949,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
             "round": "seen",
             "block_number": 25897185,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
@@ -1662,6 +2242,18 @@
             "proposer_fee_recipient": "0x9e0b720b50809645e648fc749823879a68e5b8ea"
           },
           {
+            "round": "holdout2",
+            "block_number": 25900726,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x57aa372608793981b2999b8b8eda73b511349965"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25901014,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x42f939b583d7c682b1cbffd7687c6b34d8f5c4c8"
+          },
+          {
             "round": "seen",
             "block_number": 25901513,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
@@ -1674,6 +2266,18 @@
             "proposer_fee_recipient": "0x7d16d2c4e96bcfc8f815e15b771ac847ecbdb48b"
           },
           {
+            "round": "holdout2",
+            "block_number": 25903592,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x42f939b583d7c682b1cbffd7687c6b34d8f5c4c8"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25904180,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x51b4096d4bde1b883f6d6ca3b1b7eb54dc20b913"
+          },
+          {
             "round": "holdout",
             "block_number": 25905334,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
@@ -1684,6 +2288,24 @@
             "block_number": 25905429,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0xe688b84b23f322a994a53dbf8e15fa82cdb71127"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25908078,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xffee087852cb4898e6c3532e776e68bc68b1143b"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25908679,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25910682,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
           },
           {
             "round": "holdout",
@@ -1710,6 +2332,12 @@
             "proposer_fee_recipient": "0xe556bf2a4452dba4b02598c1810900e0dd3c1f58"
           },
           {
+            "round": "holdout2",
+            "block_number": 25920687,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
             "round": "seen",
             "block_number": 25921562,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
@@ -1720,6 +2348,12 @@
             "block_number": 25922575,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0xbfaf1c4f78ca833362b838ef13dac13fe972e6f2"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25924140,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x4ad393206569465ffa4f3e0fc34aa181887a5d3e"
           },
           {
             "round": "holdout",
@@ -1740,6 +2374,12 @@
             "proposer_fee_recipient": "0x2b78035514401ed1592eb691b8673a93edf97470"
           },
           {
+            "round": "holdout2",
+            "block_number": 25931208,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
             "round": "holdout",
             "block_number": 25932215,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
@@ -1752,16 +2392,58 @@
             "proposer_fee_recipient": "0xffee087852cb4898e6c3532e776e68bc68b1143b"
           },
           {
+            "round": "holdout2",
+            "block_number": 25937801,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xed69ea9a8c2191ba53dfad61c3d52bc22d43dace"
+          },
+          {
             "round": "holdout",
             "block_number": 25939753,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0x93d51895ec165d694293f5e09b17aa42d4212f2c"
           },
           {
+            "round": "holdout2",
+            "block_number": 25940495,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x35b4f07732fa5efb955962e62e7e0c283152f9cc"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25943157,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x8696e84ab5e78983f2456bcb5c199eea9648c8c2"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25943388,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25943926,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
             "round": "seen",
             "block_number": 25946201,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0x713b8df7bc51ba6020182d75d44d74cd3cec9145"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25947633,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x50485839d2ffad1f0ccbebfd76074075fb38e888"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25948139,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x42f939b583d7c682b1cbffd7687c6b34d8f5c4c8"
           },
           {
             "round": "holdout",
@@ -1788,6 +2470,12 @@
             "proposer_fee_recipient": "0x6be457e04092b28865e0cba84e3b2cfa0f871e67"
           },
           {
+            "round": "holdout2",
+            "block_number": 25952386,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x4675c7e5baafbffbca748158becba61ef3b0a263"
+          },
+          {
             "round": "holdout",
             "block_number": 25954555,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
@@ -1806,6 +2494,12 @@
             "proposer_fee_recipient": "0xa10f7dc777924c3bf25b88de72fb99cdb6c112cf"
           },
           {
+            "round": "holdout2",
+            "block_number": 25957578,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x4675c7e5baafbffbca748158becba61ef3b0a263"
+          },
+          {
             "round": "holdout",
             "block_number": 25958360,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
@@ -1818,16 +2512,40 @@
             "proposer_fee_recipient": "0x238520d52ec336303063b35a4384447163cf7e6f"
           },
           {
+            "round": "holdout2",
+            "block_number": 25959737,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x4675c7e5baafbffbca748158becba61ef3b0a263"
+          },
+          {
             "round": "holdout",
             "block_number": 25959789,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
           },
           {
+            "round": "holdout2",
+            "block_number": 25959877,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x7e2a2fa2a064f693f0a55c5639476d913ff12d05"
+          },
+          {
             "round": "holdout",
             "block_number": 25960043,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0x6d2e03b7effeae98bd302a9f836d0d6ab0002766"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25960551,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x3727cfcbd85390bb11b3ff421878123adb866be8"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25960775,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xaccbe68b164e7142ceb6854121e14b264dbbd8d9"
           },
           {
             "round": "holdout",
@@ -1848,6 +2566,12 @@
             "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
           },
           {
+            "round": "holdout2",
+            "block_number": 25968694,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xd4d3fde5145141ddf7c465889923f29154526de3"
+          },
+          {
             "round": "seen",
             "block_number": 25969943,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
@@ -1866,10 +2590,34 @@
             "proposer_fee_recipient": "0xe688b84b23f322a994a53dbf8e15fa82cdb71127"
           },
           {
+            "round": "holdout2",
+            "block_number": 25979118,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
             "round": "holdout",
             "block_number": 25979386,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25979562,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25979739,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25979941,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xe556bf2a4452dba4b02598c1810900e0dd3c1f58"
           },
           {
             "round": "holdout",
@@ -1884,10 +2632,28 @@
             "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
           },
           {
+            "round": "holdout2",
+            "block_number": 25983991,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x8ee57a0966db56badbd3da402e8d3055d0476fbd"
+          },
+          {
             "round": "holdout",
             "block_number": 25985590,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0xf620f9e2be3b5cf49adec70283018aeb91dc3598"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25988177,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xe688b84b23f322a994a53dbf8e15fa82cdb71127"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25989127,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xd0d2aba6b826429499c6cdd59157784c9537722a"
           },
           {
             "round": "holdout",
@@ -1902,10 +2668,40 @@
             "proposer_fee_recipient": "0xaac36b0571e0f5c5d0de82209fe1532b5797d0bd"
           },
           {
+            "round": "holdout2",
+            "block_number": 25992910,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
             "round": "holdout",
             "block_number": 25993169,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0xd6c3b701bd37d42535d731c73b20303d0e5840ca"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25996013,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25996168,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25996831,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 25997171,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xe556bf2a4452dba4b02598c1810900e0dd3c1f58"
           },
           {
             "round": "holdout",
@@ -1920,10 +2716,22 @@
             "proposer_fee_recipient": "0x62a5fb989c40f2426019e73cb154d0e280de37ab"
           },
           {
+            "round": "holdout2",
+            "block_number": 25998321,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xa27cef8af2b6575903b676e5644657fae96f491f"
+          },
+          {
             "round": "holdout",
             "block_number": 25998630,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 26000665,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x73f7b1184b5cd361cc0f7654998953e2a251dd58"
           },
           {
             "round": "holdout",
@@ -1944,16 +2752,46 @@
             "proposer_fee_recipient": "0x06db50807d887958001af32e9303128e49b6704e"
           },
           {
+            "round": "holdout2",
+            "block_number": 26003842,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x4675c7e5baafbffbca748158becba61ef3b0a263"
+          },
+          {
             "round": "holdout",
             "block_number": 26005326,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
           },
           {
+            "round": "holdout2",
+            "block_number": 26005962,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x06db50807d887958001af32e9303128e49b6704e"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 26008292,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x0b26c05866e6353e46f4a7e2d10cb42d4b583e57"
+          },
+          {
             "round": "holdout",
             "block_number": 26008527,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0x2b78035514401ed1592eb691b8673a93edf97470"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 26008665,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x155a59fd6bd7839a0c9b1d3f56fdd4d8784897ac"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 26009015,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xe688b84b23f322a994a53dbf8e15fa82cdb71127"
           },
           {
             "round": "holdout",
@@ -1980,6 +2818,12 @@
             "proposer_fee_recipient": "0xc8af292756c80d8bd6d6a17cc5e4fd0ec4f5adff"
           },
           {
+            "round": "holdout2",
+            "block_number": 26012052,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
             "round": "holdout",
             "block_number": 26013433,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
@@ -2004,6 +2848,18 @@
             "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
           },
           {
+            "round": "holdout2",
+            "block_number": 26018926,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xe688b84b23f322a994a53dbf8e15fa82cdb71127"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 26020216,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x4675c7e5baafbffbca748158becba61ef3b0a263"
+          },
+          {
             "round": "holdout",
             "block_number": 26021463,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
@@ -2022,6 +2878,12 @@
             "proposer_fee_recipient": "0x617ecd83f62e06bcebc5da4298b6504fdb50d9ff"
           },
           {
+            "round": "holdout2",
+            "block_number": 26022512,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x78296c1f1f0da597ca7e9bee825f09e3379dc9c8"
+          },
+          {
             "round": "holdout",
             "block_number": 26023556,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
@@ -2034,8 +2896,32 @@
             "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
           },
           {
+            "round": "holdout2",
+            "block_number": 26024558,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xdbc3363de051550d122d9c623cbaff441afb477c"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 26024972,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xd4a24fe19b5e0ed77137012b95b4433293e2ff8e"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 26025816,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xe688b84b23f322a994a53dbf8e15fa82cdb71127"
+          },
+          {
             "round": "holdout",
             "block_number": 26026002,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xe688b84b23f322a994a53dbf8e15fa82cdb71127"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 26026337,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0xe688b84b23f322a994a53dbf8e15fa82cdb71127"
           },
@@ -2058,10 +2944,64 @@
             "proposer_fee_recipient": "0x155a59fd6bd7839a0c9b1d3f56fdd4d8784897ac"
           },
           {
+            "round": "holdout2",
+            "block_number": 26029783,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x73f7b1184b5cd361cc0f7654998953e2a251dd58"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 26030776,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x2bf916f8169ed2a77324d3e168284fc252ae4087"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 26031036,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 26032623,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x4675c7e5baafbffbca748158becba61ef3b0a263"
+          },
+          {
             "round": "holdout",
             "block_number": 26033516,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0xbb3afde35eb9f5feb5377485a3bd18a3eb0fe248"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 26033654,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x4205f876f0f6783a011bd11076583fe57c88af33"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 26033809,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 26033871,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x246ed81fe586097c69412c75cf608c8405aa8249"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 26034127,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x51b4096d4bde1b883f6d6ca3b1b7eb54dc20b913"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 26034200,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x4ad393206569465ffa4f3e0fc34aa181887a5d3e"
           },
           {
             "round": "holdout",
@@ -2070,10 +3010,28 @@
             "proposer_fee_recipient": "0x4ad393206569465ffa4f3e0fc34aa181887a5d3e"
           },
           {
+            "round": "holdout2",
+            "block_number": 26034815,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x4675c7e5baafbffbca748158becba61ef3b0a263"
+          },
+          {
             "round": "holdout",
             "block_number": 26034844,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 26036097,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xe688b84b23f322a994a53dbf8e15fa82cdb71127"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 26036146,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xd6e4aa932147a3fe5311da1b67d9e73da06f9cef"
           },
           {
             "round": "holdout",
@@ -2082,16 +3040,40 @@
             "proposer_fee_recipient": "0x3928ffe8efc6c009eb73158f518f5b658e3d7dd0"
           },
           {
+            "round": "holdout2",
+            "block_number": 26036692,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x7d16d2c4e96bcfc8f815e15b771ac847ecbdb48b"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 26036901,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x6d2e03b7effeae98bd302a9f836d0d6ab0002766"
+          },
+          {
             "round": "holdout",
             "block_number": 26037053,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
           },
           {
+            "round": "holdout2",
+            "block_number": 26037115,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x4675c7e5baafbffbca748158becba61ef3b0a263"
+          },
+          {
             "round": "holdout",
             "block_number": 26038618,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 26039914,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xcda9d71bdfae59b89cee131ed3079f8ac4c77062"
           },
           {
             "round": "holdout",
@@ -2106,16 +3088,40 @@
             "proposer_fee_recipient": "0x8556d473090974bbdba49687b8b4dd4b9dbd80fb"
           },
           {
+            "round": "holdout2",
+            "block_number": 26041626,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x27f06f6886b3adf40514ccd05cbaf745bb6e1eda"
+          },
+          {
             "round": "holdout",
             "block_number": 26044805,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0x4675c7e5baafbffbca748158becba61ef3b0a263"
           },
           {
+            "round": "holdout2",
+            "block_number": 26045086,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
             "round": "holdout",
             "block_number": 26049803,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 26054232,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x79a8ca761f6babb9bc1a6f3c5dfcff66763672b6"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 26054903,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xe556bf2a4452dba4b02598c1810900e0dd3c1f58"
           },
           {
             "round": "seen",
@@ -2130,10 +3136,28 @@
             "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
           },
           {
+            "round": "holdout2",
+            "block_number": 26058425,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xd4d3fde5145141ddf7c465889923f29154526de3"
+          },
+          {
             "round": "holdout",
             "block_number": 26058553,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 26058714,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 26061447,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xa1a547358a9ca8e7b320d7742729e3334ad96546"
           },
           {
             "round": "holdout",
@@ -2148,10 +3172,28 @@
             "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
           },
           {
+            "round": "holdout2",
+            "block_number": 26063635,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xbc2898e2fc7a2980944b5250cdab4d64df8b63b5"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 26067562,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x7d16d2c4e96bcfc8f815e15b771ac847ecbdb48b"
+          },
+          {
             "round": "holdout",
             "block_number": 26067997,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0x3314fb492a5d205a601f2a0521fafbd039502fc3"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 26068087,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
           },
           {
             "round": "holdout",
@@ -2160,8 +3202,26 @@
             "proposer_fee_recipient": "0xd03be958e6b8da2d28ac8231a2291d6e4f0a7ea7"
           },
           {
+            "round": "holdout2",
+            "block_number": 26070814,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x6d2e03b7effeae98bd302a9f836d0d6ab0002766"
+          },
+          {
             "round": "holdout",
             "block_number": 26071820,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 26072198,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xe688b84b23f322a994a53dbf8e15fa82cdb71127"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 26075571,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
           },
@@ -2172,10 +3232,58 @@
             "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
           },
           {
+            "round": "holdout2",
+            "block_number": 26083044,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x4675c7e5baafbffbca748158becba61ef3b0a263"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 26084612,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x3314fb492a5d205a601f2a0521fafbd039502fc3"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 26084641,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x7e4d668cd2f3e4cf1bd7c27e7659be8953c6db91"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 26085398,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x6d2e03b7effeae98bd302a9f836d0d6ab0002766"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 26086104,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x894d1321d4f685a190b0bf7efe75f6c3cd9d7e0f"
+          },
+          {
             "round": "holdout",
             "block_number": 26087831,
             "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
             "proposer_fee_recipient": "0x847daceeb8ff6f37a7c0a1070d0a692a9955f20a"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 26089176,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0xe688b84b23f322a994a53dbf8e15fa82cdb71127"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 26089196,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x4675c7e5baafbffbca748158becba61ef3b0a263"
+          },
+          {
+            "round": "holdout2",
+            "block_number": 26091481,
+            "to_address": "0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc",
+            "proposer_fee_recipient": "0x388c818ca8b9251b393131c08a736a67ccb19297"
           },
           {
             "round": "holdout",
@@ -2195,18 +3303,18 @@
           },
           "retry": {
             "delivered": {},
-            "unchecked": {
-              "https://bloxroute.max-profit.blxrbdn.com": 27
-            }
+            "unchecked": {}
           },
           "holdout": {
             "delivered": {
               "https://relay.ultrasound.money": 3,
               "https://titanrelay.xyz": 1
             },
-            "unchecked": {
-              "https://bloxroute.max-profit.blxrbdn.com": 10
-            }
+            "unchecked": {}
+          },
+          "holdout2": {
+            "delivered": {},
+            "unchecked": {}
           }
         },
         "not_found_unchecked": 188,
@@ -2233,12 +3341,12 @@
           {
             "lp_type": "jit",
             "positions": 844,
-            "fee_usd": 4752.915576564619
+            "fee_usd": 4752.915576564617
           },
           {
             "lp_type": "lp_vault",
             "positions": 111,
-            "fee_usd": 12151.368260761032
+            "fee_usd": 12151.368260761035
           },
           {
             "lp_type": "nft_wallet",
@@ -2248,7 +3356,7 @@
           {
             "lp_type": "nft_contract",
             "positions": 734,
-            "fee_usd": 38156.218421986516
+            "fee_usd": 38156.21842198651
           },
           {
             "lp_type": "direct_other",
