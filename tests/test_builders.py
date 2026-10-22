@@ -8,6 +8,7 @@ from google.cloud import bigquery
 
 from uniswap_lp_economics.config import POOL_ADDRESS
 from uniswap_lp_economics.data import builders
+from uniswap_lp_economics.rpc import RpcError
 
 START, END = date(2026, 7, 1), date(2026, 10, 1)
 
@@ -267,3 +268,20 @@ def test_payout_code_is_cached_by_address_and_block(tmp_path: Path) -> None:
     df = pl.read_parquet(path).sort("address", "block")
     assert df.columns == ["address", "block", "code"] and df.schema["block"] == pl.Int64
     assert df["code"].to_list() == ["0x6080", "0x6080", "0x"]
+
+
+def test_payout_code_keeps_the_reads_done_before_an_rpc_error(tmp_path: Path) -> None:
+    class Failing(_FakeCodeClient):
+        def get_code(self, address: str, block: int) -> str:
+            if len(self.calls) == 3:
+                raise RpcError("boom")
+            return super().get_code(address, block)
+
+    reads = [("0xaa", b) for b in range(1, 6)]
+    with pytest.raises(RpcError):
+        builders.fetch_payout_code(Failing(), tmp_path, reads)  # type: ignore[arg-type]
+    out = tmp_path / builders.BUILDERS_DIR / builders.PAYOUT_CODE
+    assert pl.read_parquet(out)["block"].to_list() == [1, 2, 3]
+    client = _FakeCodeClient()
+    builders.fetch_payout_code(client, tmp_path, reads)  # type: ignore[arg-type]
+    assert client.calls == [("0xaa", 4), ("0xaa", 5)]  # the rerun reads only the rest

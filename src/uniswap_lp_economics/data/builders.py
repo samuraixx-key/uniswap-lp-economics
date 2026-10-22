@@ -246,10 +246,21 @@ def fetch_payout_code(client: RpcClient, raw_dir: Path, reads: list[tuple[str, i
     known = pl.read_parquet(out) if out.exists() else pl.DataFrame(schema=schema)
     done = set(zip(known["address"].to_list(), known["block"].to_list(), strict=True))
     todo = [r for r in sorted(set(reads)) if r not in done]
-    rows = []
-    for i, (address, block) in enumerate(todo):
-        rows.append({"address": address, "block": block, "code": client.get_code(address, block)})
-        if (i + 1) % 500 == 0:
-            print(f"  {i + 1}/{len(todo)} payout recipient reads")
-    write_exact(pl.concat([known, pl.DataFrame(rows, schema=schema)]), out)
+    rows: list[dict[str, Any]] = []
+
+    def save() -> None:
+        write_exact(pl.concat([known, pl.DataFrame(rows, schema=schema)]), out)
+
+    try:
+        for i, (address, block) in enumerate(todo):
+            rows.append(
+                {"address": address, "block": block, "code": client.get_code(address, block)}
+            )
+            if (i + 1) % 500 == 0:
+                save()
+                print(f"  {i + 1}/{len(todo)} payout recipient reads")
+    finally:
+        # Also on an RPC error or interrupt: keep every read done so far.
+        if rows or not out.exists():
+            save()
     return out
