@@ -74,3 +74,13 @@ The split of builder payments between builder and proposer uses each block's rat
 | builder_margin_usd | 805,351.0198 |
 | share_proposer | 0.1540 |
 | share_builder_margin | 0.1943 |
+
+## Payout rule's split (measured payments; not adopted)
+
+| metric | value |
+|---|---|
+| proposer_usd | 594,782.4656 |
+| builder_margin_usd | 848,648.0888 |
+| share_proposer | 0.1435 |
+| share_builder_margin | 0.2048 |
+| label | measured payments; not adopted because its pre-registered recipient check failed |

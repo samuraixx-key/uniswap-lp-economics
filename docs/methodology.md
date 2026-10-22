@@ -786,16 +786,14 @@ divides their sum differently). This section counts every searcher step, also an
 so its keys are named apart from the accrued-only totals of section 13. No swap needed a fallback:
 0 swaps without an other-logs row, 0 in a block missing from the split, 0 with null costs.
 
-**The self-built fallback, and a sensitivity.** 105,536 of the 659,799 window blocks (16.0%)
-have no last transaction from the fee recipient, so the primary method gives their proposer all
-of the builder revenue. R1 (section 16) shows this is mostly wrong: every sampled block with a
-payment transaction that a relay delivered (699) matches the relay within 1 wei, and every
-"self-built" one (70) differs by more than 1%. For all 70 the relay names a proposer fee
-recipient other than the block's fee recipient, so they are MEV-Boost blocks, and the relay
-payment is 0.5561 of `R_b` on the median (0.6345 for the paid blocks). Their builders paid the
-proposer some other way: a payment that is not the block's last transaction, or one sent from a
-separate payout address. Detecting those needs a new query over each block's transactions to the
-proposer's fee recipient, planned for sub-project 4.
+**The self-built fallback, and a sensitivity.** 105,361 of the 659,799 window blocks (16.0%)
+have transactions but no last transaction from the fee recipient, so the primary method gives
+their proposer all of the builder revenue (the 175 blocks with no transactions were counted here
+before proposer-payment detection; they carry no revenue). Section 19 measures what these blocks
+paid: nearly all of their builder dollars sit in blocks that pay from a separate payout address,
+and a blind relay holdout matches those payments to the wei. That measured split was not adopted,
+because its pre-registered recipient check failed (section 19.5), so the primary method and the
+sensitivity below stay the published pair.
 
 These blocks carry 297,357.38 USD (0.2060) of the 1,443,430.55 USD of single-pool builder
 payments (11,432 swaps), and 0.3767 of the primary proposer total. The sensitivity
@@ -850,7 +848,7 @@ pass in this run.
 | L5 start state | Σ liquidity of the positions open at the snapshot, per tick, equals the snapshot tick book (`liquidity_net` and `liquidity_gross`), and active liquidity matches | 3,837 positions, 1,557 ticks, 0 mismatches |
 | L6 identities | Σ position fees ≤ pool LP fees, short by at most one raw unit per accrued step, one per window flow and two per position (Ruling 13); Σ position LVR = pool LVR and pool LVR = the markout identity (section 11), relative error ≤ 1e-9 | Pool LP fees 1,337,421,456,289 raw USDC and 618,857,678,632,566,990,117 wei; positions short by 4,870 and 5,011 (tolerance 620,992) |
 | L7 history complete | The history's window `Mint`/`Burn` events equal `events.parquet`, each belongs to exactly one position, and every NPM event of our tokens matches a pool event | 21,850 liquidity events, 0 missing, 0 extra, 0 unassigned; 8 no-op zero collects |
-| R1 relays | Relay-reported proposer payment vs `Q_b`, on 1,000 random window blocks, by block type (paid / self-built) | 769 found on a relay; 699 of them match within 1 wei (the same 699 within 1%): all 699 found paid blocks, none of the 70 found self-built ones. Not found: 190 with a relay unchecked, 41 answered by every relay |
+| R1 relays | Relay-reported proposer payment vs `Q_b` of the payout rule (section 19), on 1,000 random window blocks, by block class and round (seen / retry / holdout), with R1b (recipient) and R1c (proposer is fee recipient) | 771 of the 1,000 found on a relay; 767 match within 1 wei (the same 767 within 1%): all 699 paid and 66 payout-address blocks found, 2 found in the retry, none of the 4 unexplained. Not found: 188 with bloXroute unchecked, 41 answered by every relay. Holdout and R1b, R1c: section 19 |
 | R2 traces vs Alchemy | Top-bot payments to the fee recipient from sub-project 2's Alchemy transfers vs the trace payments, on transactions touching our pool | 56,724 of 56,724 equal |
 | R3 LP-type coverage | Positions and fees by LP type | Table in `lp_checks.md`; 111 `lp_vault` positions |
 | R4 transferred | NFT positions whose owner changed while open | 570 of 7,874 |
@@ -866,14 +864,11 @@ What they prove and what they do not:
 - **R1 sample.** The relay fetch has a circuit breaker: a relay that fails (time-out, server error
   or invalid JSON after retries) on 3 consecutive blocks is skipped for the rest of the run, and
   later blocks count as not checked on it. bloXroute max-profit timed out from the start and was
-  skipped; Flashbots was skipped after about 600 blocks. 769 of the 1,000 blocks were found on a
-  relay; of the 231 not found, 190 have at least one relay that was not checked and 41 were
-  answered by every relay queried. R1 breaks the sample down by block type: 824 sampled blocks
-  have a payment transaction (699 found, all 699 matching within 1 wei) and 176 do not (70 found,
-  none matching within 1%). So the 70 mismatches are the self-built fallback of section 15, not
-  a problem with the paid blocks, where the method agrees with the relays exactly. The overall
-  match rate, 699 / 769 = 90.9%, only just clears the plan's 90% threshold, and this breakdown is
-  the investigation that threshold asked for.
+  skipped; Flashbots was skipped after about 600 blocks. The 190 blocks left unchecked were
+  retried (section 19.3): Flashbots answered (2 found), bloXroute max-profit failed on all 188
+  others. Under the old self-built fallback the 1,000 blocks gave 699 matches of 769 found, all 70
+  mismatches being "self-built" blocks; under the payout rule of section 19 they give 767 of 771,
+  and the 4 left are the unexplained class.
 
 ## 16a. Figures
 
@@ -936,11 +931,11 @@ volatility, over days with positive LVR and fees; the break-even is where the tw
   same key; flagged positions are excluded from lifetime statistics (none among the window-active
   positions in this run), but a carry of fees only (principal fully collected) is not flagged.
 - **Where LVR goes:** the limitation text of section 15; `kept` is an upper bound. The
-  proposer/builder split is uncertain: the 16.0% of blocks without a last-transaction payment are
-  treated as self-built, which the relay sample shows is mostly wrong (all 70 relay mismatches
-  over 1% are such blocks). With the paid-block share the proposer gets 0.1540 of searcher LVR
-  instead of 0.1905 and the builder margin 0.1943 instead of 0.1578; their sum does not move.
-  Proper payment detection needs a new query (sub-project 4).
+  proposer/builder split stays two-sided: the 16.0% of blocks without a last-transaction payment
+  from the fee recipient are treated as self-built; with the paid-block share the proposer gets
+  0.1540 of searcher LVR instead of 0.1905 and the builder margin 0.1943 instead of 0.1578; their
+  sum does not move. The measured payments (section 19) give 0.1435 and 0.2048 but are not
+  adopted, because the pre-registered recipient check failed on a forwarding contract.
 - **Path dependence.** P&L against holding, in the window and over a lifetime (53.5% of positions
   beat holding; 78% of those with a life of 180 days or more), depends on the price path over each
   position's life, and so on when it opened and closed.
@@ -998,7 +993,7 @@ Reviewed rulings during implementation changed several definitions in the design
 | Time-weighted value | Averaged over the position's blocks | Sampled at UTC hour starts (Ruling 5); a position open at no hour start is valued at its first in-window deposit, not the sum of its deposits |
 | Lifetime prices | ETHUSDT 1-minute closes | A close older than 3,600 s before a deposit stops the run (a missing month file or a data gap) |
 | Headline totals | Sums over steps | Fee and LVR totals sum accrued steps only; the destination counts every searcher step, so its keys are named apart (`lvr_on_searcher_swaps_usd`, …) from `lvr_0_searcher_usd`. Identical in this window (no step without liquidity) |
-| Builder data (D5) | Download every window transaction and value trace (dry runs 32 GB and 288 GB) | Aggregated inside BigQuery into three tables (Ruling 4); trace payments exclude transactions sent by the fee recipient and `delegatecall`/`callcode`/`staticcall` traces; the other-logs target is `COALESCE(to_address, contract created)` and covers every pool transaction. The three queries scanned about 661 GB, against the spec's estimate of about 320 GB, mostly because of the joins that exclude the fee recipient's own transactions |
+| Builder data (D5) | Download every window transaction and value trace (dry runs 32 GB and 288 GB) | Aggregated inside BigQuery into three tables (Ruling 4); trace payments exclude transactions sent by the fee recipient and `delegatecall`/`callcode`/`staticcall` traces; the other-logs target is `COALESCE(to_address, contract created)` and covers every pool transaction. The three queries scanned about 661 GB, against the spec's estimate of about 320 GB, mostly because of the joins that exclude the fee recipient's own transactions. Proposer-payment detection added a fourth table, each block's last transaction (`to_address`, gas; 15.2 GB, section 19) |
 | R2 | All top-bot payments vs traces | Restricted to transactions that touch our pool, the population the trace table covers |
 | Theoretical LVR liquidity | Active liquidity `L_b` at block start | The end-of-block liquidity of the last block at or before the interval start: the state in force during the interval, which the next block's arbitrage trades against. Theory with 1 s returns moved from 3,158,845.51 to 3,155,610.48 USD |
 | JIT per swap | "Reported in USD per swap" (no definition) | P&L over the swaps between the position's first add and last removal in its block, per position-swap pair (section 13) |
@@ -1066,3 +1061,143 @@ stays at 0 s.
 The identity summed at the headline prices plus the flash loans' LP fees equals the headline
 fees − LVR, and re-reading the primary reference at 0 s moves nothing (`primary_reprice_usd`),
 both within the L6 relative tolerance.
+
+## 19. Proposer-payment detection
+
+Design: [`docs/superpowers/specs/2026-10-21-proposer-payments-design.md`](superpowers/specs/2026-10-21-proposer-payments-design.md).
+Its pre-registered parts (the rule, the holdout, the bar and the stopping rule) were committed
+before any holdout relay call; the commit is tagged `holdout-preregistered`.
+
+### 19.1 Data
+
+A fourth builder table, `last_tx.parquet` (15.2 GB): each block's last transaction's `to_address`
+and `receipt_gas_used`, 659,624 rows (every block with transactions). The `input` column was left
+out (194.8 GB). `fetch-payout-code` reads, over RPC, the code of each payout recipient paid with
+more than 21,000 gas, at the first and last block it was paid in: 161 reads, 93 recipients.
+
+### 19.2 Block classes
+
+Each window block gets one class, in this order, from chain data only:
+
+1. **empty**: no transactions. `R_b = Q_b = 0`.
+2. **paid**: the last transaction is sent by the fee recipient F. `Q_b` = its value.
+3. **payout**: the last transaction is sent by a payout address of F, has value > 0, and does not
+   go back to F. `Q_b` = its value. A sender S ≠ F is a payout address of F if S sent the last
+   transaction in at least 50 of F's blocks, with value > 0 in at least 99% of them.
+4. **proposer is fee recipient**: F has no block in class 2 or 3 anywhere in the window.
+   `Q_b = R_b`.
+5. **unexplained**: everything else. `Q_b = R_b`.
+
+| Class | Blocks | Share of blocks | Single-pool builder USD | Share |
+|---|---|---|---|---|
+| empty | 175 | 0.03% | 0.00 | 0% |
+| paid | 554,263 | 84.00% | 1,146,073.18 | 79.40% |
+| payout | 44,297 | 6.71% | 296,703.85 | 20.56% |
+| proposer is fee recipient | 39,310 | 5.96% | 20.03 | 0.001% |
+| unexplained | 21,754 | 3.30% | 633.49 | 0.044% |
+
+At thresholds of 20 and 100 blocks instead of 50 the payout class has 44,640 and 44,233 blocks
+(`class_counts_by_n` in `summary.json`). No payment from a payout address goes back to its fee
+recipient (0 top-ups). Payout recipients by type, from the code reads (a payment of exactly
+21,000 gas is a plain wallet without a read; code `0xef0100…` is an EIP-7702 delegated wallet,
+counted as a wallet, not a contract; no recipient's two reads differ):
+
+| Recipient | Payments | ETH paid | Single-pool builder USD |
+|---|---|---|---|
+| wallet | 9,490 | 176.52 | 59,269.43 |
+| EIP-7702 wallet | 6 | 0.06 | 0.00 |
+| contract | 34,801 | 677.73 | 237,434.42 |
+
+**A known flaw of class 4, not fixed after the fact.** Two fee recipients that never pay from
+themselves have a small qualifying payout pair: Lido's execution-layer rewards vault `0x388c…`
+(160 payout blocks) and `0x7e2a…` (64). Because they then have a class-3 block, their other
+16,967 blocks fall to unexplained instead of class 4. That is why the unexplained class has
+21,754 blocks where the exploration, which keyed class 4 on paid blocks only, had 4,787 (the
+same 4,787 are here). The dollars barely differ ($633.49 against about $630): these blocks carry
+almost no builder payments. The rule was pre-registered, so it stays as it is.
+
+### 19.3 Relay rounds
+
+`relays.parquet` gains a `round` column:
+
+- **seen**: the original 1,000 blocks (seed 42), looked at while the rule was chosen. In 66 of the
+  70 old mismatches the payment was the last transaction from a payout address, so this part is
+  not blind.
+- **retry**: the 190 blocks some relay never answered, asked again with a slower pace and a
+  longer time-out. Flashbots answered (2 found); bloXroute max-profit failed on the other 188, in
+  both retry passes. All 27 unexplained blocks in this round wait on bloXroute alone, so whether
+  the unexplained blocks are bloXroute-built stays open.
+- **holdout**: a fresh sample drawn after the rule was fixed (seed 44, the old sample left out),
+  300 blocks from class 3 and 300 from classes 2, 4 and 5 together, written to
+  `data/raw/relay_holdout.parquet` before its first relay call. 525 of the 600 were found; the 75
+  not found all wait on bloXroute max-profit.
+
+### 19.4 Checks and the result
+
+R1 compares the relay's payment with `Q_b` of the payout rule; R1b compares the last
+transaction's `to_address` with the relay's `proposer_fee_recipient`; R1c lists class-4 blocks a
+relay delivered for a proposer other than the fee recipient.
+
+| Round | Class | Found | Within 1 wei | Recipient matches |
+|---|---|---|---|---|
+| seen | paid | 699 | 699 | 377 |
+| seen | payout | 66 | 66 | 33 |
+| seen | unexplained | 4 | 0 | – |
+| retry | paid | 2 | 2 | 1 |
+| holdout | paid | 232 | 232 | 129 |
+| holdout | payout | 289 | 289 | 132 |
+| holdout | unexplained | 4 | 0 | – |
+
+No class-4 block in any round was found on a relay (15 seen, 52 retry, 16 holdout sampled), so R1c
+lists nothing: consistent with locally built blocks, as class 4 assumes.
+
+**Pre-registered decision.** One split only if, among found holdout blocks in class 3, at least
+95% match the relay within 1 wei and at least 95% pay the relay's `proposer_fee_recipient`
+(a block without a relay recipient counts as a failure). Stopping rule: the holdout is fetched,
+retried once, and the first `ulpe lp` after every holdout block has a row freezes the decision in
+`data/raw/holdout_decision.json`; later runs publish the frozen decision and report any recomputed
+one beside it. The frozen file:
+
+```
+n_found_payout        289
+share_within_1_wei    1.0
+share_within_1pct     1.0
+share_recipient_match 0.4567   (132 / 289)
+one_split             false
+frozen                2026-10-22, after 600 of 600 holdout blocks had a row
+```
+
+So the published split stays the two-sided pair of section 15 (`proposer_split: "hedge"` in
+`summary.json`).
+
+### 19.5 Why the recipient check failed: a forwarding contract
+
+615 of the 616 recipient failures across all rounds (paid and payout classes) are payments into one
+contract, `0xfeeeeee44046c3f61a8cc081e0918ef0de0a7ffc` (code `0x5f3580…`, about 29,000 gas per
+payment), which passes the ETH on. R1b reads only the last transaction's `to_address`, so it
+cannot see where the money ends up. The contract receives the last transaction in 291,274 of the
+598,560 paid and payout-class blocks (48.7%), and it fails the primary method's own blocks the
+same way: in the seen sample 377 of 699 paid blocks pass R1b, though all 699 match the relay's
+payment to the wei. The bar therefore failed on the recipient check, not on the payments: every
+found holdout block of the rule matches the relay's value exactly.
+
+### 19.6 The rule's own split, not adopted
+
+The payout rule's split was fixed with the rule before the run, so it is reported beside the
+published pair, labelled as measured payments that were not adopted because the pre-registered
+recipient check failed (`rule_split` in `summary.json`; last section of
+`results/lvr_destination.md`):
+
+| | primary | sensitivity | measured payments; not adopted |
+|---|---|---|---|
+| proposer, USD | 789,291.15 (0.1905) | 638,079.53 (0.1540) | 594,782.47 (0.1435) |
+| builder margin, USD | 654,139.41 (0.1578) | 805,351.02 (0.1943) | 848,648.09 (0.2048) |
+
+Redefining R1b now and flipping the decision would be post hoc. A recipient check that follows
+internal transfers through forwarders, with its bar written down before a fresh holdout (seed 45),
+is on the roadmap.
+
+### 19.7 What was dropped
+
+The 261 GB trace query planned to find payments outside the last transaction: after the payout
+rule, $633.49 (0.044%) of single-pool builder dollars is unexplained, too little to move the split.

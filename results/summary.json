@@ -1185,8 +1185,8 @@
   ],
   "limitation": "Builder payments are detected only as direct ETH transfers from the bot contract to the block's fee recipient within the same transaction. Payments routed elsewhere (another contract, a separate transaction in the bundle, off-chain agreements) are missed, so the reported net profit is an **upper bound** on what the bots keep. Binance-side trading fees, inventory and hedging costs are not observed.",
   "lp": {
-    "generated_utc": "2026-10-22T02:34:06+00:00",
-    "git_commit": "18e6e8a",
+    "generated_utc": "2026-10-22T03:09:31+00:00",
+    "git_commit": "af1ad7d",
     "lp_fees_usd": 2644187.170867051,
     "protocol_fees_usd": 881290.1311692027,
     "lvr_0_usd": 3703796.759283188,
@@ -3941,14 +3941,21 @@
         "share_proposer": 0.1539723372141539,
         "share_builder_margin": 0.19433592844301087
       },
+      "rule_split": {
+        "proposer_usd": 594782.4656096179,
+        "builder_margin_usd": 848648.088823532,
+        "share_proposer": 0.1435245002979275,
+        "share_builder_margin": 0.2047837653592373,
+        "label": "measured payments; not adopted because its pre-registered recipient check failed"
+      },
       "proposer_split": "hedge",
       "holdout_decision": {
         "bar": 0.95,
         "n_found_payout": 289,
-        "share_within_1_wei": 1.0,
-        "share_within_1pct": 1.0,
+        "one_split": false,
         "share_recipient_match": 0.45674740484429066,
-        "one_split": false
+        "share_within_1_wei": 1.0,
+        "share_within_1pct": 1.0
       },
       "decision_frozen": true,
       "block_classes": [
@@ -4013,6 +4020,14 @@
       ],
       "n_recipients_reads_differ": 0,
       "n_top_up": 0,
+      "holdout_decision_recomputed": {
+        "bar": 0.95,
+        "n_found_payout": 289,
+        "share_within_1_wei": 1.0,
+        "share_within_1pct": 1.0,
+        "share_recipient_match": 0.45674740484429066,
+        "one_split": false
+      },
       "class_counts_by_n": {
         "20": {
           "empty": 175,

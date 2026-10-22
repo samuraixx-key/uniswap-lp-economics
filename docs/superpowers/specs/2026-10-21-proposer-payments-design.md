@@ -1,6 +1,7 @@
 # Proposer-payment detection: design
 
-Date: 2026-10-21. Status: approved for planning.
+Date: 2026-10-21. Status: implemented (branch `proposer-payments`). Result: the pre-registered
+decision kept the two-split hedge (value 289/289, recipient 45.7%; methodology section 19).
 
 ## 1. Why
 
