@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 import polars as pl
 
 from uniswap_lp_economics.arbprofit import coinbase_payments
-from uniswap_lp_economics.data.relays import HOLDOUT_FILE
+from uniswap_lp_economics.data.relays import HOLDOUT2_FILE, HOLDOUT2_ROUND, HOLDOUT_FILE
 from uniswap_lp_economics.io import hex_u256, read_exact, write_text_atomic
 from uniswap_lp_economics.lp import payouts
 from uniswap_lp_economics.lp.payouts import CLASSES
@@ -334,8 +334,10 @@ def _relay_matches(found: pl.DataFrame) -> tuple[int, int]:
 
 
 HOLDOUT_BAR = 0.95
-ROUNDS = ("seen", "retry", "holdout")
+ROUNDS = ("seen", "retry", "holdout", HOLDOUT2_ROUND)
+HOLDOUT_ROUNDS = ("holdout", HOLDOUT2_ROUND)
 _PAYING = [payouts.PAID, payouts.PAYOUT]
+PATH_COLUMNS = {"block_number": pl.Int64, "path": pl.String}
 
 
 def _normalize(relays: pl.DataFrame) -> pl.DataFrame:
@@ -376,11 +378,27 @@ def _recipient(rows: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFrame]:
     return compared, compared.filter(same.fill_null(False))
 
 
-def _part(rows: pl.DataFrame) -> dict[str, int]:
+def _recipient_fwd(rows: pl.DataFrame, paths: pl.DataFrame) -> pl.DataFrame:
+    """R1d (forwarder spec section 4): found paid/payout rows whose relay recipient is on the
+    block's payment path (compared lowercased). No relay recipient, or no path row, fails."""
+    on_path = (
+        pl.col("path")
+        .str.to_lowercase()
+        .str.split(",")
+        .list.contains(pl.col("proposer_fee_recipient").str.to_lowercase())
+    )
+    return (
+        _recipient(rows)[0]
+        .join(paths.select("block_number", "path"), on="block_number", how="inner")
+        .filter(on_path.fill_null(False))
+    )
+
+
+def _part(rows: pl.DataFrame, paths: pl.DataFrame | None = None) -> dict[str, int]:
     hits = rows.filter(pl.col("found"))
     m1, m1pct = _relay_matches(hits)
     compared, matched = _recipient(rows)
-    return {
+    part = {
         "sampled": rows.height,
         "found": hits.height,
         "match_within_1_wei": m1,
@@ -388,10 +406,16 @@ def _part(rows: pl.DataFrame) -> dict[str, int]:
         "recipient_match": matched.height,
         "recipient_compared": compared.height,
     }
+    if paths is not None:
+        part["recipient_match_fwd"] = _recipient_fwd(rows, paths).height
+    return part
 
 
 def check_r1_relays(
-    relays: pl.DataFrame, split: pl.DataFrame, block_usd: pl.DataFrame
+    relays: pl.DataFrame,
+    split: pl.DataFrame,
+    block_usd: pl.DataFrame,
+    paths: pl.DataFrame | None = None,
 ) -> CheckResult:
     """Relay-reported proposer payment vs Q_b (R1, value), per round (seen / retry / holdout) and
     block class, with the recipient check R1b (a paid or payout block's last transaction goes to the
@@ -401,31 +425,48 @@ def check_r1_relays(
     with the split; not-found blocks are split by whether some relay gave no answer
     (`relays_unchecked`), None for a file written before that column existed. `recipient_failures`
     lists the found payout blocks of every round that fail R1b (`holdout_recipient_failures`: the
-    holdout only, which is what the decision counts). Run it on a
+    holdout only, which is what the decision counts). The seed-45 round (`holdout2`) is reported
+    the same way, with R1d from `paths` (`recipient_match_fwd`, `holdout2_by_stratum`,
+    `holdout2_recipient_failures`: its found payout blocks failing R1d). Run it on a
     `payouts=True` split."""
     rows = _relay_rows(relays, split)
-    base = _normalize(relays).filter(pl.col("round") != "holdout")
+    base = _normalize(relays).filter(~pl.col("round").is_in(HOLDOUT_ROUNDS))
     base_found = base.filter(pl.col("found"))
-    base_rows = rows.filter(pl.col("round") != "holdout")
+    base_rows = rows.filter(~pl.col("round").is_in(HOLDOUT_ROUNDS))
     both = base_rows.filter(pl.col("found"))
     exact, within = _relay_matches(both)
+    fwd = paths if paths is not None else pl.DataFrame(schema=PATH_COLUMNS)
+
+    def r1d(r: str) -> pl.DataFrame | None:  # R1d only on the seed-45 round
+        return fwd if r == HOLDOUT2_ROUND else None
+
     by_round = {
-        r: {c: _part(rows.filter((pl.col("round") == r) & (pl.col("cls") == c))) for c in CLASSES}
+        r: {
+            c: _part(rows.filter((pl.col("round") == r) & (pl.col("cls") == c)), r1d(r))
+            for c in CLASSES
+        }
         for r in ROUNDS
     }
-    holdout = rows.filter(pl.col("round") == "holdout")
-    strata = {
-        "payout": holdout.filter(pl.col("cls") == payouts.PAYOUT),
-        "rest": holdout.filter(pl.col("cls") != payouts.PAYOUT),
-    }
-    by_stratum = {
-        name: {
-            **_part(part),
-            # not found, and some relay gave no answer
-            "unchecked": int(part.filter(~pl.col("found"))["relays_unchecked"].is_not_null().sum()),
+
+    def strata(r: str) -> dict[str, dict[str, int]]:
+        part_rows = rows.filter(pl.col("round") == r)
+        parts = {
+            "payout": part_rows.filter(pl.col("cls") == payouts.PAYOUT),
+            "rest": part_rows.filter(pl.col("cls") != payouts.PAYOUT),
         }
-        for name, part in strata.items()
-    }
+        return {
+            name: {
+                **_part(part, r1d(r)),
+                # not found, and some relay gave no answer
+                "unchecked": int(
+                    part.filter(~pl.col("found"))["relays_unchecked"].is_not_null().sum()
+                ),
+            }
+            for name, part in parts.items()
+        }
+
+    holdout = rows.filter(pl.col("round") == "holdout")
+    by_stratum = strata("holdout")
 
     def failing(part: pl.DataFrame) -> pl.DataFrame:  # found class-3 rows that fail R1b
         found = part.filter((pl.col("cls") == payouts.PAYOUT) & pl.col("found"))
@@ -437,6 +478,17 @@ def check_r1_relays(
 
     failures = failing(holdout).drop("round")
     all_failures = failing(rows)
+    found2 = rows.filter(
+        (pl.col("round") == HOLDOUT2_ROUND) & (pl.col("cls") == payouts.PAYOUT) & pl.col("found")
+    )
+    failures2 = (
+        found2.join(
+            _recipient_fwd(found2, fwd).select("block_number"), on="block_number", how="anti"
+        )
+        .join(fwd.select("block_number", "path"), on="block_number", how="left")
+        .sort("block_number")
+        .select("block_number", "to_address", "proposer_fee_recipient", "path")
+    )
     usd = block_usd.group_by("block_number").agg(pl.col("builder_paid_usd").sum())
     breaking = (
         rows.filter(
@@ -486,6 +538,8 @@ def check_r1_relays(
             "by_round": by_round,
             "holdout_by_stratum": by_stratum,
             "holdout_recipient_failures": failures.to_dicts(),
+            "holdout2_by_stratum": strata(HOLDOUT2_ROUND),
+            "holdout2_recipient_failures": failures2.to_dicts(),
             "recipient_failures": all_failures.to_dicts(),
             "r1c_breaking_blocks": breaking.to_dicts(),
             "unexplained_by_relay": by_relay,
@@ -496,18 +550,30 @@ def check_r1_relays(
     )
 
 
-def holdout_decision(relays: pl.DataFrame, split: pl.DataFrame) -> dict[str, Any]:
-    """The pre-registered decision (spec section 6): among found holdout blocks in class 3, one
-    split only if at least HOLDOUT_BAR match the relay within 1 wei and at least HOLDOUT_BAR have
-    the relay's recipient as the payment's `to_address` (a row with no relay recipient fails)."""
+def holdout_decision(
+    relays: pl.DataFrame,
+    split: pl.DataFrame,
+    round_label: str = "holdout",
+    paths: pl.DataFrame | None = None,
+) -> dict[str, Any]:
+    """The pre-registered decision: among found blocks of the holdout round in class 3, one split
+    only if at least HOLDOUT_BAR match the relay within 1 wei and at least HOLDOUT_BAR pass the
+    recipient check (a row with no relay recipient fails). The seed-44 round uses R1b (the
+    payment's `to_address` is the relay's recipient; first spec section 6) and ignores `paths`;
+    the seed-45 round uses R1d on `paths` (forwarder spec section 6), and its dict says so."""
     rows = _relay_rows(relays, split).filter(
-        (pl.col("round") == "holdout") & pl.col("found") & (pl.col("cls") == payouts.PAYOUT)
+        (pl.col("round") == round_label) & pl.col("found") & (pl.col("cls") == payouts.PAYOUT)
     )
     n = rows.height
     exact, within = _relay_matches(rows)
-    recipient = _recipient(rows)[1].height
+    second = round_label == HOLDOUT2_ROUND
+    if second:
+        fwd = paths if paths is not None else pl.DataFrame(schema=PATH_COLUMNS)
+        recipient = _recipient_fwd(rows, fwd).height
+    else:
+        recipient = _recipient(rows)[1].height
     share = [x / n if n else None for x in (exact, within, recipient)]
-    return {
+    decision: dict[str, Any] = {
         "bar": HOLDOUT_BAR,
         "n_found_payout": n,
         "share_within_1_wei": share[0],
@@ -515,38 +581,62 @@ def holdout_decision(relays: pl.DataFrame, split: pl.DataFrame) -> dict[str, Any
         "share_recipient_match": share[2],
         "one_split": n > 0 and (exact / n) >= HOLDOUT_BAR and (recipient / n) >= HOLDOUT_BAR,
     }
+    if second:
+        decision.update(round=HOLDOUT2_ROUND, recipient_check="R1d")
+    return decision
 
 
 HOLDOUT_DECISION_FILE = "holdout_decision.json"
+HOLDOUT2_DECISION_FILE = "holdout_decision_2.json"
 
 
-def _holdout_blocks(raw_dir: Path, relays: pl.DataFrame) -> tuple[int, int] | None:
-    """(holdout blocks drawn, holdout blocks with a "holdout" row in `relays`) when the draw is on
-    disk and readable, else None."""
+def _holdout_blocks(
+    raw_dir: Path, relays: pl.DataFrame, holdout_file: str, round_label: str
+) -> tuple[int, int] | None:
+    """(holdout blocks drawn, drawn blocks with a `round_label` row in `relays`) when the draw is
+    on disk and readable, else None."""
     try:
-        drawn = set(read_exact(raw_dir / HOLDOUT_FILE)["block_number"].to_list())
+        drawn = set(read_exact(raw_dir / holdout_file)["block_number"].to_list())
     except (OSError, pl.exceptions.PolarsError):
         return None
-    rows = _normalize(relays).filter(pl.col("round") == "holdout")
+    rows = _normalize(relays).filter(pl.col("round") == round_label)
     return len(drawn), len(drawn & set(rows["block_number"].to_list()))
 
 
+def paths_complete(raw_dir: Path, split: pl.DataFrame, paths: pl.DataFrame) -> bool:
+    """Every seed-45 holdout block in class 2 or 3 has a payment-path row (False if the draw is
+    missing or unreadable)."""
+    try:
+        drawn = read_exact(raw_dir / HOLDOUT2_FILE).select("block_number")
+    except (OSError, pl.exceptions.PolarsError):
+        return False
+    need = split.join(drawn, on="block_number", how="semi").filter(pl.col("cls").is_in(_PAYING))
+    return need.join(paths, on="block_number", how="anti").height == 0
+
+
 def settle_decision(
-    raw_dir: Path, relays: pl.DataFrame, fresh: dict[str, Any]
+    raw_dir: Path,
+    relays: pl.DataFrame,
+    fresh: dict[str, Any],
+    decision_file: str = HOLDOUT_DECISION_FILE,
+    holdout_file: str = HOLDOUT_FILE,
+    round_label: str = "holdout",
+    ready: bool = True,
 ) -> tuple[dict[str, Any], bool, dict[str, Any] | None]:
-    """(decision to publish, frozen, recomputed) for the stopping rule (spec section 6). Once every
-    holdout block has a relay row, the first call writes `fresh` to HOLDOUT_DECISION_FILE and
-    publishes it; later calls publish the file's decision and return `fresh` as `recomputed`.
-    Before that, `fresh` is published, not frozen. A frozen file that cannot be read is left alone
-    and `fresh` is published, not frozen. Never raises."""
-    path = raw_dir / HOLDOUT_DECISION_FILE
+    """(decision to publish, frozen, recomputed) for a stopping rule. Once every block of the draw
+    in `holdout_file` has a `round_label` relay row and `ready` holds (seed 45: every payment path
+    is fetched), the first call writes `fresh` to `decision_file` and publishes it; later calls
+    publish the file's decision and return `fresh` as `recomputed`. Before that, `fresh` is
+    published, not frozen. A frozen file that cannot be read is left alone and `fresh` is
+    published, not frozen. Defaults: the seed-44 holdout. Never raises."""
+    path = raw_dir / decision_file
     if path.exists():
         try:
             return json.loads(path.read_text(encoding="utf-8"))["decision"], True, fresh
         except (OSError, ValueError, KeyError, TypeError):
             return fresh, False, None
-    counts = _holdout_blocks(raw_dir, relays)
-    if counts is None or counts[0] == 0 or counts[1] < counts[0]:
+    counts = _holdout_blocks(raw_dir, relays, holdout_file, round_label)
+    if not ready or counts is None or counts[0] == 0 or counts[1] < counts[0]:
         return fresh, False, None
     record = {
         "decision": fresh,

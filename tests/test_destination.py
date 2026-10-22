@@ -1,12 +1,22 @@
+import json
+from pathlib import Path
+
 import polars as pl
 import pytest
 
+from uniswap_lp_economics.data.relays import HOLDOUT2_FILE, HOLDOUT2_ROUND
+from uniswap_lp_economics.data.transfers import PATH_SCHEMA
+from uniswap_lp_economics.io import write_exact
 from uniswap_lp_economics.lp.checks import (
+    HOLDOUT2_DECISION_FILE,
     HOLDOUT_BAR,
+    HOLDOUT_DECISION_FILE,
     check_r1_relays,
     check_r2_traces_vs_alchemy,
     check_r3_lp_types,
     holdout_decision,
+    paths_complete,
+    settle_decision,
 )
 from uniswap_lp_economics.lp.destination import (
     LIMITATION_TEXT,
@@ -463,6 +473,7 @@ def test_r1_by_round_stratum_failures_and_unexplained_relays() -> None:
         "seen": {"delivered": {}, "unchecked": {"x": 1}},
         "retry": {"delivered": {"r": 1}, "unchecked": {"x": 1, "y": 1}},
         "holdout": {"delivered": {"r": 1}, "unchecked": {}},
+        "holdout2": {"delivered": {}, "unchecked": {}},
     }
     # top-level counts: the original sample only (seen, retry, null), never holdout rows
     assert (s["sampled"], s["found_on_a_relay"]) == (4, 2)
@@ -730,3 +741,109 @@ def test_class_table_shares_sum_to_one() -> None:
     assert t["builder_paid_usd"].to_list() == [0.0, 4.0, 4.0, 0.0, 0.0]
     assert t["share_blocks"].sum() == pytest.approx(1)
     assert t["share_builder_paid_usd"].sum() == pytest.approx(1)
+
+
+FWD = "0x" + "fe" * 20
+
+
+def _paths(rows: list[tuple[int, list[str]]]) -> pl.DataFrame:
+    return pl.DataFrame(
+        {
+            "block_number": [b for b, _ in rows],
+            "tx_hash": ["0x" + "11" * 32] * len(rows),
+            "path": [",".join(p) for _, p in rows],
+        },
+        schema=PATH_SCHEMA,
+    )
+
+
+def _forwarded(n: int = 20, off: int = 0) -> tuple[pl.DataFrame, pl.DataFrame, pl.DataFrame]:
+    """`n` found holdout-2 payout blocks paid into the forwarder; the first `off` paths end at
+    someone other than the relay's recipient."""
+    rows = [
+        (i, HOLDOUT2_ROUND, PAYOUT, 10**18, 10**18, PROPOSER, FWD) for i in range(1000, 1000 + n)
+    ]
+    relays, split = _world(rows)
+    return (
+        relays,
+        split,
+        _paths([(i, [FWD, BOT if i < 1000 + off else PROPOSER]) for i in range(1000, 1000 + n)]),
+    )
+
+
+def test_r1d_passes_through_a_forwarder_where_r1b_fails() -> None:
+    relays, split, paths = _forwarded(off=1)
+    d = holdout_decision(relays, split, HOLDOUT2_ROUND, paths)
+    assert d["n_found_payout"] == 20 and d["share_recipient_match"] == pytest.approx(0.95)
+    assert d["round"] == HOLDOUT2_ROUND and d["recipient_check"] == "R1d" and d["one_split"]
+    assert (
+        holdout_decision(*_forwarded(off=2)[:2], HOLDOUT2_ROUND, _forwarded(off=2)[2])["one_split"]
+        is False
+    )
+    assert holdout_decision(relays, split, HOLDOUT2_ROUND, paths.head(0))["one_split"] is False
+
+
+def test_r1d_fails_without_a_relay_recipient() -> None:
+    relays, split, paths = _forwarded()
+    relays = relays.with_columns(proposer_fee_recipient=pl.lit(None, dtype=pl.String))
+    assert holdout_decision(relays, split, HOLDOUT2_ROUND, paths)["share_recipient_match"] == 0.0
+
+
+def test_r1d_compares_lowercased() -> None:
+    relays, split, paths = _forwarded()
+    relays = relays.with_columns(pl.col("proposer_fee_recipient").str.to_uppercase())
+    paths = paths.with_columns(pl.col("path").str.to_uppercase())
+    assert holdout_decision(relays, split, HOLDOUT2_ROUND, paths)["share_recipient_match"] == 1.0
+
+
+def test_the_first_holdout_decision_ignores_paths_and_the_second_round() -> None:
+    relays, split, paths = _forwarded()
+    old = _world(_twenty(off_recipient=1))
+    both = pl.concat([old[0], relays]), pl.concat([old[1], split])
+    assert holdout_decision(*both) == holdout_decision(*old)
+    assert holdout_decision(*both, paths=paths) == holdout_decision(*old)
+    r1 = check_r1_relays(both[0], both[1], NO_USD, paths).summary
+    assert r1["by_round"][HOLDOUT2_ROUND][PAYOUT]["recipient_match_fwd"] == 20
+    assert r1["by_round"][HOLDOUT2_ROUND][PAYOUT]["recipient_match"] == 0  # R1b misses them all
+    assert r1["holdout2_by_stratum"]["payout"]["found"] == 20
+    assert r1["holdout2_recipient_failures"] == []
+    assert r1["sampled"] == 0  # the top-level base leaves out both holdouts
+
+
+def _holdout2_on_disk(raw: Path, blocks: list[int]) -> None:
+    raw.mkdir(parents=True, exist_ok=True)
+    drawn = {
+        "block_number": blocks,
+        "stratum": ["payout"] * len(blocks),
+        "seed": [45] * len(blocks),
+    }
+    write_exact(pl.DataFrame(drawn), raw / HOLDOUT2_FILE)
+
+
+def test_holdout2_does_not_freeze_without_every_path(tmp_path: Path) -> None:
+    relays, split, paths = _forwarded(n=3)
+    _holdout2_on_disk(tmp_path, [1000, 1001, 1002])
+    assert paths_complete(tmp_path, split, paths) is True
+    assert paths_complete(tmp_path, split, paths.head(2)) is False
+    fresh = holdout_decision(relays, split, HOLDOUT2_ROUND, paths.head(2))
+    kw = {"decision_file": HOLDOUT2_DECISION_FILE, "holdout_file": HOLDOUT2_FILE}
+    got = settle_decision(tmp_path, relays, fresh, **kw, round_label=HOLDOUT2_ROUND, ready=False)
+    assert got == (fresh, False, None) and not (tmp_path / HOLDOUT2_DECISION_FILE).exists()
+
+
+def test_a_complete_holdout2_freezes_in_its_own_file(tmp_path: Path) -> None:
+    relays, split, paths = _forwarded(n=3)
+    _holdout2_on_disk(tmp_path, [1000, 1001, 1002])
+    first = tmp_path / HOLDOUT_DECISION_FILE
+    first.write_text('{"decision": {"one_split": false}}', encoding="utf-8")
+    before = first.read_bytes()
+    fresh = holdout_decision(relays, split, HOLDOUT2_ROUND, paths)
+    kw = {"decision_file": HOLDOUT2_DECISION_FILE, "holdout_file": HOLDOUT2_FILE}
+    assert settle_decision(tmp_path, relays, fresh, **kw, round_label=HOLDOUT2_ROUND) == (
+        fresh,
+        True,
+        None,
+    )
+    frozen = json.loads((tmp_path / HOLDOUT2_DECISION_FILE).read_text(encoding="utf-8"))
+    assert frozen["decision"] == fresh and frozen["n_holdout_blocks"] == 3
+    assert first.read_bytes() == before
