@@ -2,11 +2,16 @@
 
 import copy
 import json
+import math
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import polars as pl
-from lpworld import EVENT_SCHEMA, L, T, ev, oracle, world_end_us, world_inputs
+import pytest
+from lpworld import EVENT_SCHEMA, LAST, L, T, ev, oracle, ts, world_end_us, world_inputs
 
+from uniswap_lp_economics.align import reference_at, reference_table
+from uniswap_lp_economics.config import US
 from uniswap_lp_economics.io import read_exact
 from uniswap_lp_economics.lp.analyze import LpInputs
 from uniswap_lp_economics.lp.engine import iter_engine_rows
@@ -16,14 +21,32 @@ from uniswap_lp_economics.strategy.cfpool import (
     CfInputs,
     CfRun,
     FixedFee,
+    MoveFee,
+    OracleFee,
     SwapInfo,
+    VolatilityFee,
     prepare_inputs,
     reexecute,
+    rule_grid,
     run_pool,
 )
-from uniswap_lp_economics.strategy.checks import check_s2
+from uniswap_lp_economics.strategy.checks import (
+    check_s2,
+    check_s3,
+    min_profit_gas,
+    replaced_keys,
+    sandwich_legs,
+)
+from uniswap_lp_economics.strategy.params import (
+    CALIBRATION_TOL,
+    JULY_START_US,
+    MAX_FEE_BP,
+    MIN_FEE_BP,
+    bp_to_pips,
+)
 from uniswap_lp_economics.tickbook import TickBook
 from uniswap_lp_economics.v3math import get_sqrt_ratio_at_tick as sqrt_at
+from uniswap_lp_economics.v3math import sqrt_price_x96_to_eth_price
 from uniswap_lp_economics.v3swap import swap
 
 FIX = Path(__file__).parent / "fixtures"
@@ -187,3 +210,281 @@ def test_s2_fails_on_one_wrong_step() -> None:
     b, li, s = swap_steps.row(k)[:3]
     first = r.summary["first_mismatch"]
     assert (first["block_number"], first["log_index"], first["step"]) == (b, li, s)
+
+
+def _blocks(rows: list[tuple[int, float | None]]) -> pl.DataFrame:
+    """Window blocks at ts(b) with a 1 gwei base fee and the same reference at 0 s and +1 s."""
+    return pl.DataFrame(
+        [(b, int(ts(b).timestamp()) * US, ts(b).date(), 10**9, p, p) for b, p in rows],
+        schema=NO_BLOCKS.schema,
+        orient="row",
+    )
+
+
+def _wide_book() -> TickBook:
+    book = TickBook(tick=T, sqrt_price_x96=sqrt_at(T), liquidity=0)
+    book.apply_mint(T - 600, T + 600, L)
+    return book
+
+
+def test_fee_rules() -> None:
+    vol = VolatilityFee(2, 25)
+    p = 2000.0
+    assert vol.block_fee_pips(p, None) == bp_to_pips(MIN_FEE_BP)
+    for _ in range(2000):
+        p *= math.exp(3e-4)
+        vol.end_block(p)
+    assert abs(vol.block_fee_pips(p, None) - bp_to_pips(6)) <= 1
+    move = MoveFee(1)
+    assert move.block_fee_pips(2000.0, None) == bp_to_pips(5)
+    move.end_block(2000.0 * math.exp(7e-4))
+    assert move.block_fee_pips(2000.0 * math.exp(7e-4), None) == bp_to_pips(12)
+    oracle_fee = OracleFee()
+    assert oracle_fee.block_fee_pips(2000.0 * math.exp(20e-4), 2000.0) == bp_to_pips(20)
+    assert oracle_fee.block_fee_pips(2000.0 * math.exp(-20e-4), 2000.0) == bp_to_pips(20)
+    assert oracle_fee.block_fee_pips(2000.0 * math.exp(2e-4), 2000.0) == bp_to_pips(5)
+    # every rule asked for 500 bp charges the cap
+    assert oracle_fee.block_fee_pips(2000.0 * math.exp(500e-4), 2000.0) == bp_to_pips(MAX_FEE_BP)
+    big = MoveFee(1)
+    big.block_fee_pips(2000.0, None)
+    big.end_block(2000.0 * math.exp(495e-4))
+    assert big.block_fee_pips(0.0, None) == bp_to_pips(MAX_FEE_BP) == bp_to_pips(100)
+    vol_big = VolatilityFee(1, 1)  # one step of a half-life-1 EWMA: sigma = 1000 bp / sqrt(2)
+    vol_big.block_fee_pips(2000.0, None)
+    vol_big.end_block(2000.0 * math.exp(0.1))
+    assert vol_big.block_fee_pips(0.0, None) == bp_to_pips(MAX_FEE_BP)
+    grid = rule_grid()
+    names = [r.name for r in grid]
+    assert len(grid) == 24 and len(set(names)) == 24
+    assert {"fixed_5bp", "fixed_2.5bp", "vol_k2_h25", "move_k0.5", "oracle"} <= set(names)
+
+
+def test_arbitrage_closes_the_gap() -> None:
+    book = _wide_book()
+    p_ref = sqrt_price_x96_to_eth_price(book.sqrt_price_x96) / (1 - 0.003)  # pool 30 bp under
+    ci = CfInputs(rows=[], book=book, fee_protocol=0, blocks=_blocks([(7, p_ref)]), swaps={})
+    run = run_pool(ci, FixedFee(500), replace=True, min_profit_gas=0, keep_steps=True)
+    assert run.block_end is not None and run.steps is not None
+    after = sqrt_price_x96_to_eth_price(run.block_end["sqrt_price_x96"][0])
+    assert after == pytest.approx(p_ref * (1 - 0.0005) * (1 - 0.0001), abs=1e-9)
+    assert run.daily["n_arb"].to_list() == [1] and run.counts["arb_trades"] == 1
+    assert set(run.steps["source"]) == {"arb"} and set(run.steps["log_index"]) == {-1}
+    assert run.daily["lvr_arb_usd"][0] > 0 and run.daily["fee_arb_total_usd"][0] > 0
+    none = run_pool(ci, FixedFee(500), replace=True, min_profit_gas=10**30)
+    assert none.counts["below_min_profit"] == 1 and none.counts["arb_trades"] == 0
+    assert none.daily["n_arb"].to_list() == [0]
+    assert none.block_end is not None
+    assert none.block_end["sqrt_price_x96"][0] == book.sqrt_price_x96
+    blind = CfInputs(rows=[], book=book, fee_protocol=0, blocks=_blocks([(7, None)]), swaps={})
+    counts = run_pool(blind, FixedFee(500), replace=True, min_profit_gas=0).counts
+    assert counts["no_reference_blocks"] == 1 and counts["arb_trades"] == 0
+    with pytest.raises(ValueError, match="min_profit_gas"):
+        run_pool(ci, FixedFee(500), replace=True)
+
+
+def test_replaced_swaps_are_skipped_and_counted() -> None:
+    book = _wide_book()
+    p_ref = sqrt_price_x96_to_eth_price(book.sqrt_price_x96) * 1.002
+    events = pl.DataFrame(
+        [
+            ev(7, 0, "swap", amount0=10**9, amount1=-(10**17), sqrt_price_x96=0, tick=T),
+            ev(7, 1, "swap", amount0=2 * 10**9, amount1=-(10**17), sqrt_price_x96=0, tick=T),
+            ev(7, 2, "flash", paid0=10**6, paid1=10**15),
+        ],
+        schema=EVENT_SCHEMA,
+    )
+    ci = CfInputs(
+        rows=list(iter_engine_rows(events)),
+        book=book,
+        fee_protocol=0,
+        blocks=_blocks([(7, p_ref)]),
+        swaps={
+            (7, 0): SwapInfo(2000.0, "exact_input", True),
+            (7, 1): SwapInfo(2000.0, "exact_input", False),
+        },
+    )
+    run = run_pool(ci, FixedFee(500), replace=True, min_profit_gas=0, keep_steps=True)
+    assert run.steps is not None
+    kept = run.steps.filter(pl.col("source") == "kept")
+    assert set(kept["log_index"]) == {1}
+    assert run.counts["replaced"] == 1 and run.counts["mode_exact_input"] == 1
+    assert run.counts["arb_trades"] == 1
+    accrued = run.steps.filter(pl.col("accrued"))
+    assert set(accrued["source"]) == {"arb", "kept", "flash"}
+    d = run.daily.row(0, named=True)
+    expected = (accrued["fee_usd"] / accrued["liquidity"].cast(pl.Float64)).sum()
+    assert d["fee_arb_pl"] + d["fee_kept_pl"] == pytest.approx(expected, rel=1e-12)
+    kept_lvr = (kept["lvr_0"] / kept["liquidity"].cast(pl.Float64)).sum()
+    assert d["lvr_kept_pl"] == pytest.approx(kept_lvr, rel=1e-12)
+    assert d["fee_kept_usd"] == pytest.approx(
+        run.steps.filter(pl.col("source") != "arb")["fee_usd"].sum(), rel=1e-12
+    )
+    # identity mode: the replaced swap is re-executed like any other
+    same = run_pool(ci, FixedFee(500), replace=False)
+    assert same.counts["replaced"] == 0 and same.counts["mode_exact_input"] == 2
+
+
+def test_daily_is_zero_filled() -> None:
+    day3 = datetime(2026, 7, 1, tzinfo=UTC) + timedelta(days=2)
+    swap0 = {"amount0": 10**9, "amount1": -(10**17), "sqrt_price_x96": 0, "tick": T}
+    events = pl.DataFrame(
+        [ev(7, 0, "swap", **swap0), ev(30, 0, "swap", **swap0, block_timestamp=day3)],
+        schema=EVENT_SCHEMA,
+    )
+    ci = CfInputs(
+        rows=list(iter_engine_rows(events)),
+        book=_wide_book(),
+        fee_protocol=0,
+        blocks=NO_BLOCKS,
+        swaps={k: SwapInfo(2000.0, "exact_input", False) for k in ((7, 0), (30, 0))},
+    )
+    daily = run_pool(ci, FixedFee(500), replace=False).daily
+    assert daily["day"].to_list() == [date(2026, 7, 1), date(2026, 7, 2), date(2026, 7, 3)]
+    assert all(v == 0 for v in daily.row(1)[1:])
+    assert daily["n_blocks"].to_list() == [1, 0, 1]
+    assert daily["fee_pips_sum"].to_list() == [500, 0, 500]
+    assert daily["fee_kept_usd"][0] > 0 and daily["fee_kept_usd"][2] > 0
+
+
+def test_prepare_inputs_blocks_frame() -> None:
+    inp = world_inputs()
+    end_us = int(ts(LAST).timestamp()) * US + US // 2  # the last block's +1 s is past the data
+    ci = prepare_inputs(
+        inp.events,
+        inp.ticks,
+        inp.meta,
+        inp.aligned,
+        inp.swap_fees,
+        inp.blocks_state,
+        inp.blocks,
+        inp.trades,
+        set(),
+        end_us,
+    )
+    b = ci.blocks
+    assert b["block_number"].to_list() == sorted(inp.blocks_state["block_number"].to_list())
+    ref = reference_table(inp.trades)
+    t = inp.blocks_state.sort("block_number")["ts_us"]
+    assert b["p_ref_0"].to_list() == reference_at(t, ref, end_us)["price"].to_list()
+    assert b["p_ref_1"].to_list() == reference_at(t + US, ref, end_us)["price"].to_list()
+    assert b["p_ref_1"][-1] is None and b["p_ref_0"][-1] is not None
+    assert b["p_ref_0"].null_count() == 0
+    assert b["base_fee_wei"].to_list() == [10**9] * b.height
+    days = [datetime.fromtimestamp(x / US, UTC).date() for x in t.to_list()]
+    assert b["day"].to_list() == days and len(set(days)) == 2
+
+
+def test_unreproduced_swap_is_skipped_and_counted() -> None:
+    inp = world_inputs()
+    fees = inp.swap_fees.filter(~((pl.col("block_number") == 7) & (pl.col("log_index") == 0)))
+    ci = prepare_inputs(
+        inp.events,
+        inp.ticks,
+        inp.meta,
+        inp.aligned,
+        fees,
+        inp.blocks_state,
+        inp.blocks,
+        inp.trades,
+        set(),
+        world_end_us(),
+    )
+    assert ci.swaps[(7, 0)].mode == "unreproduced"
+    run = run_pool(ci, FixedFee(500), replace=False, keep_steps=True)
+    assert run.counts["unreproduced"] == 1 and run.counts["no_input"] == 0
+    assert run.steps is not None
+    assert run.steps.filter((pl.col("block_number") == 7) & (pl.col("log_index") == 0)).height == 0
+
+
+def _measured_frames() -> tuple[pl.DataFrame, pl.DataFrame, pl.DataFrame]:
+    keys = {"block_number": [1, 1, 2], "log_index": [0, 1, 0]}
+    aligned = pl.DataFrame({**keys, "p_cex_0": [2000.0, 2000.0, 2000.0]})
+    swap_steps = pl.DataFrame({**keys, "step": [0, 0, 0], "lvr_0": [3.0, 1.0, 100.0]})
+    swap_fees = pl.DataFrame(
+        {**keys, "fee_token": ["USDC", "WETH", "USDC"], "fee_raw": [2 * 10**6, 10**15, 10**9]}
+    )
+    return aligned, swap_steps, swap_fees
+
+
+def test_s3_pass_and_fail() -> None:
+    aligned, swap_steps, swap_fees = _measured_frames()
+    replaced = {(1, 0), (1, 1)}  # (2, 0) is kept: not part of the calibration
+    lvr, fee = 4.0, 2.0 + 2.0  # 1e15 wei at 2,000 USD = 2 USD
+
+    def run(lvr_x: float, fee_x: float) -> CfRun:
+        daily = pl.DataFrame(
+            {"lvr_arb_usd": [lvr * lvr_x / 2] * 2, "fee_arb_total_usd": [fee * fee_x / 2] * 2}
+        )
+        return CfRun(daily=daily, counts={}, steps=None, block_end=None)
+
+    ok = check_s3(run(1.10, 0.95), swap_steps, aligned, swap_fees, replaced, run(1.3, 1.0))
+    assert ok.name == "S3 calibration (July)" and ok.passed and ok.reported
+    assert ok.summary["lvr_ratio"] == pytest.approx(1.10)
+    assert ok.summary["fee_ratio"] == pytest.approx(0.95)
+    assert ok.summary["lvr_ratio_1s"] == pytest.approx(1.3)
+    assert ok.summary["fee_ratio_1s"] == pytest.approx(1.0)
+    assert ok.summary["measured_lvr_usd"] == pytest.approx(lvr)
+    assert ok.summary["measured_fee_usd"] == pytest.approx(fee)
+    assert ok.summary["tolerance"] == CALIBRATION_TOL
+    bad = check_s3(run(1.20, 1.0), swap_steps, aligned, swap_fees, replaced, run(1.0, 1.0))
+    assert not bad.passed and bad.summary["lvr_ratio"] == pytest.approx(1.20)
+    assert [m["measure"] for m in bad.mismatches] == ["lvr"]
+
+
+def test_sandwich_pattern() -> None:
+    a, b, c = "0xa", "0xb", "0xc"
+    aligned = pl.DataFrame(
+        {
+            "block_number": [1, 1, 1, 2, 2, 3, 3, 3],
+            "log_index": [0, 3, 9, 0, 1, 0, 1, 2],
+            "sender": [a, b, a, a, a, c, b, c],
+            "zero_for_one": [True, False, False, True, False, True, True, True],
+            "markout_usd_0": [5.0, 1.0, -8.0, 2.0, 2.0, 1.0, 1.0, 1.0],
+            "notional_usd": [100.0, 50.0, 100.0, 10.0, 10.0, 10.0, 10.0, 10.0],
+            "is_top_bot": [False, True, False, False, False, True, True, True],
+        }
+    )
+    every = set(aligned.select("block_number", "log_index").iter_rows())
+    # block 1: A buy, B, A sell; block 2: A buy, A sell, nothing between; block 3: same direction
+    got = sandwich_legs(aligned, every)
+    assert got["legs"] == 2 and got["gross_usd"] == pytest.approx(-3.0)
+    assert got["notional_share"] == pytest.approx(200.0 / 300.0)
+    assert got["non_top_legs"] == 2 and got["non_top_gross_usd"] == pytest.approx(-3.0)
+    only_buy = sandwich_legs(aligned, {(1, 0)})
+    assert only_buy["legs"] == 1 and only_buy["notional_share"] == pytest.approx(1.0)
+    nothing_between = aligned.filter(pl.col("block_number") == 2)
+    assert sandwich_legs(nothing_between, {(2, 0), (2, 1)})["legs"] == 0
+    # A buy, B, A buy, A sell: the first buy pairs with the sell across B; the second does not
+    later = pl.DataFrame(
+        {
+            "block_number": [4] * 4,
+            "log_index": [0, 1, 2, 3],
+            "sender": [a, b, a, a],
+            "zero_for_one": [True, False, True, False],
+            "markout_usd_0": [1.0, 2.0, 4.0, 8.0],
+            "notional_usd": [1.0] * 4,
+            "is_top_bot": [True] * 4,
+        }
+    )
+    got = sandwich_legs(later, set(later.select("block_number", "log_index").iter_rows()))
+    assert got["legs"] == 2 and got["gross_usd"] == pytest.approx(9.0)
+    assert got["non_top_legs"] == 0
+
+
+def test_replaced_keys_and_min_profit_gas() -> None:
+    aligned = pl.DataFrame(
+        {
+            "block_number": [1, 1, 2, 3, 4, 5],
+            "log_index": [0, 1, 0, 0, 0, 0],
+            "tx_hash": ["t1", "t1", "t2", "t3", "t4", "t5"],
+            "flow_label": ["searcher"] * 5 + ["other_contract"],
+            "receipt_gas_used": [100, 100, 300, 200, 900, 50],
+            "t0_us": [JULY_START_US] * 4 + [JULY_START_US + 10 * US, JULY_START_US],
+        }
+    )
+    logs = pl.DataFrame({"tx_hash": ["t1", "t2", "t4", "t5"], "other_logs": [0, 0, 0, 0]})
+    replaced = replaced_keys(aligned, logs)
+    assert replaced == {(1, 0), (1, 1), (2, 0), (4, 0)}  # t3 has no row: kept; t5 not a searcher
+    # distinct July transactions t1 (100) and t2 (300); t4 is past the end
+    assert min_profit_gas(aligned, replaced, JULY_START_US + 5 * US) == 200
+    assert min_profit_gas(aligned, {(1, 0), (1, 1)}, JULY_START_US + 5 * US) == 100

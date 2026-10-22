@@ -4,7 +4,9 @@ from typing import Any
 
 import polars as pl
 
+from uniswap_lp_economics.config import DECIMALS0, DECIMALS1
 from uniswap_lp_economics.strategy.cfpool import CfRun
+from uniswap_lp_economics.strategy.params import CALIBRATION_TOL, JULY_START_US
 from uniswap_lp_economics.validate import MAX_LISTED, CheckResult
 
 S2_STEP_COLUMNS = (
@@ -94,4 +96,138 @@ def check_s2(
             "first_mismatch": bad[0] if bad else None,
         },
         bad[:MAX_LISTED],
+    )
+
+
+_SWAP_KEYS = ["block_number", "log_index"]
+
+
+def _key_frame(keys: set[tuple[int, int]]) -> pl.DataFrame:
+    return pl.DataFrame(
+        list(keys), schema={"block_number": pl.Int64, "log_index": pl.Int64}, orient="row"
+    )
+
+
+def replaced_keys(aligned: pl.DataFrame, tx_other_logs: pl.DataFrame) -> set[tuple[int, int]]:
+    """Spec 6.1: the single-pool searcher swaps (searcher, and no other logs in the transaction).
+
+    A swap whose transaction has no other-logs row is kept."""
+    r = aligned.join(
+        tx_other_logs.select("tx_hash", "other_logs"), on="tx_hash", how="left"
+    ).filter((pl.col("flow_label") == "searcher") & (pl.col("other_logs") == 0))
+    return set(r.select(*_SWAP_KEYS).iter_rows())
+
+
+def sandwich_legs(aligned: pl.DataFrame, replaced: set[tuple[int, int]]) -> dict[str, float]:
+    """Replaced swaps that look like sandwich legs (spec 6.1 caveat).
+
+    A swap is a leg when some later swap of the same sender in the block goes the opposite way
+    and another sender's swap lies between them. gross_usd is the 0 s markout of the legs;
+    notional_share is their share of the replaced notional."""
+    group = ["block_number", "sender"]
+    # _others = other senders' swaps before this one in the block; one lies between two swaps of
+    # a sender exactly when their _others differ
+    s = (
+        aligned.sort(*_SWAP_KEYS)
+        .with_columns(
+            _others=pl.int_range(pl.len()).over("block_number") - pl.int_range(pl.len()).over(group)
+        )
+        .select(*group, "log_index", "zero_for_one", "_others")
+    )
+    pairs = s.join(s, on=group, suffix="_b").filter(
+        (pl.col("_others_b") > pl.col("_others"))
+        & (pl.col("zero_for_one_b") != pl.col("zero_for_one"))
+    )
+    legs_keys = pl.concat(
+        [
+            pairs.select(*_SWAP_KEYS),
+            pairs.select("block_number", log_index="log_index_b"),
+        ]
+    ).unique()
+    rep = aligned.join(_key_frame(replaced), on=_SWAP_KEYS, how="semi")
+    legs = rep.join(legs_keys, on=_SWAP_KEYS, how="semi")
+    non_top = legs.filter(~pl.col("is_top_bot"))
+    total = float(rep["notional_usd"].sum())
+    return {
+        "legs": legs.height,
+        "gross_usd": float(legs["markout_usd_0"].sum()),
+        "notional_share": float(legs["notional_usd"].sum()) / total if total else 0.0,
+        "non_top_legs": non_top.height,
+        "non_top_gross_usd": float(non_top["markout_usd_0"].sum()),
+    }
+
+
+def min_profit_gas(aligned: pl.DataFrame, replaced: set[tuple[int, int]], end_us: int) -> int:
+    """Spec 6.3: median gas used by the distinct transactions of replaced swaps with t0 in
+    [JULY_START_US, end_us)."""
+    txs = (
+        aligned.join(_key_frame(replaced), on=_SWAP_KEYS, how="semi")
+        .filter((pl.col("t0_us") >= JULY_START_US) & (pl.col("t0_us") < end_us))
+        .unique("tx_hash")
+    )
+    if txs.height == 0:
+        raise ValueError("no replaced transaction in July to take the gas from")
+    return round(float(txs.select(pl.col("receipt_gas_used").median()).item()))
+
+
+def check_s3(
+    model: CfRun,
+    swap_steps: pl.DataFrame,
+    aligned: pl.DataFrame,
+    swap_fees: pl.DataFrame,
+    replaced: set[tuple[int, int]],
+    sensitivity: CfRun,
+) -> CheckResult:
+    """Spec 6.4: the 5 bp model's arbitrage LVR (0 s) and fees before the protocol's cut against
+    the measured values on the replaced swaps; both within CALIBRATION_TOL passes. Reported.
+
+    The +1 s run (`sensitivity`) is reported alongside (`*_1s`) and does not set the verdict."""
+    keys = _key_frame(replaced)
+    measured_lvr = float(swap_steps.join(keys, on=_SWAP_KEYS, how="semi")["lvr_0"].sum())
+    usd_per_raw = (
+        pl.when(pl.col("fee_token") == "USDC")
+        .then(1 / 10**DECIMALS0)
+        .otherwise(pl.col("p_cex_0") / 10**DECIMALS1)
+    )
+    measured_fee = float(
+        swap_fees.join(keys, on=_SWAP_KEYS, how="semi")
+        .join(aligned.select(*_SWAP_KEYS, "p_cex_0"), on=_SWAP_KEYS, how="left")
+        .select((pl.col("fee_raw").cast(pl.Float64) * usd_per_raw).sum())
+        .item()
+    )
+
+    def ratios(run: CfRun) -> tuple[float, float, float | None, float | None]:
+        lvr = float(run.daily["lvr_arb_usd"].sum())
+        fee = float(run.daily["fee_arb_total_usd"].sum())
+        return (
+            lvr,
+            fee,
+            lvr / measured_lvr if measured_lvr else None,
+            fee / measured_fee if measured_fee else None,
+        )
+
+    lvr, fee, lvr_ratio, fee_ratio = ratios(model)
+    _, _, lvr_1s, fee_1s = ratios(sensitivity)
+    bad = [
+        {"measure": m, "ratio": x}
+        for m, x in (("lvr", lvr_ratio), ("fee", fee_ratio))
+        if x is None or abs(x - 1) > CALIBRATION_TOL
+    ]
+    return CheckResult(
+        "S3 calibration (July)",
+        not bad,
+        {
+            "lvr_ratio": lvr_ratio,
+            "fee_ratio": fee_ratio,
+            "lvr_ratio_1s": lvr_1s,
+            "fee_ratio_1s": fee_1s,
+            "model_lvr_usd": lvr,
+            "model_fee_usd": fee,
+            "measured_lvr_usd": measured_lvr,
+            "measured_fee_usd": measured_fee,
+            "replaced_swaps": len(replaced),
+            "tolerance": CALIBRATION_TOL,
+        },
+        bad,
+        reported=True,
     )
