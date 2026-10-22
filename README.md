@@ -636,7 +636,7 @@ counterfactual that ignores how other traders would react to a different range, 
 
 The hypothesis, written down before any August–September strategy result existed (the window's
 aggregate results were already known; see [Limitations](#strategy-experiment-phase-5)). It is
-what was tested, not a result ([spec](docs/superpowers/specs/2026-10-21-strategy-experiment-design.md),
+what was tested, not a result ([spec](docs/specs/2026-10-21-strategy-experiment-design.md),
 section 1):
 
 > A passive LP in this pool can't fix the loss by choosing a better range or hedging. Those change
@@ -1006,7 +1006,7 @@ Every definition and formula: [`docs/methodology.md`](docs/methodology.md).
 - **Multi-pool bot transactions get no cost breakdown:** their costs also pay for trades in other
   pools, so they are reported gross only.
 - **Builder income** is income of the block's fee recipient, usually the builder; what the builder
-  passes on to the validator is not measured here (sub-project 3 splits it for searcher swaps, see
+  passes on to the proposer is not measured here (sub-project 3 splits it for searcher swaps, see
   [Where LVR goes](#where-lvr-goes)).
 - **Statistics:** the bootstrap resamples UTC days and treats them as independent; for a thin group
   the interval is conditional on at least one active day and can be narrow.
@@ -1294,7 +1294,7 @@ assets/fonts/       Inter (SIL Open Font License), the figures' font
 data_validation/    committed validation report (.md and .json)
 docs/methodology.md every definition and formula behind results/
 docs/roadmap.md     what is done, what comes next and later phases
-docs/superpowers/   design specs and implementation plans for every sub-project and the chart redesign
+docs/specs/        design specs for every sub-project, including the pre-registrations
 ```
 
 ## Further reading

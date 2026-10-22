@@ -3,9 +3,9 @@
 This file defines every quantity in `results/` and gives its formula. Scope: the Uniswap V3
 USDC/WETH 0.05% pool (`0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640`) against Binance, window
 `[2026-07-01, 2026-10-01)` UTC. Sections 1–8 cover sub-project 2 (design spec
-[`docs/superpowers/specs/2026-10-13-price-discovery-markouts-design.md`](superpowers/specs/2026-10-13-price-discovery-markouts-design.md));
+[`docs/specs/2026-10-13-price-discovery-markouts-design.md`](specs/2026-10-13-price-discovery-markouts-design.md));
 sections 9–17 cover sub-project 3, LP P&L and where LVR goes (design spec
-[`docs/superpowers/specs/2026-10-14-lp-pnl-lvr-design.md`](superpowers/specs/2026-10-14-lp-pnl-lvr-design.md)).
+[`docs/specs/2026-10-14-lp-pnl-lvr-design.md`](specs/2026-10-14-lp-pnl-lvr-design.md)).
 Where an implementation plan amended a spec, the ruling is cited ("Ruling n"); the sub-project 3
 rulings that changed a definition or a number are listed in
 [Changes in sub-project 3](#changes-in-sub-project-3). Numbers quoted here come from `results/`,
@@ -24,7 +24,7 @@ Sub-project 3: [9 Positions](#9-positions) ·
 [10 Accumulators](#10-fee-and-lvr-accumulators) · [11 Measured LVR](#11-measured-lvr) ·
 [12 Theoretical LVR](#12-theoretical-lvr) · [13 P&L](#13-pl-in-the-window) ·
 [14 Lifetime](#14-lifetime-pl-against-holding) · [15 Where LVR goes](#15-where-lvr-goes) ·
-[16 Checks](#16-checks-l1l7-and-r1r5) · [17 Limitations](#17-limitations-of-sub-project-3) ·
+[16 Checks](#16-checks-l1l7-and-r1r6) · [17 Limitations](#17-limitations-of-sub-project-3) ·
 [Changes in sub-project 3](#changes-in-sub-project-3)
 
 ## 1. Data and validation
@@ -1067,7 +1067,7 @@ both within the L6 relative tolerance.
 
 ## 19. Proposer-payment detection
 
-Design: [`docs/superpowers/specs/2026-10-21-proposer-payments-design.md`](superpowers/specs/2026-10-21-proposer-payments-design.md).
+Design: [`docs/specs/2026-10-21-proposer-payments-design.md`](specs/2026-10-21-proposer-payments-design.md).
 Its pre-registered parts (the rule, the holdout, the bar and the stopping rule) were committed
 before any holdout relay call; the commit is tagged `holdout-preregistered`.
 
@@ -1211,7 +1211,7 @@ rule, $633.49 (0.044%) of single-pool builder dollars is unexplained, too little
 
 ## 20. Recipient check through forwarders
 
-Design: [`docs/superpowers/specs/2026-10-21-forwarder-recipient-check-design.md`](superpowers/specs/2026-10-21-forwarder-recipient-check-design.md).
+Design: [`docs/specs/2026-10-21-forwarder-recipient-check-design.md`](specs/2026-10-21-forwarder-recipient-check-design.md).
 Sections 3 to 6 of it (the class fix, the check, the holdout, the bar and the stopping rule) were
 committed and tagged `forwarder-preregistered` before the seed-45 holdout was drawn; the code was
 reviewed against them before the draw. No new check was computed on the seed-44 holdout.
@@ -1285,8 +1285,7 @@ So `ulpe lp` publishes one split (`proposer_split: "one"`, `published_decision: 
 
 ## 21. Strategy experiment (Phase 5)
 
-Design: [`docs/superpowers/specs/2026-10-21-strategy-experiment-design.md`](superpowers/specs/2026-10-21-strategy-experiment-design.md);
-plan: [`docs/superpowers/plans/2026-10-22-strategy-experiment.md`](superpowers/plans/2026-10-22-strategy-experiment.md).
+Design: [`docs/specs/2026-10-21-strategy-experiment-design.md`](specs/2026-10-21-strategy-experiment-design.md).
 Code: `strategy/` (every pre-registered value in `strategy/params.py`), `data/futures.py`.
 Results: `results/strategy_{checks,ranges,fees,hedge,test}.md` (CSVs alongside),
 `summary.json["strategy"]`, `results/strategy_freeze.json`. Every number is a counterfactual
