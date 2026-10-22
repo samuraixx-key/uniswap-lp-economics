@@ -88,3 +88,62 @@ def load_bot_transfers(raw_dir: Path, bots: list[str]) -> pl.DataFrame:
     if not frames:
         return pl.DataFrame(schema=TRANSFER_SCHEMA)
     return pl.concat(frames)
+
+
+# Payment paths through forwarding contracts for the seed-45 holdout (forwarder spec section 4).
+PATHS_FILE = "holdout2_paths.parquet"
+PATH_SCHEMA: dict[str, Any] = {"block_number": pl.Int64, "tx_hash": pl.String, "path": pl.String}
+MAX_HOPS = 3
+PATH_CHECKPOINT = 50
+
+
+def payment_path(
+    client: RpcClient, block: int, to_address: str, value_wei: int
+) -> tuple[str, list[str]]:
+    """(hash of the block's last transaction, payment path). The path starts at `to_address` and
+    follows, at most MAX_HOPS times, the one internal transfer sent by the current address in
+    that transaction with value >= `value_wei`; it stops when there is not exactly one, or when
+    the recipient is already on the path. Raises if the RPC's last transaction does not go to
+    `to_address` with `value_wei` (the chain tables and the node disagree)."""
+    last = client.request("eth_getBlockByNumber", [hex(block), True])["transactions"][-1]
+    if (last["to"] or "").lower() != to_address.lower() or int(last["value"], 16) != value_wei:
+        raise ValueError(f"block {block}: last transaction does not match the chain tables")
+    tx = last["hash"].lower()
+    path = [to_address.lower()]
+    for _ in range(MAX_HOPS):
+        out = fetch_internal_transfers(client, path[-1], block, block).filter(
+            (pl.col("tx_hash") == tx) & (pl.col("value_wei") >= value_wei)
+        )
+        if out.height != 1 or out["to_address"][0] in path:
+            break
+        path.append(out["to_address"][0])
+    return tx, path
+
+
+def fetch_payment_paths(client: RpcClient, raw_dir: Path, targets: pl.DataFrame) -> Path:
+    """Payment paths of `targets` (block_number, to_address, last_value_wei) into PATHS_FILE;
+    blocks already there are skipped. Saved every PATH_CHECKPOINT blocks and on any exit, so an
+    error keeps the rows fetched before it."""
+    out = raw_dir / PATHS_FILE
+    done = read_exact(out) if out.exists() else pl.DataFrame(schema=PATH_SCHEMA)
+    have = set(done["block_number"].to_list())
+    todo = targets.filter(~pl.col("block_number").is_in(list(have))).sort("block_number")
+    rows: list[dict[str, Any]] = []
+
+    def save() -> None:
+        write_exact(pl.concat([done, pl.DataFrame(rows, schema=PATH_SCHEMA)]), out)
+
+    try:
+        for i, (b, to, v) in enumerate(
+            todo.select("block_number", "to_address", "last_value_wei").iter_rows()
+        ):
+            tx, path = payment_path(client, b, to, v)
+            rows.append({"block_number": b, "tx_hash": tx, "path": ",".join(path)})
+            if (i + 1) % PATH_CHECKPOINT == 0:
+                save()
+                print(f"  {i + 1}/{todo.height} payment paths")
+    finally:
+        if rows:
+            save()
+    print(f"  payment paths: {len(rows)} fetched, {len(have) + len(rows)} on disk")
+    return out
