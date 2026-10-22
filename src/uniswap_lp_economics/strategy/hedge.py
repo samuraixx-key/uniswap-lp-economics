@@ -147,6 +147,7 @@ def hedge_table(
 ) -> pl.DataFrame:
     """Daily USD P&L (position value change + fees - gas - trade + hedge) per hedge rule and
     taker fee, plus the hedge-free `rebalancing_benchmark` (fees - LVR - gas - trade).
+    `funding_daily_usd_per_1m` is the mean daily funding the hedge received (positive = paid to it).
 
     The day grid is `lp_daily`'s; every per-day series is zero-filled on it, and the path must
     not reach outside it. `never` is the unhedged position, listed once with taker fee 0."""
@@ -168,15 +169,16 @@ def hedge_table(
         if r != "never"
         for f in (TAKER_FEE_BP, *TAKER_FEE_SENSITIVITY_BP)
     ]
-    rows: list[tuple[str, str, float | None, float, float, float]] = []
+    rows: list[tuple[str, str, float | None, float, float, float, float]] = []
     for rule, fee in cells:
         sim = grid.join(
             simulate(path, perp, funding, rule, fee), on="day", how="left", maintain_order="left"
         ).fill_null(0.0)
         total = unhedged + sim["hedge_pnl_usd"] + sim["funding_usd"] - sim["trade_usd"]
-        rows.append((f"hedge_{rule}", rule, fee, *_stats(total, twv, capital)))
+        funding_mean = float(sim["funding_usd"].mean()) * 1e6 / capital  # type: ignore[arg-type]
+        rows.append((f"hedge_{rule}", rule, fee, *_stats(total, twv, capital), funding_mean))
     bench = lp["fee_usd"] - lp["lvr_usd"] - lp["gas_usd"] - lp["trade_usd"]
-    rows.append(("rebalancing_benchmark", "none", None, *_stats(bench, twv, capital)))
+    rows.append(("rebalancing_benchmark", "none", None, *_stats(bench, twv, capital), 0.0))
     return pl.DataFrame(
         rows,
         schema={
@@ -186,6 +188,7 @@ def hedge_table(
             "bp_per_day": pl.Float64,
             "sd_daily_usd_per_1m": pl.Float64,
             "mean_daily_usd_per_1m": pl.Float64,
+            "funding_daily_usd_per_1m": pl.Float64,
         },
         orient="row",
     )

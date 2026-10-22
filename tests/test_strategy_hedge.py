@@ -131,6 +131,7 @@ def test_table_rows() -> None:
         "bp_per_day",
         "sd_daily_usd_per_1m",
         "mean_daily_usd_per_1m",
+        "funding_daily_usd_per_1m",
     ]
     assert t.height == 11
     assert "unhedged" not in t["strategy"].to_list() + t["rule"].to_list()
@@ -142,6 +143,11 @@ def test_table_rows() -> None:
     assert b["mean_daily_usd_per_1m"] == pytest.approx(sum(flows) / 3 * 25)
     assert b["bp_per_day"] == pytest.approx(sum(flows) / 120_000 * 1e4)
     assert math.isfinite(b["sd_daily_usd_per_1m"])
+    assert b["funding_daily_usd_per_1m"] == 0.0
+    assert t.filter(pl.col("rule") == "never")["funding_daily_usd_per_1m"].item() == 0.0
+    # one positive rate on a held short: the hourly hedge receives funding on day 1 only
+    hourly = t.filter((pl.col("rule") == "hourly") & (pl.col("taker_fee_bp") == 5.0))
+    assert hourly["funding_daily_usd_per_1m"].item() > 0
     # the position value is flat and the perp rises: the hedged mean falls below the unhedged one
     never = t.filter(pl.col("rule") == "never")["mean_daily_usd_per_1m"].item()
     daily = t.filter((pl.col("rule") == "daily") & (pl.col("taker_fee_bp") == 5.0))

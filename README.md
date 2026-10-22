@@ -135,7 +135,9 @@ at the pool's price instead of Binance's)? Which LPs make money? And where does 
    the gap.** Of 27 re-centring strategies at $1M, the only three small enough to be
    price-takers (ranges of ±5,000 bp) keep fees ÷ LVR within the pre-registered ±0.068 of full
    range; the other 24 hold more than 5% of the pool's active liquidity at their peak, and the
-   verdict, **inconclusive**, depends on them. Re-centring a ±10 bp range each time the price
+   verdict, **inconclusive**, depends on them. It stays inconclusive among genuine price-takers:
+   at $100k 15 cells are small enough, and three of them (daily re-centring at ±250 to
+   ±1,000 bp) have intervals reaching above the margin's +0.0677. Re-centring a ±10 bp range each time the price
    leaves it returns **−454 bp/day** of capital, against −0.19 for full range (counterfactual:
    ignores how other traders would react to a different range). In the fee model LPs break even
    at about **8.6 bp**, and at that fee the pool can lose at most **43%** of its other volume
@@ -623,7 +625,9 @@ USDT/USDC rate. Full tables:
 hold more than 5% of the pool's active liquidity at their peak, so they are not the small
 price-takers the method assumes, and the verdict depends on them; the three that are small
 enough, the ±5,000 bp ranges, all stay inside the margin of ±0.068 around full range's
-fees ÷ LVR. *Fee level:* **not tested**, because the model failed its July calibration (its
+fees ÷ LVR. Among genuine price-takers it stays inconclusive: fees ÷ LVR does not depend on size,
+and at $100k, where 15 cells are small enough, three of them (daily re-centring at ±250, ±500
+and ±1,000 bp) have upper bounds of 0.105, 0.092 and 0.068, against δ = 0.0677. *Fee level:* **not tested**, because the model failed its July calibration (its
 arbitrage LVR was 1.38 times the measured one, against a tolerance of ±15%), so every fee number
 below is model-only. *Hedge:* no test, by design: it is the risk lever. An hourly perpetual hedge
 cuts the spread of a full-range position's daily P&L about 100-fold and leaves fees − LVR where
@@ -711,8 +715,8 @@ Counterfactual: ignores how other traders would react to a different range.
 
 - **Inconclusive, and it hangs on the flagged cells.** No interval lies entirely above +δ, which
   would have failed the hypothesis, but 10 of the 27 are not inside ±δ, all of them flagged. The
-  three unflagged cells, the ±5,000 bp ranges, are inside: on them alone the hypothesis would
-  hold.
+  three unflagged cells, the ±5,000 bp ranges, are inside, but that is not support for the
+  hypothesis: at $100k more cells qualify and three of them are not inside (next bullets).
 - **The point estimates above +δ** are daily re-centred ranges of ±10 to ±50 bp (+0.088 to
   +0.111), with lower bounds of +0.024 to +0.037, below δ. Such a range is out of range most of
   the time (±10 bp re-centred daily is in range at 18% of block starts), so it misses in-range LVR
@@ -858,10 +862,9 @@ other traders would react):
   $182 a day.
 - **The unhedged mean (+$3,355 a day) is the period's price path**, not LP income. For full
   range, the daily and hourly hedges end above the benchmark (+$17 and +$46 against −$21 a day),
-  likely through funding: the short received roughly $75–100 a day (estimated from the funding
-  files: about $74 on a fixed $500k short, about $104 on a short that grows with the price as the
-  full-range position's WETH does, $0.49M to $0.91M; not broken out in the results), part of
-  which hedge trading costs take back. Not every hedge ends above its benchmark: full range at
+  likely through funding: the short received $83 a day hedged daily, $82 hourly and $90 at 10%
+  drift (`funding_daily_usd_per_1m` in `strategy_hedge`), part of which hedge trading costs take
+  back. Not every hedge ends above its benchmark: full range at
   10% drift ends at −$182, and the ±5,000 bp band at −$109 hourly and −$133 at drift, against its
   benchmark's −$95 (its daily hedge, +$1, is above).
 - For the ±5,000 bp band, the best July strategy, an hourly hedge cuts the spread from $13.8k to
@@ -1072,7 +1075,8 @@ Every definition and formula: [`docs/methodology.md`](docs/methodology.md).
 - **Price-takers.** A strategy position takes its share of the recorded swaps without changing
   them. 24 of the 27 tested cells are flagged because at their peak they hold more than 5% of the
   active liquidity (up to 84%); a position that large would change the swaps it trades against.
-  The flag is in the table, and the verdict depends on the flagged cells.
+  The flag is in the table, and the verdict depends on the flagged cells; at $100k, where only
+  12 are flagged, it is still inconclusive.
 - **No routing model; fixed volume.** Where flow would go at a higher fee (the 0.3% pool, other
   venues) is not modelled. Kept flow is re-executed at its logged size at every fee; the
   break-even share assumes removed flow takes its fees and LVR with it in proportion and leaves
