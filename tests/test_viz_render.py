@@ -117,6 +117,8 @@ MULTI_PANEL = {
     "08_bots_keep": 2,
     "10_pnl_by_group": 3,
     "12_lifetime": 2,
+    "15_fee_curves": 2,
+    "16_hedge": 2,
 }
 
 

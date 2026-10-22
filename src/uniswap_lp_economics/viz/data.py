@@ -23,8 +23,11 @@ SOURCES = {
     "figure_data/episode_cex.csv": "lp",
     "figure_data/jit_block.csv": "lp",
     "reference_robustness.csv": "lp",
+    "figure_data/strategy_ranges.csv": "strategy",
+    "figure_data/strategy_fees.csv": "strategy",
+    "figure_data/strategy_hedge.csv": "strategy",
 }
-SUMMARY_KEYS = {"lead_lag": "analyze", "arbitrage": "analyze", "lp": "lp"}
+SUMMARY_KEYS = {"lead_lag": "analyze", "arbitrage": "analyze", "lp": "lp", "strategy": "strategy"}
 # Column types the figures rely on, so a table with only a header still reads with them.
 TYPES: dict[str, dict[str, Any]] = {
     "episodes.csv": {"duration_s": pl.Float64, "threshold_bp": pl.Float64},
@@ -88,6 +91,9 @@ class Results:
     episode_cex: pl.DataFrame
     jit_block: pl.DataFrame
     robustness: pl.DataFrame
+    strategy_ranges: pl.DataFrame
+    strategy_fees: pl.DataFrame
+    strategy_hedge: pl.DataFrame
 
 
 def load_results(d: Path) -> Results:
@@ -126,4 +132,7 @@ def load_results(d: Path) -> Results:
         episode_cex=csv("figure_data/episode_cex.csv"),
         jit_block=csv("figure_data/jit_block.csv"),
         robustness=csv("reference_robustness.csv"),
+        strategy_ranges=csv("figure_data/strategy_ranges.csv"),
+        strategy_fees=csv("figure_data/strategy_fees.csv"),
+        strategy_hedge=csv("figure_data/strategy_hedge.csv"),
     )
