@@ -44,11 +44,19 @@ states one split; the first decision stays on file as the record of the first te
   swaps).
 - EIP-7702 delegated EOAs must count as wallets in any new owner classification (payout
   recipients already do this).
+- `ulpe analyze` rewrites `summary.json` from scratch and drops the `strategy` key until
+  `ulpe strategy` runs again. That's harmless in pipeline order but a trap when running one step by
+  hand. Fix it the next time `analyze` is touched: keep any existing `strategy` key on rewrite
+  (a few lines plus one test).
+- S1 passes on the real data with a thin margin (9.4e-10 against `S1_REL_TOL = 1e-9`). It may fail
+  on another machine. The tolerance was pre-registered, so it stays as it is; note this if a re-run
+  elsewhere fails S1.
 
 ## Later
 
 - **Phase 6, report:** `REPORT.md` plus a GitHub Pages version (question → data → method →
-  results → limitations), a tagged `v1.0` release.
+  results → limitations), a tagged `v1.0` release. When the README becomes `REPORT.md`, trim the
+  "Can an LP do better?" chapter (259 lines).
 - **Project 2:** a funding-rate basis backtester (Hyperliquid, dYdX, Binance), in its own repo.
 
 ## Manual steps
