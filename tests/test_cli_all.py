@@ -300,11 +300,14 @@ def test_fetch_relays_retries_only_holdout2(
     monkeypatch.setattr(cli.relays, "fetch_holdout", lambda *a, **kw: holdouts.append(kw))
     retried: list[dict[str, object]] = []
     monkeypatch.setattr(cli.relays, "retry_unchecked", lambda *a, **kw: retried.append(kw) or 0)
-    cli.fetch_relays()
+    cli.fetch_relays()  # first run: draws and fetches the seed-45 holdout, no retry yet
     assert holdouts == [
         {},
         {"seed": 45, "holdout_file": "relay_holdout_2.parquet", "round_label": "holdout2"},
     ]
+    assert retried == []
+    (tmp_path / relays.HOLDOUT2_FILE).write_bytes(b"")  # the draw now exists
+    cli.fetch_relays()  # second run: the one retry, of the seed-45 round only
     assert retried == [{"rounds": ("holdout2",)}]
 
 

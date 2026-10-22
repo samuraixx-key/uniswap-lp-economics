@@ -211,6 +211,7 @@ def fetch_price_history() -> None:
 def fetch_relays() -> None:
     """D6: relay-reported proposer payments for a random sample of window blocks."""
     blocks = pl.read_parquet(config.RAW_DIR / bq_blocks.BLOCKS_FILE)["block_number"]
+    drawn_before = (config.RAW_DIR / relays.HOLDOUT2_FILE).exists()
     relays.fetch_relay_sample(config.RAW_DIR, int(blocks.min()), int(blocks.max()))  # type: ignore[arg-type]
     if (config.RAW_DIR / builders.BUILDERS_DIR / builders.LAST_TX).exists():
         classes = _block_classes()
@@ -224,8 +225,10 @@ def fetch_relays() -> None:
         )
     else:
         print("holdout waits for `ulpe fetch-builders` (last-transaction table missing)")
-    # Only the seed-45 round is retried: the published rounds never change (forwarder spec 5).
-    relays.retry_unchecked(config.RAW_DIR, rounds=(relays.HOLDOUT2_ROUND,))
+    # Only the seed-45 round is retried (the published rounds never change), and only on a run
+    # that found its draw already on disk: "fetched, then retried once (fetch-relays run twice)".
+    if drawn_before:
+        relays.retry_unchecked(config.RAW_DIR, rounds=(relays.HOLDOUT2_ROUND,))
 
 
 def _block_classes() -> pl.DataFrame:

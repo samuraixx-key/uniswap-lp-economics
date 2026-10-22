@@ -499,3 +499,39 @@ def test_missing_recipient_is_stored_as_none(recipient: dict[str, Any]) -> None:
     client = httpx.Client(transport=transport({R1: [httpx.Response(200, json=payload)]}))
     row = relays.query_block(client, 7, (R1,), backoff_s=0)
     assert row["found"] and row["proposer_fee_recipient"] is None
+
+
+def test_a_write_that_adds_rows_to_a_published_round_refuses(tmp_path: Path) -> None:
+    out = tmp_path / relays.RELAY_FILE
+    write_exact(pl.DataFrame([_row(1, True, None)], schema=relays.RELAY_SCHEMA), out)
+    before = out.read_bytes()
+    (tmp_path / "relays.before_holdout2.parquet").write_bytes(before)  # taken at the seed-45 draw
+    client = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(200, json=[])))
+    with pytest.raises(ValueError, match="published"):  # a changed block range adds seen rows
+        relays.fetch_relay_sample(tmp_path, 1, 100, n=3, client=client, relay_urls=(R1,))
+    assert out.read_bytes() == before
+
+
+def test_a_lost_draw_file_is_never_redrawn_over_existing_round_rows(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(relays.time, "sleep", lambda s: None)
+    out = tmp_path / relays.RELAY_FILE
+    rows = [_row(1, True, None), _row(2, False, R1, "holdout")]  # seed-44 rows, draw file gone
+    write_exact(pl.DataFrame(rows, schema=relays.RELAY_SCHEMA), out)
+    with pytest.raises(ValueError, match="holdout"):
+        relays.fetch_holdout(tmp_path, _holdout_classes(10, 10), httpx.Client(), (R1,), n=3)
+    assert not (tmp_path / relays.HOLDOUT_FILE).exists()
+
+
+def test_the_relay_file_is_copied_before_a_new_draw(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(relays.time, "sleep", lambda s: None)
+    out = tmp_path / relays.RELAY_FILE
+    write_exact(pl.DataFrame([_row(1, True, None)], schema=relays.RELAY_SCHEMA), out)
+    before = out.read_bytes()
+    client = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(200, json=[])))
+    kw = {"seed": 45, "holdout_file": relays.HOLDOUT2_FILE, "round_label": relays.HOLDOUT2_ROUND}
+    relays.fetch_holdout(tmp_path, _holdout_classes(10, 10), client, (R1,), pace_s=0, n=3, **kw)
+    assert (tmp_path / "relays.before_holdout2.parquet").read_bytes() == before

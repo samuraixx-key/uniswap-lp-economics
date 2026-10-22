@@ -5,6 +5,7 @@ proposer payment (a reported check). Resumable: blocks already in the file are n
 """
 
 import random
+import shutil
 import time
 from pathlib import Path
 from typing import Any
@@ -148,15 +149,30 @@ def _read(out: Path) -> pl.DataFrame:
     return done.select(list(RELAY_SCHEMA))
 
 
+def _before(round_label: str) -> str:
+    """The copy of the relay file taken before the first query of a new holdout draw."""
+    return f"relays.before_{round_label}.parquet"
+
+
 def _write(df: pl.DataFrame, out: Path) -> None:
-    """Write the relay file, refusing if a row of a published round on disk would change or go."""
+    """Write the relay file, refusing if a row of a published round on disk would change or go.
+    Once the copy taken before the seed-45 draw exists, the published rows are pinned to it:
+    none may be added either."""
+    keys = list(RELAY_SCHEMA)
+    published = pl.col("round").is_in(PUBLISHED_ROUNDS)
     if out.exists():
-        published = _read(out).filter(pl.col("round").is_in(PUBLISHED_ROUNDS))
-        lost = published.join(df, on=list(RELAY_SCHEMA), how="anti", nulls_equal=True)
-        if lost.height:
+        lost = _read(out).filter(published).join(df, on=keys, how="anti", nulls_equal=True)
+        pin = out.with_name(_before(HOLDOUT2_ROUND))
+        added = (
+            df.filter(published).join(_read(pin), on=keys, how="anti", nulls_equal=True)
+            if pin.exists()
+            else df.head(0)
+        )
+        if lost.height or added.height:
+            first = pl.concat([lost, added])["block_number"][0]
             raise ValueError(
-                f"refusing to write {out}: {lost.height} published relay row(s) would change, "
-                f"e.g. block {lost['block_number'][0]}"
+                f"refusing to write {out}: {lost.height} published relay row(s) would change "
+                f"and {added.height} would be added, e.g. block {first}"
             )
     write_exact(df, out)
 
@@ -261,7 +277,9 @@ def fetch_holdout(
     `holdout_file` before the first relay call and never redrawn; a rerun reads it and queries
     only the blocks still missing from the relay file (rows marked `round = round_label`).
     Defaults: the seed-44 holdout; the seed-45 one passes HOLDOUT2_SEED, HOLDOUT2_FILE and
-    HOLDOUT2_ROUND. Returns the holdout file's path."""
+    HOLDOUT2_ROUND. A new draw first copies the relay file (`_before(round_label)`), and is
+    refused if the relay file already has rows of that round (a lost draw file is never redrawn).
+    Returns the holdout file's path."""
     out = raw_dir / RELAY_FILE
     path = raw_dir / holdout_file
     raw_dir.mkdir(parents=True, exist_ok=True)
@@ -271,7 +289,12 @@ def fetch_holdout(
         if set(holdout["seed"].to_list()) != {seed}:
             raise ValueError(f"{path} was drawn with another seed than {seed}")
     else:
+        if done.filter(pl.col("round") == round_label).height:
+            raise ValueError(f"{out} has {round_label!r} rows but {path} is missing; not redrawn")
         holdout = draw_holdout(classes, set(done["block_number"].to_list()), seed=seed, n=n)
+        backup = raw_dir / _before(round_label)
+        if out.exists() and not backup.exists():
+            shutil.copyfile(out, backup)
         write_exact(holdout, path)
     seen = set(done["block_number"].to_list())
     todo = [b for b in holdout["block_number"].to_list() if b not in seen]
