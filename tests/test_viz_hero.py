@@ -213,3 +213,12 @@ def test_subtitle_says_builders_took_more_than_the_gross_only_when_they_did(
     with style.theme("light"):
         sub = " ".join(_hero_texts(hero.hero(r))["subtitle"].split())
     assert "more than all of it" in sub  # 16 + 29 > 36
+
+
+def test_side_panel_has_two_stats_and_no_lp_total(tmp_path: Path) -> None:
+    r = data.load_results(write_results(tmp_path, fixture_frames()))
+    with style.theme("light"):
+        texts = " ".join(_hero_texts(hero.hero(r)).values())
+    assert "LP fees minus LVR" not in texts
+    assert "of the arbitrage went to block" in texts
+    assert "kept by searchers at block" in texts

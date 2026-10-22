@@ -441,19 +441,14 @@ def hero(r: Results, size: tuple[float, float] = CANVAS) -> Figure:
     bp = float(dest["builder_margin_usd"]) + float(dest["proposer_usd"])
     kept = float(dest["searcher_kept_usd"])
     stats = (
-        (
-            usd(float(lp["fees_minus_lvr_usd"])),
-            "LP fees minus LVR over the\nwindow, all swaps",
-            p.lvr,
-        ),
         (pct(bp / lvr), "of the arbitrage went to block\nbuilders and proposers", p.builder),
         (usd(kept), "kept by searchers at block\ntime (an upper bound)", p.searcher),
     )
     sx = 0.80
-    divider = Line2D([sx - 0.02] * 2, [0.17, 0.74], color=p.grid, lw=1, transform=fig.transFigure)
+    divider = Line2D([sx - 0.02] * 2, [0.30, 0.74], color=p.grid, lw=1, transform=fig.transFigure)
     fig.add_artist(divider)
     for n, (big, small, c) in enumerate(stats):
-        yy = 0.74 - n * 0.19
+        yy = 0.70 - n * 0.24
         fig.text(sx, yy, big, fontsize=24, fontweight="bold", color=c, va="top")
         fig.text(sx, yy - 0.07, small, fontsize=9.3, color=p.muted, va="top", linespacing=1.35)
     took = "more than all of it" if bp > gross else f"{pct(bp / gross)} of it"
