@@ -19,6 +19,7 @@ BUILDERS_DIR = "builders"
 BLOCK_REVENUE = "block_revenue.parquet"
 TX_DIRECT = "pool_tx_direct_payments.parquet"
 TX_OTHER_LOGS = "pool_tx_other_logs.parquet"
+LAST_TX = "last_tx.parquet"
 MAX_GB_BILLED = 700
 
 
@@ -121,6 +122,15 @@ GROUP BY l.transaction_hash
 """
 
 
+def build_last_tx_query(start: date, end: date) -> str:
+    """Each block's last transaction: where it went and its gas. No calldata is read."""
+    return f"""
+SELECT block_number, to_address, receipt_gas_used FROM `{DATASET}.transactions`
+WHERE {_window("block_timestamp", start, end)}
+QUALIFY transaction_index = MAX(transaction_index) OVER (PARTITION BY block_number)
+"""
+
+
 def wei_columns(df: pl.DataFrame, cols: list[str]) -> pl.DataFrame:
     """Decimal strings from BigQuery (NUMERIC/BIGNUMERIC) to exact Int128; nulls become 0."""
     return df.with_columns(
@@ -154,11 +164,11 @@ def _run(client: bigquery.Client, query: str, dry_run: bool) -> pl.DataFrame | N
 def fetch_builders(
     raw_dir: Path, start: date, end: date, dry_run: bool = False, confirm_cost: bool = False
 ) -> None:
-    """Download the three aggregated tables; files that exist are skipped. The queries are billed
-    (about 661 GB together), so a real run with a table missing needs `confirm_cost`; a dry run
+    """Download the four aggregated tables; files that exist are skipped. The queries are billed
+    (about 676 GB together), so a real run with a table missing needs `confirm_cost`; a dry run
     (free: it only reports the bytes each query would scan) does not."""
     out = raw_dir / BUILDERS_DIR
-    names = (BLOCK_REVENUE, TX_DIRECT, TX_OTHER_LOGS)
+    names = (BLOCK_REVENUE, TX_DIRECT, TX_OTHER_LOGS, LAST_TX)
     if not (dry_run or confirm_cost) and not all((out / n).exists() for n in names):
         raise SystemExit(
             "this is a paid BigQuery query; check its size with `ulpe fetch-builders --dry-run`, "
@@ -179,6 +189,12 @@ def fetch_builders(
             build_tx_other_logs_query(start, end),
             [],
             {"other_logs": pl.Int64, "logs": pl.Int64},
+        ),
+        (
+            LAST_TX,
+            build_last_tx_query(start, end),
+            [],
+            {"block_number": pl.Int64, "receipt_gas_used": pl.Int64},
         ),
     ]
     for name, query, wei, casts in jobs:
@@ -210,3 +226,11 @@ def load_builders(raw_dir: Path) -> tuple[pl.DataFrame, pl.DataFrame, pl.DataFra
         read_exact(folder / TX_DIRECT),
         read_exact(folder / TX_OTHER_LOGS),
     )
+
+
+def load_last_tx(raw_dir: Path) -> pl.DataFrame:
+    """(block_number, to_address, receipt_gas_used) of each block's last transaction."""
+    path = raw_dir / BUILDERS_DIR / LAST_TX
+    if not path.exists():
+        raise FileNotFoundError(f"{path} missing; run `ulpe fetch-builders` first")
+    return read_exact(path)
