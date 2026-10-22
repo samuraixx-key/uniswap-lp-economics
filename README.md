@@ -644,10 +644,11 @@ section 1):
 
 - **Hedge.** The −$1.06M is already measured against a rebalancing portfolio, which is the LP
   hedged continuously and for free at Binance's price. A Binance hedge cannot change fees − LVR;
-  it adds trading and funding costs. What it changes is risk: over the window, positions lost
-  $18.2M against holding their deposited tokens, but $1.10M against the rebalancing portfolio
-  (fees − LVR of −$1.06M, after gas and direct builder payments). So the hedge has no test:
-  "it leaves fees − LVR unchanged" is an identity of the benchmark.
+  it adds trading and funding costs. What it changes is risk: over the window, the 7,874
+  positions lost $18.2M against holding their deposited tokens, but $1.10M against the
+  rebalancing portfolio after gas and direct builder payments (pool-level LP fees − LVR, before
+  those costs, is −$1.06M). So the hedge has no test: "it leaves fees − LVR unchanged" is an
+  identity of the benchmark.
 - **Range width and re-centring.** While the price is in range, a narrower range scales fees and
   LVR by the same factor. It adds gas, re-centring trades and time out of range. Expected: it
   moves costs and risk, not fees ÷ LVR.
@@ -857,11 +858,12 @@ other traders would react):
   $182 a day.
 - **The unhedged mean (+$3,355 a day) is the period's price path**, not LP income. For full
   range, the daily and hourly hedges end above the benchmark (+$17 and +$46 against −$21 a day),
-  likely through funding: the short received roughly $100 a day (estimated from the funding files
-  for a full-range position's WETH; not broken out in the results), part of which hedge trading
-  costs take back. Not every hedge ends above its benchmark: full range at 10% drift ends at
-  −$182, and the ±5,000 bp band at −$109 hourly and −$133 at drift, against its benchmark's −$95
-  (its daily hedge, +$1, is above).
+  likely through funding: the short received roughly $75–100 a day (estimated from the funding
+  files: about $74 on a fixed $500k short, about $104 on a short that grows with the price as the
+  full-range position's WETH does, $0.49M to $0.91M; not broken out in the results), part of
+  which hedge trading costs take back. Not every hedge ends above its benchmark: full range at
+  10% drift ends at −$182, and the ±5,000 bp band at −$109 hourly and −$133 at drift, against its
+  benchmark's −$95 (its daily hedge, +$1, is above).
 - For the ±5,000 bp band, the best July strategy, an hourly hedge cuts the spread from $13.8k to
   $606, but its costs turn the mean to −$109 a day.
 
