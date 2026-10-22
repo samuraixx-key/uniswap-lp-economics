@@ -95,12 +95,12 @@ sub-project 4). The builder checks which exists before planning the fetch.
 
 ## 4. Sample split and freeze
 
-- **July** (2026-07-01 to 2026-08-01, 31 days): calibration fit and verdict, δ, and every
-  parameter choice (which dynamic-fee parameters, which strategy is "best" for the reader-facing
-  table, which fee configuration is tested).
+- **July** (2026-07-01 to 2026-08-01, 31 days): calibration fit and verdict, δ, and the one
+  remaining choice: which strategy is "best" for the reader-facing table and the hedge (8). Fee
+  levels and dynamic-rule grids are not selected (7.2).
 - **August–September** (2026-08-01 to 2026-10-01, 61 days): every reported number.
 - **Freeze.** The first run computes July only and writes `results/strategy_freeze.json`: δ, r₀,
-  the calibration verdict, every chosen parameter, the data hashes it used and the git commit.
+  the calibration verdict, the reader-facing best strategy, the data hashes it used and the git commit.
   The August–September step refuses to run without that file and never rewrites it, as the
   proposer-split decision is frozen (`holdout_decision.json`). Re-running July with a different
   outcome requires deleting the file by hand, which shows in git.
@@ -141,7 +141,11 @@ the L6 tolerance)*. Arbitrary ranges then inherit the engine's validation.
   - **out of range:** re-centred at the first block start after the price leaves the range;
   - **band:** re-centred when the price leaves the inner half of the range;
   - **daily:** re-centred at the first block after 00:00 UTC.
-- 9 × 4 = 36 strategies plus full range.
+- 9 × 4 = 36 strategies plus full range. Only the 27 re-centring cells (out of range, band,
+  daily) enter the test (7.1): a re-centring strategy stays near the price, so it isolates width,
+  while a static range mostly measures where the period's first block happened to sit. The 9
+  static cells are reported as a descriptive table with their in-range share of blocks and days
+  in range, marked "not part of the test".
 - **Capital:** $1M at the start of each period; $100k as a sensitivity (gas is a fixed cost per
   re-centring, so return on capital depends on size).
 - **Costs per re-centring:**
@@ -235,15 +239,19 @@ reported as "not tested (calibration failed)". The +1 s sensitivity is reported 
 
 ### 6.5 Fee configurations
 
-- **Fee levels:** 1, 5 (baseline), 10, 30, 100 bp. The 5 bp model run is the paired baseline for
+- **Fee levels:** 1, 2.5, 5 (baseline), 7.5, 10, 15, 20, 30, 50, 100 bp *(my call: denser than
+  first drafted, so the two curves in 7.2 have shape)*. The 5 bp model run is the paired baseline for
   every fee comparison, so model error cancels in the difference; the real pool is reported
   alongside.
 - **Dynamic fees, on-chain inputs only** (a pool can run them without an oracle) *(my call on
   the rules and grids)*:
   - **volatility fee:** fee for a block = clamp(k × σ̂, 1 bp, 100 bp), σ̂ an EWMA of the pool's
-    own block-to-block log returns; k and the EWMA half-life from a small grid, chosen on July;
-  - **move fee:** fee = 5 bp + k × |pool log return over the previous block|, k from a grid
-    chosen on July.
+    own block-to-block log returns, over a small grid of k and EWMA half-life;
+  - **move fee:** fee = 5 bp + k × |pool log return over the previous block|, over a small grid
+    of k.
+
+  Each grid point is reported with its average charged fee, so it can be read against the
+  fixed-fee curves.
 - **Oracle fee, upper bound only:** fee = max(5 bp, |basis to Binance at block start|). It uses
   Binance, which a pool does not have, so it is labelled an upper bound everywhere and does not
   count toward the test.
@@ -269,21 +277,22 @@ full-range ratio is not yet computed.)
 
 ### 7.1 Range and rebalancing part
 
-**Eligibility** *(my call, settled after the builder check)*. A strategy counts toward the
-verdict only if it is in range for at least **50%** of the August–September blocks. Ineligible
-cells are reported, marked "not counted: in range X% of blocks". Reason: a static narrow range is
-in range on a handful of days (±10 bp: 0.5% of blocks, 7 of 61 days), so its ratio rests on a few
-days and would decide the verdict by noise. The rule uses in-range time, not the metric, so it
-cannot select on the outcome.
+**Which cells count.** The 27 re-centring cells at $1M (5.3); static ranges are descriptive
+only. Not filtered by in-range share: in-range share depends on the tested period's price path,
+and calm stretches both keep a range in and carry less LVR, so such a filter would select on
+something correlated with the outcome. (The builder check found a static ±10 bp range started on
+2026-08-01 in range for 0.5% of blocks, on 7 of 61 days, which is why static cells cannot carry
+the verdict.)
 
-**Undefined draws** *(my call)*. In a bootstrap draw where a strategy's summed LVR is ≤ 0, its
-fees ÷ LVR is undefined. Such draws count against "inside ±δ" (a strategy with more than 2.5% of
-draws undefined cannot be inside) and are left out when testing "entirely above +δ", so an
-undefined draw can never produce "fails".
+**Undefined draws.** In a bootstrap draw where a cell's summed LVR is ≤ 0, its fees ÷ LVR is
+undefined. Such draws count against "inside ±δ" (a cell with more than 2.5% of draws undefined
+cannot be inside) and are left out when testing "entirely above +δ", so an undefined draw can
+never produce "fails". The rule applies to every cell, though re-centring cells rarely trigger
+it.
 
-- **Holds** if, for **every** eligible strategy in the grid at $1M, the paired interval of
-  Δ(fees ÷ LVR) lies entirely within [−δ, +δ].
-- **Fails** if **any** eligible strategy's paired interval lies entirely above +δ: that strategy
+- **Holds** if, for **every** counted cell, the paired interval of Δ(fees ÷ LVR) lies entirely
+  within [−δ, +δ].
+- **Fails** if **any** counted cell's paired interval lies entirely above +δ: that strategy
   closes a meaningful part of the gap.
 - **Inconclusive** otherwise (what 61 days give if they cannot resolve the question). Requiring
   every strategy inside ±δ is conservative with many strategies, which is the right direction for
@@ -306,20 +315,32 @@ the window against $3.7M of LVR, so a whole-pool test would pass before August�
 depend on the fixed-volume assumption. Whole-pool fees ÷ LVR and return are still reported for
 every configuration, each with its break-even volume loss (6.5) beside it.
 
-Honest expectation, stated now: theory predicts a pass. Arbitrageurs do not trade at a loss
-against the reference, so the arbitrage-side ratio rises toward 1 as the fee rises; at 5 bp,
-searcher swaps paid 0.64 of their LVR in total fees. The informative output is the size of the
-effect and its break-even, not the verdict alone.
+**The verdict is expected, and is not the finding.** Theory predicts a pass: arbitrageurs do not
+trade at a loss against the reference, so the arbitrage-side ratio rises with the fee (at 5 bp,
+searcher swaps paid 0.64 of their LVR in total fees). A fail would mean **the model is wrong**,
+not that the fee lever is useless, and would be reported that way.
 
-- The tested configuration is **one**, chosen on July: among the fee levels and the two dynamic
-  rules, the one with the highest July arbitrage-side Δ(fees ÷ LVR) against the 5 bp model *(my
-  call; choosing on July avoids a best-of-several pass on August–September)*. The others are
-  reported descriptively.
-- **Holds** if calibration passed and the paired interval of the arbitrage-side Δ(fees ÷ LVR)
-  against the 5 bp model lies entirely above +δ.
-- **Fails** if calibration passed and the interval lies entirely below +δ.
-- **Inconclusive** if it straddles +δ; **not tested** if calibration failed.
-- The protocol cut and the oracle fee do not count.
+**No selection on July.** The arbitrage-side ratio rises with the fee, so a July-best rule would
+always pick the highest fee and add nothing. Every fee level and every dynamic-rule grid point is
+reported on August–September; the dynamic-rule grids are reported in full rather than tuned
+*(my call)*.
+
+**Per fee level f > 5 bp** (with calibration passed): **holds** if the paired interval of the
+arbitrage-side Δ(fees ÷ LVR) against the 5 bp model lies entirely above +δ, **fails** if it lies
+entirely below +δ, **inconclusive** if it straddles +δ. **Summary** *(my call)*: the lowest
+tested fee at which it holds; "fails" if it holds at no tested fee. **Not tested** if calibration
+failed. The protocol cut and the oracle fee do not count.
+
+**The real output is two curves**, on August–September, each point with its paired interval:
+
+1. arbitrage-side fees ÷ LVR against the fee, and
+2. the break-even loss of non-arbitrage volume (6.5) against the fee,
+
+with the whole-pool fees ÷ LVR at constant volume beside them. They support the sentence the
+README leads with: "at constant volume, LPs break even at about **X** bp (the lowest fee where
+whole-pool fees ÷ LVR reaches 1, interpolated on the grid), and at that fee the pool can lose at
+most **Y**% of its other volume before LPs are no better off than at 5 bp." Not a volume-loss
+threshold in the verdict: any threshold fixed now would be arbitrary, and the reader can judge Y.
 
 ### 7.3 Hedge
 
@@ -348,8 +369,9 @@ identity: the hedge changes the spread, not fees − LVR.
   `results/strategy_ranges.md`, `strategy_fees.md`, `strategy_hedge.md`, `strategy_test.md` (the
   verdicts), CSVs alongside; `summary.json["strategy"]`; `results/strategy_freeze.json`.
 - Figures in the house style (`viz/`): (a) the test figure: Δ(fees ÷ LVR) with paired intervals
-  per strategy against the ±δ band, plus the chosen fee configuration against +δ; (b) fees ÷ LVR
-  and return against fee level with the break-even volume loss; (c) hedge: mean against spread per
+  per counted re-centring cell against the ±δ band; (b) the two curves of 7.2: arbitrage-side
+  fees ÷ LVR against the fee with +δ marked, and the break-even volume loss against the fee, with
+  whole-pool fees ÷ LVR and X marked; (c) hedge: mean against spread per
   rule. *(my call on the set; the builder may merge (a) and (b).)*
 - README chapter "Can an LP do better?", findings first, each counterfactual number with its
   caveat beside it; TL;DR item 7; methodology section 21 (section 20 is the forwarder recipient
@@ -369,14 +391,19 @@ identity: the hedge changes the spread, not fees − LVR.
 - Small points the builder check raised as decidable while building: a to-price swap whose limit
   the counterfactual price has already passed executes nothing and is counted in S-check output;
   partial-step proration follows the V3 delta formulas (5.1); the "best July strategy" hedged in
-  section 8 is the eligible cell with the highest July return on capital; gas medians as in 5.3.
+  section 8 is the re-centring cell with the highest July return on capital; gas medians as in
+  5.3.
 
 ## 11. Calls made by the spec writer (for the user to check)
 
 Grid widths and rebalancing rules (5.3), including ±2,500 and ±5,000 bp; capital $1M / $100k;
 5 bp taker fee for re-centring and hedge trades; gas pricing for re-centring; collected fees held
 as cash; S1 tolerance 1e-9; CEX fee 1 bp and the minimum-profit rule (6.3); calibration tolerance
-±15% (6.4); flash loans at the new fee; the dynamic-fee rules; eligibility at 50% of blocks in
-range and the undefined-draw rule (7.1); the fee test on the arbitrage side, with the tested
-configuration the July-best by that metric (7.2); hedge rules and which strategies are hedged
-(8); figure set.
+±15% (6.4); flash loans at the new fee; the dynamic-fee rules and reporting their grids in full;
+the denser fee grid (6.5); the fee summary as the lowest fee where the per-level test holds
+(7.2); hedge rules and which strategies are hedged (8); figure set.
+
+Decided by the user after the builder check: the fee test on the arbitrage side, with no July
+selection, the verdict framed as expected, and the two curves as the output; static ranges out of
+the verdict (descriptive only), not filtered by in-range share; ±2,500 and ±5,000 bp added; the
+undefined-draw rule for every cell.
