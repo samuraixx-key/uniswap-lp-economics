@@ -1,7 +1,7 @@
 {
   "status": "PASS",
-  "generated_utc": "2026-10-15T23:24:33+00:00",
-  "git_commit": "bd00be7",
+  "generated_utc": "2026-10-21T21:28:22+00:00",
+  "git_commit": "73cc004",
   "input_sha256_16": {
     "interim/cex_ethusdc.parquet": "2bb21f2bb6ca55b8",
     "interim/cex_ethusdt_1s.parquet": "02a5ea793a51eea0",
@@ -84,7 +84,7 @@
     {
       "name": "A5 label coverage (reported)",
       "passed": true,
-      "reported": false,
+      "reported": true,
       "summary": {
         "other_contract_notional_share": 0.10897229175784204,
         "by_label": {
@@ -126,7 +126,7 @@
     {
       "name": "A6 builder payments (reported)",
       "passed": true,
-      "reported": false,
+      "reported": true,
       "summary": {
         "top_bot_txs": 110989,
         "transfers_to_miner": 56724,

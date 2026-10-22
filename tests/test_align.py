@@ -1,7 +1,9 @@
 from datetime import UTC, datetime
 
 import polars as pl
+import pytest
 
+from uniswap_lp_economics import align
 from uniswap_lp_economics.align import (
     add_reference_prices,
     kline_reference_table,
@@ -69,3 +71,41 @@ def test_kline_reference_for_one_minute_bars() -> None:
     ref = kline_reference_table(k, bar_s=60)
     got = reference_at(pl.Series([59_999_999, 60_000_000, 125_000_000]), ref, 10**12)["price"]
     assert got.to_list() == [None, 10.0, 11.0]
+
+
+TRADES = pl.DataFrame(
+    {
+        "agg_trade_id": [1, 2, 3, 4],
+        "ts_us": [10, 20, 20, 30],
+        "price": [100.0, 101.0, 99.0, 102.0],
+        "qty": [1.0] * 4,
+        "is_buyer_maker": [False, False, True, False],  # False: the buyer took liquidity (ask)
+    }
+)
+
+
+def test_trade_side_mid_uses_the_latest_of_each_side() -> None:
+    # ts 10: only an ask yet, dropped; ts 20: ask 101 (id 2), bid 99 (id 3); ts 30: ask 102
+    assert align.trade_side_mid_table(TRADES).to_dicts() == [
+        {"ts_us": 20, "price": 100.0},
+        {"ts_us": 30, "price": 100.5},
+    ]
+    sides = align.trade_side_table(TRADES)
+    assert sides.columns == ["ts_us", "ask", "bid"] and sides["ask"].to_list() == [101.0, 102.0]
+
+
+def test_proxy_quality_counts_crossed_sides() -> None:
+    crossed = pl.DataFrame(
+        {
+            "agg_trade_id": [1, 2],
+            "ts_us": [10, 11],
+            "price": [100.0, 99.0],
+            "qty": [1.0, 1.0],
+            "is_buyer_maker": [True, False],  # bid 100, then ask 99: crossed
+        }
+    )
+    q = align.proxy_quality(pl.Series([12, 13]), crossed, end_us=1_000)
+    assert q["crossed_share"] == 1.0 and q["spread_bp_p50"] < 0
+    assert q["mean_abs_last_minus_mid_bp"] == pytest.approx(0.5 / 99.5 * 1e4)
+    none = align.proxy_quality(pl.Series([5]), crossed, end_us=1_000)  # before both sides
+    assert none["crossed_share"] is None

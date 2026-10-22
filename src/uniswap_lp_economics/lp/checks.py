@@ -14,11 +14,11 @@ if TYPE_CHECKING:
     from uniswap_lp_economics.lp.ledger import Ledger
 
 
-def check_l1(swap_fees: pl.DataFrame, engine_unmatched: int = 0) -> CheckResult:
+def check_l1(swap_fees: pl.DataFrame, engine_unmatched: int) -> CheckResult:
     """Every swap re-simulated bit-exactly in one of the reproduction modes, both in
     `swap_fees` (sub-project 2's replay) and in the LP engine's own replay (`engine_unmatched`:
     swaps the engine could not reproduce from its state, which would accrue no fees)."""
-    modes = swap_fees.group_by("mode").len().drop_nulls("mode")
+    modes = swap_fees.group_by("mode").len().drop_nulls("mode").sort("mode")  # stable order
     counts: dict[str, Any] = dict(zip(modes["mode"].to_list(), modes["len"].to_list(), strict=True))
     bad = swap_fees.filter(pl.col("mode").is_null())
     listed = [
@@ -442,5 +442,30 @@ def check_r5_null_12s(null_12s_steps: int, steps: pl.DataFrame) -> CheckResult:
         "R5 steps without a 12 s reference (reported)",
         True,
         {"steps": steps.height, "without_12s_reference": null_12s_steps},
+        reported=True,
+    )
+
+
+def check_r6_robustness(
+    identity_primary_usd: float,
+    flash_lp_fees_usd: float,
+    headline_usd: float,
+    primary_reprice_usd: float,
+) -> CheckResult:
+    """The robustness table's identity at the headline prices, plus the flash loans' LP fees
+    (which carry no LVR), reproduces the headline fees - LVR, and re-reading the primary
+    reference at 0 s moves nothing (the table's anchor cell is the headline's own pricing).
+    Sub-project 4 spec 9."""
+    total = identity_primary_usd + flash_lp_fees_usd
+    tol = L6_REL_TOL * max(1.0, abs(headline_usd))
+    return CheckResult(
+        "R6 robustness table reproduces the headline (reported)",
+        abs(total - headline_usd) <= tol and abs(primary_reprice_usd) <= tol,
+        {
+            "identity_primary_0s_usd": identity_primary_usd,
+            "primary_reprice_usd": primary_reprice_usd,
+            "flash_lp_fees_usd": flash_lp_fees_usd,
+            "headline_fees_minus_lvr_usd": headline_usd,
+        },
         reported=True,
     )

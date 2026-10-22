@@ -37,7 +37,13 @@ def sample_blocks(first: int, last: int, n: int, seed: int = 42) -> list[int]:
     return sorted(random.Random(seed).sample(range(first, last + 1), n))
 
 
-def _get(client: httpx.Client, url: str, block: int, backoff_s: float) -> list[Any] | None:
+def _get(
+    client: httpx.Client,
+    url: str,
+    block: int,
+    backoff_s: float,
+    params: dict[str, Any] | None = None,
+) -> list[Any] | None:
     """The relay's payload list for a block: a non-empty list when it delivered one, `[]` when it
     gave a definite answer without a payload (a 200 with an empty or non-list body, or a 4xx
     other than 429), and `None` when it failed (retries exhausted).
@@ -46,7 +52,7 @@ def _get(client: httpx.Client, url: str, block: int, backoff_s: float) -> list[A
     (no sleep after the last attempt)."""
     for attempt in range(_RETRIES):
         try:
-            r = client.get(url, params={"block_number": block}, timeout=30)
+            r = client.get(url, params=params or {"block_number": block}, timeout=30)
             if r.status_code == 200:
                 body = r.json()
                 return body if isinstance(body, list) else []

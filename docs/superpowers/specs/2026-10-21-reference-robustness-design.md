@@ -1,6 +1,9 @@
 # Sub-project 4: reference and timing robustness: design
 
-Date: 2026-10-21. Status: agreed in conversation; written for review.
+Date: 2026-10-21. Status: implemented (branch `reference-robustness`). Two changes made while
+planning and building: the figure-12 label item was dropped (the chart redesign had already
+fixed it), and every cell is a shift from the primary 0 s cell, so R6 checks the identity and
+that anchor within the L6 tolerance rather than "to the cent" (plan Rulings 1-2, Task 6).
 
 ## 1. Why
 

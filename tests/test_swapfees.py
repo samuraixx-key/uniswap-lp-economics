@@ -1,6 +1,7 @@
 from typing import Any
 
 import polars as pl
+import pytest
 
 from uniswap_lp_economics.lp.checks import check_l1
 from uniswap_lp_economics.lp.swapfees import build_swap_fees, protocol_cut
@@ -74,8 +75,8 @@ def test_build_swap_fees_takes_the_protocol_cut_per_step() -> None:
 
 
 def test_l1_fails_on_an_unreproducible_swap() -> None:
-    assert check_l1(build_swap_fees(events(), book(), 0)).passed
-    bad = check_l1(build_swap_fees(events(tamper=True), book(), 0))
+    assert check_l1(build_swap_fees(events(), book(), 0), 0).passed
+    bad = check_l1(build_swap_fees(events(tamper=True), book(), 0), 0)
     assert not bad.passed
     assert bad.summary["unreproduced"] == 1
     assert bad.mismatches[0]["block"] == 1
@@ -87,3 +88,16 @@ def test_l1_fails_when_the_engine_could_not_match_a_swap() -> None:
     assert ok.passed and ok.summary["engine_unmatched"] == 0
     bad = check_l1(fees, engine_unmatched=2)
     assert not bad.passed and bad.summary["engine_unmatched"] == 2
+
+
+def test_l1_by_mode_is_sorted_and_the_engine_count_is_required() -> None:
+    fees = pl.DataFrame(
+        {
+            "block_number": [1, 2, 3],
+            "log_index": [0, 0, 0],
+            "mode": ["exact_output", "exact_input", "exact_input"],
+        }
+    )
+    assert list(check_l1(fees, 0).summary["by_mode"]) == ["exact_input", "exact_output"]
+    with pytest.raises(TypeError):
+        check_l1(fees)  # type: ignore[call-arg]

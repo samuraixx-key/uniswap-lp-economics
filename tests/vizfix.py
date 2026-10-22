@@ -236,6 +236,50 @@ def fixture_frames() -> dict[str, Any]:
             },
         },
     }
+    # Fees - LVR lines crossing zero at -3.2 s (primary), -2.8 s (mid) and -3.4 s (USDT).
+    offsets = [x / 2 for x in range(-10, 9)]
+    robustness = pl.DataFrame(
+        [
+            {
+                "reference": name,
+                "offset_s": o,
+                "lp_fees_usd": 139.0,
+                "lvr_usd": 139.0 - (base - 25.0 * o),
+                "fees_minus_lvr_usd": base - 25.0 * o,
+                "ci_lo_usd": base - 25.0 * o - 20.0,
+                "ci_hi_usd": base - 25.0 * o + 20.0,
+                "shift_usd": base + 80.0 - 25.0 * o,
+                "shift_ci_lo_usd": base + 70.0 - 25.0 * o,
+                "shift_ci_hi_usd": base + 90.0 - 25.0 * o,
+                "n_unpriced": 0,
+            }
+            for name, base in (
+                ("binance_last_trade", -80.0),
+                ("binance_trade_side_mid", -70.0),
+                ("binance_ethusdt_1s_close", -85.0),
+            )
+            for o in offsets
+        ]
+    )
+    summary["lp"]["robustness"] = {
+        "crossing_offset_s": {
+            "binance_last_trade": -3.2,
+            "binance_trade_side_mid": -2.8,
+            "binance_ethusdt_1s_close": -3.4,
+        },
+        "timing": {
+            "n_timed": 120,
+            "n_queried": 1000,
+            "p10_ms": 600.0,
+            "p50_ms": 950.0,
+            "p90_ms": 1500.0,
+            "by_relay": [],
+        },
+        "fees_minus_lvr_at_median_timing_usd": -103.75,
+        "largest_reference_shift_0s_usd": 10.0,
+        "protocol_fees_share_of_gap": 45.0 / 80.0,
+        "proxy_quality": {"crossed_share": 0.18},
+    }
     return {
         "summary": summary,
         "markouts": markouts,
@@ -248,6 +292,7 @@ def fixture_frames() -> dict[str, Any]:
         "episode_blocks": episode_blocks,
         "episode_cex": episode_cex,
         "jit_block": jit_block,
+        "robustness": robustness,
     }
 
 
@@ -266,6 +311,7 @@ def write_results(d: Path, frames: dict[str, Any]) -> Path:
         "figure_data/episode_blocks.csv": frames["episode_blocks"],
         "figure_data/episode_cex.csv": frames["episode_cex"],
         "figure_data/jit_block.csv": frames["jit_block"],
+        "reference_robustness.csv": frames["robustness"],
     }
     for name, df in files.items():
         df.write_csv(d / name)

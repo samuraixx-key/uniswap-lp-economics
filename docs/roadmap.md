@@ -12,25 +12,16 @@ and are not updated after they ship, while each spec describes what was built.
 | Sub-project 2: price discovery and markouts | Basis, gap episodes, lead-lag, markouts by flow, bot profit, checks A1–A6 | [spec](superpowers/specs/2026-10-13-price-discovery-markouts-design.md) | [plan](superpowers/plans/2026-10-13-price-discovery-markouts.md) |
 | Sub-project 3: LP P&L and where LVR goes | Exact LP fees, LVR, P&L per position and LP type, lifetime vs holding, LVR destination, checks L1–L7 | [spec](superpowers/specs/2026-10-14-lp-pnl-lvr-design.md) | [plan](superpowers/plans/2026-10-14-lp-pnl-lvr.md) |
 | Chart redesign | `ulpe figures`: 12 figures plus the hero in one house style, README as a story | [spec](superpowers/specs/2026-10-15-chart-redesign-design.md) | [plan](superpowers/plans/2026-10-15-chart-redesign.md) |
+| Sub-project 4: reference and timing robustness | LP fees − LVR by reference and t0 offset with paired intervals, winning-bid times, figure 13, check R6, carried-over check fixes | [spec](superpowers/specs/2026-10-21-reference-robustness-design.md) | [plan](superpowers/plans/2026-10-21-reference-robustness.md) |
 
 Later chart polish (light theme only, numbered panel headers, the two-stage hero) was merged
 without a separate spec; the chart spec was updated to match.
 
-## Next: sub-project 4, reference and timing robustness
+Sub-project 4's answer: the headline holds. LP fees − LVR is −$0.92M to −$1.10M across
+references at the block timestamp, −$1.31M at the median winning-bid time (+0.98 s), and turns
+positive only if prices are read more than 3 s before the slot.
 
-Design: [spec](superpowers/specs/2026-10-21-reference-robustness-design.md). Does the headline
-(LP fees − LVR = −$1.06M) survive other reference prices and other clock choices?
-
-- A reference × t0-offset table (Binance last trade, trade-side mid proxy, ETHUSDT; −5 s to +4 s)
-  with paired day-bootstrap shifts, built into `ulpe lp`.
-- Winning-bid times from the relays that keep history (Titan, Flashbots, Aestus), so t0 is
-  measured, not assumed. 0 s stays the headline.
-- Figure 13 and a README chapter "Is it the reference price?", plus the protocol-fee framing
-  ($0.88M of the gap is the protocol's cut).
-- Carried-over fixes: A5/A6 "reported", L1 `by_mode` order, `check_l1` default, `ulpe all`
-  building positions three times, figure 12's negative label.
-
-## After sub-project 4: who keeps the profit
+## Next: who keeps the profit
 
 These change where LVR goes, not whether LPs lost:
 

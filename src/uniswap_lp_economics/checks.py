@@ -202,6 +202,7 @@ def check_a5(labelled: pl.DataFrame) -> CheckResult:
         True,
         {"other_contract_notional_share": share.get("other_contract", 0.0), "by_label": share},
         top.to_dicts(),
+        reported=True,
     )
 
 
@@ -227,6 +228,7 @@ def check_a6(transfers: pl.DataFrame, aligned: pl.DataFrame, blocks: pl.DataFram
                 "tx_hash"
             ].n_unique(),
         },
+        reported=True,
     )
 
 

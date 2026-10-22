@@ -22,6 +22,7 @@ SOURCES = {
     "figure_data/episode_blocks.csv": "lp",
     "figure_data/episode_cex.csv": "lp",
     "figure_data/jit_block.csv": "lp",
+    "reference_robustness.csv": "lp",
 }
 SUMMARY_KEYS = {"lead_lag": "analyze", "arbitrage": "analyze", "lp": "lp"}
 # Column types the figures rely on, so a table with only a header still reads with them.
@@ -43,6 +44,13 @@ TYPES: dict[str, dict[str, Any]] = {
     },
     "figure_data/episode_cex.csv": {"ts_us": pl.Int64, "price": pl.Float64},
     "figure_data/jit_block.csv": JIT_BLOCK_SCHEMA,
+    "reference_robustness.csv": {
+        "reference": pl.String,
+        "offset_s": pl.Float64,
+        "fees_minus_lvr_usd": pl.Float64,
+        "ci_lo_usd": pl.Float64,
+        "ci_hi_usd": pl.Float64,
+    },
 }
 LP_KEYS = (
     "destination",
@@ -51,6 +59,7 @@ LP_KEYS = (
     "lifetime_by_life",
     "lifetime_by_width",
     "fees_minus_lvr_usd",
+    "robustness",
 )
 
 
@@ -78,6 +87,7 @@ class Results:
     episode_blocks: pl.DataFrame
     episode_cex: pl.DataFrame
     jit_block: pl.DataFrame
+    robustness: pl.DataFrame
 
 
 def load_results(d: Path) -> Results:
@@ -115,4 +125,5 @@ def load_results(d: Path) -> Results:
         episode_blocks=csv("figure_data/episode_blocks.csv"),
         episode_cex=csv("figure_data/episode_cex.csv"),
         jit_block=csv("figure_data/jit_block.csv"),
+        robustness=csv("reference_robustness.csv"),
     )

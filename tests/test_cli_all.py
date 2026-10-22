@@ -21,6 +21,7 @@ def test_all_runs_every_step_in_order(monkeypatch: pytest.MonkeyPatch) -> None:
     assert e.value.code == 0
     assert ran == list(cli.ALL_STEPS)
     assert ran[-1] == "figures" and ran.index("lp") < ran.index("figures")
+    assert ran.index("fetch-relays") + 1 == ran.index("fetch-timing") < ran.index("lp")
     assert (
         ran.index("validate") < ran.index("analyze") < ran.index("fetch-history") < ran.index("lp")
     )
@@ -226,3 +227,28 @@ def test_standalone_fetch_blocks_without_the_flag_stops_before_any_query(
     monkeypatch.setattr(sys, "argv", ["ulpe", "fetch-blocks"])
     with pytest.raises(SystemExit, match=r"ulpe fetch-blocks --confirm-cost"):
         cli.main()
+
+
+def test_chain_state_skips_the_position_build_when_everything_is_on_disk(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from uniswap_lp_economics.data import chain_state
+
+    (tmp_path / "snapshot_meta.json").write_text(json.dumps({"block": 1}))
+    folder = tmp_path / chain_state.CHAIN_DIR
+    folder.mkdir()
+    for name in (
+        chain_state.SNAPSHOT_FEES,
+        chain_state.SAMPLE_FEES,
+        chain_state.START_POSITIONS,
+        chain_state.END_POSITIONS,
+        chain_state.OWNER_CODE,
+    ):
+        (folder / name).write_bytes(b"")
+    hist = tmp_path / history.HISTORY_DIR / history.POOL_FILE
+    hist.parent.mkdir(parents=True)
+    hist.write_bytes(b"")
+    monkeypatch.setattr(config, "RAW_DIR", tmp_path)
+    monkeypatch.setattr(cli, "_rpc", lambda: None)
+    monkeypatch.setattr(cli, "build_positions", lambda *a: pytest.fail("built positions"))
+    cli.fetch_chain_state()
