@@ -84,8 +84,18 @@ Order, top to bottom (agreed with the user on a mockup, "layout A"):
      window's totals when I wrote the test."
    - The range test was inconclusive; the fee model is labelled model-only after failing its
      July calibration (model LVR 1.38× measured).
-   - Data checks gate the analysis; re-runs are byte-identical.
-   Each tag links to its page on GitHub (`/releases/tag/<tag>` or `/tree/<tag>`).
+   - Data checks gate the analysis; re-runs reproduce every result file byte for byte (only the
+     run timestamp in `summary.json`, `generated_utc`, differs). Match this wording to what the
+     rerun check in methodology section 21 item 7 actually compares.
+   **Tag links.** Each bullet links the pre-registered file twice: on `main`, and the same file at
+   its tag as proof (`https://github.com/<owner>/<repo>/blob/<tag>/<path>`). The files:
+   `strategy-preregistered` → `results/strategy_freeze.json` and the strategy-experiment spec;
+   `holdout-preregistered` → the proposer-payments spec; `forwarder-preregistered` → the
+   forwarder-recipient-check spec (the tag commit holds only that file). At-tag links use the
+   path as it was at the tag (`docs/superpowers/specs/…`); `main` links use the new path
+   (Part 6). The `main` copy can differ from the tagged one (the proposer-payments spec has
+   changed by a few lines since its tag), which is why the at-tag link is the proof. **Never link
+   `/tree/<tag>`**: the tree at each tag still holds the old plans.
 7. **"Would I trade it?"** "No. Passive LP in this pool doesn't pay after the protocol's cut. An
    hourly hedge cuts a full-range position's daily P&L spread from $16.4k to $160 per $1M, which
    changes the risk, not the edge."
@@ -150,8 +160,9 @@ figure is redrawn except the hero (Part 4).
 
 ## Part 3: methodology changes (`docs/methodology.md`)
 
-- **New section 0, "Why these choices".** One or two sentences each, in the author's voice
-  (written as interview answers: the user will check each sounds like them), on at least:
+- **New section 0, "Why these choices".** One or two sentences each, in the author's own voice
+  and phrased so they work as interview answers (the author reviews each before it ships), on at
+  least:
   Binance's last trade as the reference, and t0 = block timestamp; notional weighting of markouts;
   the day-block bootstrap for intervals; the 5% of active liquidity price-taker threshold; the
   ±0.068 margin and other pre-registered numbers; using the rebalancing portfolio (LVR) rather
@@ -176,11 +187,19 @@ which drops the `lp` key written by `ulpe lp` and the `strategy` key written by 
 until those steps run again. Harmless in pipeline order, a trap when running one step by hand
 (e.g. `analyze` then `figures` fails for the figures that read those keys).
 
-Fix: before writing, `analyze` reads any existing `summary.json` and carries over the top-level
-keys it does not produce itself (`lp`, `strategy`), unchanged; its own keys are replaced as now.
-One test: a pre-existing `summary.json` with `lp` and `strategy` keys keeps both after the
-analyze summary write, and analyze's own keys are fresh. The pipeline order and the docs'
-"re-run lp and strategy after analyze" advice stay; the byte-identical rerun check must still pass.
+A missing key fails loudly today (`run_strategy` refuses without `summary.json["lp"]`,
+`strategy/analyze.py:753`; `figures` fails), and that must stay true whenever the downstream
+keys could be stale. So the carry-over is conditional:
+
+- Before writing, `analyze` reads any existing `summary.json`. If analyze's own part of it (every
+  top-level key except `lp` and `strategy`) is unchanged by this run, **ignoring `generated_utc`
+  and `git_commit`**, it carries `lp` and `strategy` over unchanged.
+- If analyze's own part changed, it drops `lp` and `strategy` as today, so `ulpe strategy` and
+  `ulpe figures` keep failing loudly until `ulpe lp` and `ulpe strategy` run again.
+
+Tests for both cases: unchanged analyze output keeps both keys; changed analyze output drops
+both. The pipeline order and the docs' "re-run lp and strategy after analyze" advice stay; the
+byte-identical rerun check must still pass.
 
 ## Part 6: secret scan (the gate before going public)
 
@@ -205,15 +224,21 @@ Still to do:
    to one figure and taken from free data.binance.vision files. If the terms turn out to forbid
    redistribution: untrack those two files in the latest version and git-ignore them (`ulpe lp`
    regenerates them from the downloaded Binance data, `lp/analyze.py`); no history rewrite.
-4. **`docs/superpowers/` is removed from the latest version before going public** (user's
-   decision). It holds AI-tool wording (`Co-Authored-By: Claude` commit templates, "Use
-   superpowers:…" headers) and a local temp path with the Windows username
-   (`plans/2026-10-15-chart-redesign.md:3130`). Before removing: anything the methodology or
-   README/REPORT needs from the specs moves into the methodology; links to `docs/superpowers/` in
-   the roadmap, README and methodology are removed or repointed. Git history is **not** rewritten,
-   so the three pre-registration tags stay where they are; the old text stays findable in history,
-   which the user accepts. The roadmap's spec/plan columns become plain text (no links). This spec
-   and the Phase 6 plan go too, as the last step before going public.
+4. **Keep the specs, delete the plans** (user's decision). The specs are the pre-registration
+   evidence and carry no tool-specific wording; the implementation plans do (agent-workflow
+   headers, commit-message templates, and a local temp path with the Windows username in
+   `plans/2026-10-15-chart-redesign.md:3130`).
+   - `git mv docs/superpowers/specs docs/specs`, content byte-identical (this Phase 6 spec moves
+     with them).
+   - `git rm -r docs/superpowers/plans` (the Phase 6 plan included, as the last step before going
+     public).
+   - Repoint every link: `docs/methodology.md` lines 6, 8, 1070, 1214, 1288 to `docs/specs/…`;
+     drop the plan link at `docs/methodology.md:1289`; `README.md:639` (moves into REPORT) and the
+     repo map line at `README.md:1295`; `docs/roadmap.md` (intro paragraph and the spec column;
+     the plan column goes).
+   - Git history is **not** rewritten, so the three pre-registration tags stay where they are; the
+     old plans stay findable in history, which the user accepts. No public page links into a tree
+     that contains them (Part 1's tag-link rule).
 5. Record the scan result (tool, version, commit range, findings) in the roadmap.
 
 ## Part 7: going public, Pages, v1.0
@@ -221,7 +246,7 @@ Still to do:
 Order, each step gated on the one before:
 
 1. Parts 1–5 merged to `main`, tests pass, byte-identical reruns hold.
-2. Secret scan (Part 6) clean, and `docs/superpowers/` removed (Part 6 step 4).
+2. Secret scan (Part 6) clean, specs moved and plans deleted (Part 6 step 4).
 3. **The user** makes the repo public.
 4. Turn on Pages: source = `main`, root folder, GitHub's built-in Jekyll. `README.md` serves as
    the index; `REPORT.md`, `docs/methodology.md` and `results/*.md` render as pages; Jekyll's
@@ -237,10 +262,17 @@ Order, each step gated on the one before:
    copyright line and the `pyproject.toml` author become "Enrico Nagata" as well, and the
    `pyproject.toml` version becomes 1.0.0. Past commits keep the `samuraixx-key` noreply identity
    (no history rewrite). The landing page still has no "about me" block.
-8. When the user says so: tag `v1.0` and publish a GitHub release. Notes: the three findings with
+8. **Regenerate results from a clean tree.** The committed `summary.json` records
+   `"git_commit": "forwarder-preregistered-39-g225f999-dirty"`, i.e. results from uncommitted
+   code. On a clean checkout of the final code, re-run the pipeline (`ulpe analyze`, `ulpe lp`,
+   `ulpe strategy` report run, `ulpe figures`), confirm the only diffs are the provenance fields
+   (`generated_utc`, `git_commit`) and that no frozen file (`results/strategy_freeze.json`, the
+   holdout decisions) changed, then commit the results. Any other diff stops the release and is
+   reported to the user.
+9. When the user says so: tag `v1.0` and publish a GitHub release. Notes: the three findings with
    caveats, the three pre-registration tags, the data window (2026-07-01 to 2026-10-01), and how
    to reproduce.
-9. Roadmap: Phase 6 to "Done"; Project 2 moves up to "Next".
+10. Roadmap: Phase 6 to "Done"; Project 2 moves up to "Next".
 
 ## Left to the builder
 
