@@ -1,7 +1,7 @@
 """`ulpe lp`: validated data -> LP results (checks L1-L7, tables, summary.json["lp"])."""
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -32,6 +32,7 @@ from uniswap_lp_economics.lp import (
     theory,
 )
 from uniswap_lp_economics.lp.checks import (
+    HOLDOUT2_DECISION_FILE,
     check_l1,
     check_l2,
     check_l3,
@@ -46,6 +47,7 @@ from uniswap_lp_economics.lp.checks import (
     check_r5_null_12s,
     check_r6_robustness,
     holdout_decision,
+    paths_complete,
     settle_decision,
 )
 from uniswap_lp_economics.lp.engine import contexts_from_aligned, replay_window
@@ -153,6 +155,10 @@ class LpInputs:
     relays: pl.DataFrame
     bot_transfers: pl.DataFrame
     block_timing: pl.DataFrame
+    # Seed-45 holdout payment paths (`ulpe fetch-paths`); empty until fetched.
+    payment_paths: pl.DataFrame = field(
+        default_factory=lambda: pl.DataFrame(schema=transfers.PATH_SCHEMA)
+    )
 
 
 def _need(path: Path, command: str) -> Path:
@@ -199,6 +205,11 @@ def load_lp_inputs(raw: Path, interim: Path, processed: Path, lp_labels_csv: Pat
         relays=read_exact(_need(raw / relays.RELAY_FILE, "fetch-relays")),  # wei: Int128
         bot_transfers=transfers.load_bot_transfers(raw, top_bots),
         block_timing=pl.read_parquet(_need(raw / block_timing.TIMING_FILE, "fetch-timing")),
+        payment_paths=(
+            read_exact(raw / transfers.PATHS_FILE)
+            if (raw / transfers.PATHS_FILE).exists()
+            else pl.DataFrame(schema=transfers.PATH_SCHEMA)
+        ),
     )
 
 
@@ -480,8 +491,26 @@ def lp_analysis(
     decision, frozen, recomputed = (
         settle_decision(raw_dir, inp.relays, fresh) if raw_dir else (fresh, False, None)
     )
-    one = bool(decision["one_split"])
-    print(_decision_line(decision, one, frozen))
+    # The seed-45 holdout (forwarder spec section 6) decides once frozen; until then the
+    # seed-44 decision stays the published one.
+    fresh2 = holdout_decision(inp.relays, split_rule, relays.HOLDOUT2_ROUND, inp.payment_paths)
+    decision2, frozen2, recomputed2 = (
+        settle_decision(
+            raw_dir,
+            inp.relays,
+            fresh2,
+            decision_file=HOLDOUT2_DECISION_FILE,
+            holdout_file=relays.HOLDOUT2_FILE,
+            round_label=relays.HOLDOUT2_ROUND,
+            ready=paths_complete(raw_dir, split_rule, inp.payment_paths),
+        )
+        if raw_dir
+        else (fresh2, False, None)
+    )
+    published = decision2 if frozen2 else decision
+    one = bool(published["one_split"])
+    print("seed-45 holdout: " + _decision_line(decision2, bool(decision2["one_split"]), frozen2))
+    print(_decision_line(published, one, frozen2 or frozen))
     split = (
         split_rule if one else destination.block_split(inp.block_revenue, classes, payouts=False)
     )
@@ -524,7 +553,7 @@ def lp_analysis(
     class_tbl = destination.class_table(classes, single)
     recipients, n_differ = payouts.recipient_types(classes, inp.payout_code, block_usd)
     reported = [
-        check_r1_relays(inp.relays, split_rule, block_usd),
+        check_r1_relays(inp.relays, split_rule, block_usd, inp.payment_paths),
         check_r2_traces_vs_alchemy(inp.tx_direct, inp.bot_transfers, inp.blocks, inp.tx_other_logs),
         check_r3_lp_types(positions),
         check_r4_transferred(data.positions, positions["position_id"].to_list()),
@@ -535,6 +564,9 @@ def lp_analysis(
         proposer_split="one" if one else "hedge",
         holdout_decision=decision,
         decision_frozen=frozen,
+        holdout_decision_2=decision2,
+        decision_2_frozen=frozen2,
+        published_decision=relays.HOLDOUT2_ROUND if frozen2 else "holdout",
         block_classes=class_tbl.to_dicts(),
         recipient_types=recipients.to_dicts(),
         n_recipients_reads_differ=n_differ,
@@ -542,6 +574,8 @@ def lp_analysis(
     )
     if recomputed is not None:
         dest["holdout_decision_recomputed"] = recomputed
+    if recomputed2 is not None:
+        dest["holdout_decision_2_recomputed"] = recomputed2
     dest["class_counts_by_n"] = {  # how many blocks each class gets at other pair thresholds
         str(n): payouts.class_counts(payouts.block_classes(inp.block_revenue, inp.last_tx, n))
         for n in (20, 50, 100)
@@ -608,6 +642,7 @@ def lp_analysis(
             ("Totals", report.metrics_table(totals_dest)),
             ("Block classes", class_tbl),
             ("Payout recipients", recipients),
+            ("Seed-45 holdout (R1d)", report.metrics_table(decision2)),
             *(
                 []
                 if one
