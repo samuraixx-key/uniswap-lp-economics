@@ -66,6 +66,9 @@ DESTINATION_NOTE = (
     "the accrued-only `*_searcher_usd` totals in lp_pnl.md and summary.json do not. Shares are "
     "of LVR on searcher steps."
 )
+RULE_SPLIT_LABEL = (
+    "measured payments; not adopted because its pre-registered recipient check failed"
+)
 SENSITIVITY_NOTE = (
     "The primary split treats a block whose last transaction is not from its fee recipient as "
     "self-built (proposer share 1). The relay sample shows that most such blocks are MEV-Boost "
@@ -486,7 +489,23 @@ def lp_analysis(
         inp.aligned, inp.events, inp.blocks, inp.tx_direct, inp.tx_other_logs, split
     )
     dest = destination.destination(steps, inp.aligned, costs, split, sensitivity=not one)
-    totals_dest = {k: v for k, v in dest.items() if k != "sensitivity_self_built"}
+    if not one:  # the rule's own split as a third number; it never replaces the published one
+        rule_single = destination.searcher_costs(
+            inp.aligned, inp.events, inp.blocks, inp.tx_direct, inp.tx_other_logs, split_rule
+        ).filter(pl.col("scope") == destination.SINGLE)
+        lvr_searcher = dest["lvr_on_searcher_swaps_usd"]
+        proposer = float(rule_single["proposer_usd"].sum())
+        margin = float(rule_single["builder_margin_usd"].sum())
+        dest["rule_split"] = {
+            "proposer_usd": proposer,
+            "builder_margin_usd": margin,
+            "share_proposer": proposer / lvr_searcher if lvr_searcher else 0.0,
+            "share_builder_margin": margin / lvr_searcher if lvr_searcher else 0.0,
+            "label": RULE_SPLIT_LABEL,
+        }
+    totals_dest = {
+        k: v for k, v in dest.items() if k not in ("sensitivity_self_built", "rule_split")
+    }
     robust, robust_summary, identity, reprice = reference_robustness(
         inp, daily, ref, totals, end_us
     )
@@ -596,7 +615,11 @@ def lp_analysis(
                     (
                         "Sensitivity: self-built blocks at the paid-block proposer share",
                         report.metrics_table(dest["sensitivity_self_built"]),
-                    )
+                    ),
+                    (
+                        "Payout rule's split (measured payments; not adopted)",
+                        report.metrics_table(dest["rule_split"]),
+                    ),
                 ]
             ),
         ],

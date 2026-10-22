@@ -208,7 +208,16 @@ def _payment(split: pl.DataFrame) -> int:
 
 def test_hedge_keeps_the_sensitivity(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # the world has no holdout blocks, so the decision fails and the hedge stays
-    lpd, text, split = _run_world(tmp_path, monkeypatch)
+    base = world_inputs()
+    extra = (
+        pl.DataFrame(  # the payout block's swap pays the fee recipient directly, so the split bites
+            {"tx_hash": [f"0x{PAYOUT_BLOCK:064x}"], "direct_wei": [JIT_DIRECT_WEI]},
+            schema=base.tx_direct.schema,
+        )
+    )
+    lpd, text, split = _run_world(
+        tmp_path, monkeypatch, replace(base, tx_direct=pl.concat([base.tx_direct, extra]))
+    )
     dest = lpd["destination"]
     assert dest["proposer_split"] == "hedge" and dest["holdout_decision"]["one_split"] is False
     assert _payment(split) == 10**15  # payouts=False: the payout block takes the revenue fallback
@@ -227,6 +236,16 @@ def test_hedge_keeps_the_sensitivity(tmp_path: Path, monkeypatch: pytest.MonkeyP
         classes = lp.payouts.block_classes(inp.block_revenue, inp.last_tx, min_blocks=int(n))
         assert counts == lp.payouts.class_counts(classes)
     _assert_classes_note(dest, text)
+    rule = dest["rule_split"]  # block 7 is payout-class and now pays: the proposer part differs
+    assert rule["proposer_usd"] != pytest.approx(dest["proposer_usd"])
+    assert rule["proposer_usd"] + rule["builder_margin_usd"] == pytest.approx(
+        dest["proposer_usd"] + dest["builder_margin_usd"], rel=1e-9
+    )
+    assert rule["share_proposer"] == pytest.approx(
+        rule["proposer_usd"] / dest["lvr_on_searcher_swaps_usd"]
+    )
+    assert rule["label"].startswith("measured payments; not adopted")
+    assert "Payout rule's split (measured payments; not adopted)" in text
 
 
 def test_one_split_drops_the_sensitivity(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -236,7 +255,8 @@ def test_one_split_drops_the_sensitivity(tmp_path: Path, monkeypatch: pytest.Mon
     dest = lpd["destination"]
     assert dest["proposer_split"] == "one" and dest["holdout_decision"] == passing
     assert _payment(split) == 5 * 10**14  # payouts=True: the payout block pays its last value
-    assert "sensitivity_self_built" not in dest
+    assert "sensitivity_self_built" not in dest and "rule_split" not in dest
+    assert "Payout rule's split" not in text
     assert "Sensitivity" not in text and "sensitivity" not in text.replace("Sensitivity", "")
     assert lpd["destination_limitation"] == destination.LIMITATION_TEXT
     _assert_classes_note(dest, text)
