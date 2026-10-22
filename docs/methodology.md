@@ -779,10 +779,10 @@ The chain ([`results/lvr_destination.md`](../results/lvr_destination.md), the he
 at 0 s (3,703,796.76 USD) → minus the other flows (−440,321.24) → LVR on searcher steps
 (4,144,118.00) = LP fees (1,976,144.85) + protocol fees (658,714.87) + searcher gross
 (1,509,258.29); gross = multi-pool gross (257,681.73) + single-pool gross (1,251,576.57); single-pool
-gross = gas burned (9,715.89) + builder margin (654,139.41) + proposer (789,291.15) + kept
-(−201,569.88). Shares are of the LVR on searcher steps: 0.4769, 0.1590, 0.0622, 0.0023, 0.1578,
-0.1905 and −0.0486 (builder margin and proposer by the primary split; the sensitivity below
-divides their sum differently). This section counts every searcher step, also any with no liquidity in range,
+gross = gas burned (9,715.89) + builder margin (848,648.09) + proposer (594,782.47) + kept
+(−201,569.88). Shares are of the LVR on searcher steps: 0.4769, 0.1590, 0.0622, 0.0023, 0.2048,
+0.1435 and −0.0486 (builder margin and proposer from the measured payments of sections 19 and
+20; until section 20 the published split was the two-sided pair below). This section counts every searcher step, also any with no liquidity in range,
 so its keys are named apart from the accrued-only totals of section 13. No swap needed a fallback:
 0 swaps without an other-logs row, 0 in a block missing from the split, 0 with null costs.
 
@@ -791,9 +791,12 @@ have transactions but no last transaction from the fee recipient, so the primary
 their proposer all of the builder revenue (the 175 blocks with no transactions were counted here
 before proposer-payment detection; they carry no revenue). Section 19 measures what these blocks
 paid: nearly all of their builder dollars sit in blocks that pay from a separate payout address,
-and a blind relay holdout matches those payments to the wei. That measured split was not adopted,
-because its pre-registered recipient check failed (section 19.5), so the primary method and the
-sensitivity below stay the published pair.
+and a blind relay holdout matches those payments to the wei. That measured split was not adopted
+at first, because its pre-registered recipient check failed (section 19.5); a second
+pre-registered test with a recipient check that follows forwarding contracts passed (section 20),
+and the measured split is now the published one. The primary method and the sensitivity below
+are kept as the record of what was published before; `summary.json` no longer carries
+`sensitivity_self_built`.
 
 These blocks carry 297,357.38 USD (0.2060) of the 1,443,430.55 USD of single-pool builder
 payments (11,432 swaps), and 0.3767 of the primary proposer total. The sensitivity
@@ -816,17 +819,18 @@ builder subsidises the proposer, cannot pull it. The median per-block share of t
 
 Their sum (0.3483), gas, kept and every other figure are the same under both. Builder margin
 exceeds the proposer payment for any share below 0.77 in these blocks, so the ordering does not
-depend on choosing the weighted ratio over the median. The primary method stays the published
-one (it is what the data identify directly, and the hero figure shows it); the sensitivity is the better
-estimate of the split.
+depend on choosing the weighted ratio over the median. Both are superseded by the measured
+split (proposer 594,782.47, 0.1435; builder margin 848,648.09, 0.2048), which lies outside the
+pair: most of these blocks paid their proposer from a payout address, and paid less than either
+method assumed.
 
 Required limitation text (also in the README and `results/lvr_destination.md`):
 
-> The split of builder payments between builder and proposer uses each block's ratio of proposer payment to builder revenue; how a builder prices an individual transaction is not observed. Proposer payments are identified as the block's last transaction from the fee recipient and cross-checked against relay data on a sample of blocks only.
+> The split of builder payments between builder and proposer uses each block's ratio of proposer payment to builder revenue; how a builder prices an individual transaction is not observed. Proposer payments are identified as the block's last transaction, sent by the fee recipient or by a payout address learned from chain data, and tested on a blind stratified relay sample; blocks where neither applies give the proposer the whole builder revenue.
 
 `kept` is still an upper bound, as in section 5: payments outside the transaction (a separate
 transaction in the bundle, off-chain agreements) are missed, and failed transactions are not
-seen. It is negative because builder margin plus proposer payment (0.1578 + 0.1905 = 0.3483 of
+seen. It is negative because builder margin plus proposer payment (0.2048 + 0.1435 = 0.3483 of
 the LVR on searcher steps) exceeds the single-pool gross at 0 s (1,251,576.57 / 4,144,118.00 =
 0.3020). Gross is measured at the block time, so kept is a small difference of large totals.
 Sub-project 2's positive kept at 12 s (`kept_12s_usd`, +59,529.77 USD) covers the top 4 bots'
@@ -931,11 +935,10 @@ volatility, over days with positive LVR and fees; the break-even is where the tw
   same key; flagged positions are excluded from lifetime statistics (none among the window-active
   positions in this run), but a carry of fees only (principal fully collected) is not flagged.
 - **Where LVR goes:** the limitation text of section 15; `kept` is an upper bound. The
-  proposer/builder split stays two-sided: the 16.0% of blocks without a last-transaction payment
-  from the fee recipient are treated as self-built; with the paid-block share the proposer gets
-  0.1540 of searcher LVR instead of 0.1905 and the builder margin 0.1943 instead of 0.1578; their
-  sum does not move. The measured payments (section 19) give 0.1435 and 0.2048 but are not
-  adopted, because the pre-registered recipient check failed on a forwarding contract.
+  proposer/builder split (proposer 0.1435, builder margin 0.2048 of searcher LVR) comes from
+  measured payments that passed a pre-registered relay test on the second attempt (sections 19
+  and 20); unexplained blocks ($630.11, 0.044% of single-pool builder dollars) give the proposer
+  the whole builder revenue. Their sum does not depend on the split.
 - **Path dependence.** P&L against holding, in the window and over a lifetime (53.5% of positions
   beat holding; 78% of those with a life of 180 days or more), depends on the price path over each
   position's life, and so on when it opened and closed.
@@ -1114,7 +1117,9 @@ themselves have a small qualifying payout pair: Lido's execution-layer rewards v
 16,967 blocks fall to unexplained instead of class 4. That is why the unexplained class has
 21,754 blocks where the exploration, which keyed class 4 on paid blocks only, had 4,787 (the
 same 4,787 are here). The dollars barely differ ($633.49 against about $630): these blocks carry
-almost no builder payments. The rule was pre-registered, so it stays as it is.
+almost no builder payments. The rule was pre-registered, so it was not changed after the fact;
+the fix was pre-registered with the second holdout instead and is in force from section 20 on
+(class 4 then has 56,501 blocks and unexplained 4,787).
 
 ### 19.3 Relay rounds
 
@@ -1167,8 +1172,9 @@ one_split             false
 frozen                2026-10-22, after 600 of 600 holdout blocks had a row
 ```
 
-So the published split stays the two-sided pair of section 15 (`proposer_split: "hedge"` in
-`summary.json`).
+So the published split stayed the two-sided pair of section 15, until the second holdout of
+section 20 (`holdout_decision` in `summary.json` keeps this first decision; the file above is
+never rewritten).
 
 ### 19.5 Why the recipient check failed: a forwarding contract
 
@@ -1195,9 +1201,84 @@ recipient check failed (`rule_split` in `summary.json`; last section of
 
 Redefining R1b now and flipping the decision would be post hoc. A recipient check that follows
 internal transfers through forwarders, with its bar written down before a fresh holdout (seed 45),
-is on the roadmap.
+was run next (section 20); it passed, and this split, with the class fix, is now the published
+one.
 
 ### 19.7 What was dropped
 
 The 261 GB trace query planned to find payments outside the last transaction: after the payout
 rule, $633.49 (0.044%) of single-pool builder dollars is unexplained, too little to move the split.
+
+## 20. Recipient check through forwarders
+
+Design: [`docs/superpowers/specs/2026-10-21-forwarder-recipient-check-design.md`](superpowers/specs/2026-10-21-forwarder-recipient-check-design.md).
+Sections 3 to 6 of it (the class fix, the check, the holdout, the bar and the stopping rule) were
+committed and tagged `forwarder-preregistered` before the seed-45 holdout was drawn; the code was
+reviewed against them before the draw. No new check was computed on the seed-44 holdout.
+
+### 20.1 The class fix
+
+A payout address S of fee recipient F now also needs F to send the last transaction in at least
+one of its own blocks. Two fee recipients never do: Lido's execution-layer rewards vault `0x388c…`
+and `0x7e2a…`; their "payout addresses" sent about 0.006 ETH (0.01 ETH) with 21,000 gas to a
+different wallet almost every time, withdrawals that happened to end the block. Their 224 class-3
+blocks and 16,967 other blocks move to class 4:
+
+| Class | Blocks | Share of blocks | Single-pool builder USD | Share |
+|---|---|---|---|---|
+| empty | 175 | 0.03% | 0.00 | 0% |
+| paid | 554,263 | 84.00% | 1,146,073.18 | 79.40% |
+| payout | 44,073 | 6.68% | 296,703.85 | 20.56% |
+| proposer is fee recipient | 56,501 | 8.56% | 23.42 | 0.002% |
+| unexplained | 4,787 | 0.73% | 630.11 | 0.044% |
+
+At thresholds of 20 and 100 blocks the payout class has 44,115 and 44,073 blocks. The moved
+blocks carry no single-pool builder dollars as payout blocks, so the payout rule's split is the
+same as in section 19.6. The six EIP-7702 payments of section 19.2 were among the moved blocks;
+no payout recipient is an EIP-7702 wallet now. None of the 45 earlier relay rows of the two fee
+recipients was found on a relay, so no earlier found-block count changes.
+
+### 20.2 The check, R1d
+
+For a block in class 2 or 3 with last transaction `h`, recipient `a0` and value `v`, the payment
+path starts at `a0` and follows, at most 3 times, the single internal transfer sent by the current
+address in `h` with value ≥ `v`; it stops when there is not exactly one, or on a repeat. R1d
+passes if the relay's `proposer_fee_recipient` is on the path. The forwarder `0xfeeeeee…7ffc` is
+20 bytes of code (`0x5f358060e01c4218600f5760401cff5b5f5ffd00`): if the first 4 calldata bytes
+equal the block timestamp it self-destructs to the address in calldata bytes 4–23, which since
+Cancun only sends its balance there. Paths come from free RPC (`eth_getBlockByNumber` and
+`alchemy_getAssetTransfers`, which reports that transfer), for the seed-45 blocks only
+(`ulpe fetch-paths`, `data/raw/holdout2_paths.parquet`): 580 paths, 331 with one hop and 249 with
+none. Every block's last transaction from the RPC matched the chain tables.
+
+### 20.3 The second holdout and the result
+
+Seed 45, every block already in `relays.parquet` left out, 300 blocks of class 3 and 300 of
+classes 2, 4 and 5 (fixed classes), written to `data/raw/relay_holdout_2.parquet` before its
+first relay call; relay rows `round = "holdout2"`. A copy of the relay file was taken before the
+draw, and every later write of the file is refused if a row of an earlier round would change or
+be added. bloXroute max-profit failed on 78 blocks in the fetch and again in the one retry; 522
+of the 600 were found.
+
+| Stratum | Class | Found | Within 1 wei | R1b | R1d |
+|---|---|---|---|---|---|
+| payout | payout | 290 | 290 | 117 | 290 |
+| rest | paid | 232 | 232 | 108 | 232 |
+| rest | proposer is fee recipient | 0 (20 sampled) | – | – | – |
+
+No class-4 block was found on a relay (R1c lists nothing), and the rest stratum drew no
+unexplained block. The frozen decision, `data/raw/holdout_decision_2.json`:
+
+```
+n_found_payout        290
+share_within_1_wei    1.0
+share_within_1pct     1.0
+share_recipient_match 1.0      (R1d, 290 / 290)
+one_split             true
+frozen                2026-10-22, after 600 of 600 holdout-2 blocks had a relay row and every
+                      paid/payout block a path
+```
+
+So `ulpe lp` publishes one split (`proposer_split: "one"`, `published_decision: "holdout2"` in
+`summary.json`): proposer 594,782.47 USD (0.1435 of LVR on searcher steps), builder margin
+848,648.09 USD (0.2048). The first decision stays in `holdout_decision`, unchanged.

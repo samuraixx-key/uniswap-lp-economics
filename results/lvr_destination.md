@@ -2,11 +2,9 @@
 
 Every figure here counts every searcher step, including steps with no liquidity in range; the accrued-only `*_searcher_usd` totals in lp_pnl.md and summary.json do not. Shares are of LVR on searcher steps.
 
-A payout address is a sender other than the fee recipient that sent the last transaction in at least 50 of the fee recipient's blocks, with value > 0 in at least 99% of them. Blocks left unexplained: 3.30% of blocks and 0.04% of single-pool builder dollars ($633.49); they give the proposer the whole builder revenue.
+A payout address is a sender other than the fee recipient that sent the last transaction in at least 50 of the fee recipient's blocks, with value > 0 in at least 99% of them. Blocks left unexplained: 0.73% of blocks and 0.04% of single-pool builder dollars ($630.11); they give the proposer the whole builder revenue.
 
-The primary split treats a block whose last transaction is not from its fee recipient as self-built (proposer share 1). The relay sample shows that most such blocks are MEV-Boost blocks that paid the proposer some other way, so the sensitivity gives those blocks the volume-weighted proposer share of the paid blocks instead. Only proposer and builder margin move; their sum, and every other figure, is the same under both.
-
-The split of builder payments between builder and proposer uses each block's ratio of proposer payment to builder revenue; how a builder prices an individual transaction is not observed. Proposer payments are identified as the block's last transaction from the fee recipient and cross-checked against relay data on a sample of blocks only.
+The split of builder payments between builder and proposer uses each block's ratio of proposer payment to builder revenue; how a builder prices an individual transaction is not observed. Proposer payments are identified as the block's last transaction, sent by the fee recipient or by a payout address learned from chain data, and tested on a blind stratified relay sample; blocks where neither applies give the proposer the whole builder revenue.
 
 ## Totals
 
@@ -22,15 +20,15 @@ The split of builder payments between builder and proposer uses each block's rat
 | multi_pool_gross_usd | 257,681.7252 |
 | single_pool_gross_usd | 1,251,576.5667 |
 | gas_burned_usd | 9,715.8891 |
-| builder_margin_usd | 654,139.4089 |
-| proposer_usd | 789,291.1456 |
+| builder_margin_usd | 848,648.0888 |
+| proposer_usd | 594,782.4656 |
 | searcher_kept_usd | -201,569.8769 |
 | share_fees | 0.4769 |
 | share_protocol_fees | 0.1590 |
 | share_multi_pool | 0.0622 |
 | share_gas_burned | 0.0023 |
-| share_builder_margin | 0.1578 |
-| share_proposer | 0.1905 |
+| share_builder_margin | 0.2048 |
+| share_proposer | 0.1435 |
 | share_searcher_kept | -0.0486 |
 | n_searcher_swaps | 253,280 |
 | n_swaps_no_other_logs_row | 0 |
@@ -43,44 +41,27 @@ The split of builder payments between builder and proposer uses each block's rat
 |---|---|---|---|---|
 | empty | 175 | 0.00 | 0.00 | 0.00 |
 | paid | 554,263 | 0.84 | 1,146,073.18 | 0.79 |
-| payout | 44,297 | 0.07 | 296,703.85 | 0.21 |
-| proposer_is_fee_recipient | 39,310 | 0.06 | 20.03 | 0.00 |
-| unexplained | 21,754 | 0.03 | 633.49 | 0.00 |
+| payout | 44,073 | 0.07 | 296,703.85 | 0.21 |
+| proposer_is_fee_recipient | 56,501 | 0.09 | 23.42 | 0.00 |
+| unexplained | 4,787 | 0.01 | 630.11 | 0.00 |
 
 ## Payout recipients
 
 | type | payments | blocks | paid_eth | builder_paid_usd |
 |---|---|---|---|---|
-| wallet | 9,490 | 9,490 | 176.52 | 59,269.43 |
-| 7702_wallet | 6 | 6 | 0.06 | 0.00 |
+| wallet | 9,272 | 9,272 | 175.46 | 59,269.43 |
+| 7702_wallet | 0 | 0 | 0.00 | 0.00 |
 | contract | 34,801 | 34,801 | 677.73 | 237,434.42 |
 
-## Sensitivity: self-built blocks at the paid-block proposer share
+## Seed-45 holdout (R1d)
 
 | metric | value |
 |---|---|
-| self_built_proposer_share | 0.4915 |
-| self_built_share_basis | volume-weighted over paid blocks: sum of proposer payments / sum of builder revenue |
-| median_paid_block_proposer_share | 0.6240 |
-| blocks | 659,799 |
-| self_built_blocks | 105,361 |
-| share_blocks_self_built | 0.1597 |
-| n_single_pool_swaps_self_built | 11,432 |
-| builder_paid_usd | 1,443,430.5544 |
-| builder_paid_self_built_usd | 297,357.3751 |
-| share_builder_paid_self_built | 0.2060 |
-| share_primary_proposer_in_self_built | 0.3767 |
-| proposer_usd | 638,079.5347 |
-| builder_margin_usd | 805,351.0198 |
-| share_proposer | 0.1540 |
-| share_builder_margin | 0.1943 |
-
-## Payout rule's split (measured payments; not adopted)
-
-| metric | value |
-|---|---|
-| proposer_usd | 594,782.4656 |
-| builder_margin_usd | 848,648.0888 |
-| share_proposer | 0.1435 |
-| share_builder_margin | 0.2048 |
-| label | measured payments; not adopted because its pre-registered recipient check failed |
+| bar | 0.9500 |
+| n_found_payout | 290 |
+| share_within_1_wei | 1.0000 |
+| share_within_1pct | 1.0000 |
+| share_recipient_match | 1.0000 |
+| one_split | True |
+| round | holdout2 |
+| recipient_check | R1d |

@@ -1,7 +1,9 @@
 # Recipient check through forwarders: design
 
-Date: 2026-10-21. Status: approved 2026-10-22, pre-registration (sections 3 to 6 are fixed before the seed-45
-holdout is drawn; the commit that holds them is tagged `forwarder-preregistered`).
+Date: 2026-10-21. Status: implemented (branch `forwarder-recipient-check`); sections 3 to 6
+were fixed before the seed-45 holdout was drawn (tag `forwarder-preregistered`). Result: 290 of
+290 found class-3 holdout blocks within 1 wei and passing R1d, so one split (methodology
+section 20).
 
 ## 1. Why
 
