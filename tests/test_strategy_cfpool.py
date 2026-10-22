@@ -460,6 +460,14 @@ def test_s3_counts_july_only() -> None:
     assert r.summary["model_fee_usd"] == pytest.approx(4.0)
     assert r.summary["replaced_swaps"] == 2
     assert r.passed
+    # an earlier July end (the split) cuts both sides: July 1 of the model, swaps before it
+    first_day = check_s3(
+        model, swap_steps, aligned, swap_fees, replaced, model, JULY_START_US + 86_400 * US
+    )
+    assert first_day.summary["model_lvr_usd"] == pytest.approx(2.1)
+    assert first_day.summary["measured_lvr_usd"] == pytest.approx(4.0)
+    none = check_s3(model, swap_steps, aligned, swap_fees, replaced, model, JULY_START_US + US)
+    assert none.summary["replaced_swaps"] == 0 and none.summary["measured_lvr_usd"] == 0
 
 
 def test_sandwich_pattern() -> None:

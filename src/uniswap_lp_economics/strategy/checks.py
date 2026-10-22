@@ -251,14 +251,16 @@ def check_s3(
     swap_fees: pl.DataFrame,
     replaced: set[tuple[int, int]],
     sensitivity: CfRun,
+    end_us: int = REPORT_START_US,
 ) -> CheckResult:
     """Spec 6.4: the 5 bp model's arbitrage LVR (0 s) and fees before the protocol's cut against
     the measured values on the replaced swaps; both within CALIBRATION_TOL passes. Reported.
 
     The +1 s run (`sensitivity`) is reported alongside (`*_1s`) and does not set the verdict.
-    Both sides count July only: replaced swaps with t0 in [JULY_START_US, REPORT_START_US) and
-    the runs' July days, so full-window inputs give the same verdict as July-cut ones."""
-    in_july = (pl.col("t0_us") >= JULY_START_US) & (pl.col("t0_us") < REPORT_START_US)
+    Both sides count July only: replaced swaps with t0 in [JULY_START_US, end_us) and the runs'
+    days in that span, so full-window inputs give the same verdict as July-cut ones. `end_us` is
+    the July end (the split), a day boundary."""
+    in_july = (pl.col("t0_us") >= JULY_START_US) & (pl.col("t0_us") < end_us)
     keys = (
         aligned.filter(in_july)
         .select(*_SWAP_KEYS)
@@ -266,7 +268,7 @@ def check_s3(
     )
     july_days = pl.col("day").is_between(
         pl.from_epoch(pl.lit(JULY_START_US), "us").dt.date(),
-        pl.from_epoch(pl.lit(REPORT_START_US), "us").dt.date(),
+        pl.from_epoch(pl.lit(end_us), "us").dt.date(),
         closed="left",
     )
     measured_lvr = float(swap_steps.join(keys, on=_SWAP_KEYS, how="semi")["lvr_0"].sum())

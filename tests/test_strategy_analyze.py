@@ -17,7 +17,7 @@ from uniswap_lp_economics.strategy import analyze
 from uniswap_lp_economics.strategy.cfpool import CfRun, prepare_inputs
 from uniswap_lp_economics.strategy.checks import replaced_keys
 from uniswap_lp_economics.strategy.params import FEE_LEVELS_BP
-from uniswap_lp_economics.strategy.ranges import STRATEGY_COLUMNS
+from uniswap_lp_economics.strategy.ranges import STRATEGY_COLUMNS, LpCosts
 from uniswap_lp_economics.validate import CheckResult
 
 SPLIT = int(T0.timestamp()) * US + 86_400 * US  # the world's blocks 6-10 are "July", 11-14 later
@@ -133,14 +133,31 @@ def test_first_run_freezes_and_stops(
     }
     assert (results / "summary.json").read_bytes() == before
     freeze = json.loads((results / analyze.FREEZE_FILE).read_text(encoding="utf-8"))
-    for key in ("delta", "r0", "min_profit_gas", "calibration", "best_strategy", "input_hashes"):
+    for key in (
+        "delta",
+        "r0",
+        "min_profit_gas",
+        "calibration",
+        "best_strategy",
+        "lp_costs",
+        "input_hashes",
+    ):
         assert key in freeze, key
+    assert set(freeze["lp_costs"]) == {"gas_mint", "gas_burn_collect", "priority_wei"}
     assert freeze["input_hashes"] == HASHES
     assert freeze["min_profit_gas"] == 150_000
     assert freeze["delta"] == pytest.approx((1 - freeze["r0"]) / 4)
     assert freeze["best_strategy"]["rule"] in ("out_of_range", "band", "daily")
     assert set(freeze["cfpool_counts"]) == {"model_0s", "model_1s"}
     assert isinstance(freeze["calibration"]["passed"], bool)
+    # S3's measured side stops at the split too: only the replaced swaps before it count
+    inp, extra, _ = world
+    before = inp.aligned.filter(pl.col("t0_us") < SPLIT).select("block_number", "log_index")
+    assert before.height < inp.aligned.height  # the world has swaps past the split
+    cal = freeze["calibration"]
+    assert cal["replaced_swaps"] == before.height
+    measured = extra.swap_steps.join(before, on=["block_number", "log_index"], how="semi")
+    assert cal["measured_lvr_usd"] == pytest.approx(float(measured["lvr_0"].sum()))
     checks = (results / "strategy_checks.md").read_text(encoding="utf-8")
     assert "S1 range attribution" in checks and "S3 calibration" in checks
     # no report-period number: the counterfactual runs and the range cells stop at the split
@@ -206,6 +223,9 @@ def test_failed_gate_writes_only_checks(
 
 def test_freeze_is_write_once(tmp_path: Path) -> None:
     path = tmp_path / analyze.FREEZE_FILE
+    with pytest.raises(ValueError):  # strict JSON: a NaN fails before anything is written
+        analyze.write_freeze(path, {"delta": float("nan")})
+    assert not path.exists()
     analyze.write_freeze(path, {"delta": 0.1})
     before = path.read_bytes()
     with pytest.raises(FileExistsError):
@@ -227,6 +247,9 @@ def test_freeze_mismatch_stops(world: World, tmp_path: Path) -> None:
     with pytest.raises(SystemExit, match="strategy_freeze.json"):
         _run(world, tmp_path)
     assert path.read_text(encoding="utf-8") == "{not json"
+    inp, extra, _ = world
+    with pytest.raises(ValueError, match="input_hashes"):
+        analyze.strategy_analysis(inp, extra, results, tmp_path, {"git_commit": "test"})
     assert _strategy_files(results) == {
         "strategy_freeze.json",
         "strategy_checks.md",
@@ -238,14 +261,45 @@ def test_frozen_values_win(world: World, tmp_path: Path, monkeypatch: pytest.Mon
     assert _run(world, tmp_path) == "FROZEN"
     path = tmp_path / "results" / analyze.FREEZE_FILE
     freeze = json.loads(path.read_text(encoding="utf-8"))
-    path.write_text(json.dumps({**freeze, "delta": 0.123456, "min_profit_gas": 7}))
+    best = "band_100bp"
+    assert freeze["best_strategy"]["strategy"] != best
+    costs = {"gas_mint": 123_456, "gas_burn_collect": 654_321, "priority_wei": 42}
+    edited = {
+        **freeze,
+        "delta": 0.123456,
+        "min_profit_gas": 7,
+        "lp_costs": costs,
+        "calibration": {**freeze["calibration"], "passed": True},
+        "best_strategy": {"strategy": best, "rule": "band", "half_width_bp": 100},
+    }
+    path.write_text(json.dumps(edited))
     calls = _record_runs(monkeypatch)
+    charged: list[LpCosts] = []
+    real_score = analyze.score
+    monkeypatch.setattr(
+        analyze, "score", lambda *a, **kw: charged.append(a[5]) or real_score(*a, **kw)
+    )
     assert _run(world, tmp_path) == "PASS"
     replaced = [c for c in calls if c["replace"]]
     assert len(replaced) == 24 + len(FEE_LEVELS_BP)
     assert all(c["min_profit_gas"] == 7 for c in replaced)
-    test = (tmp_path / "results" / "strategy_test.md").read_text(encoding="utf-8")
+    assert len(charged) == 37 and all(c == LpCosts(**costs) for c in charged)
+    results = tmp_path / "results"
+    test = (results / "strategy_test.md").read_text(encoding="utf-8")
     assert "| delta | 0.1235 |" in test
+    # the calibrated path: no model-only label, per-level verdicts tested
+    fees_md = (results / "strategy_fees.md").read_text(encoding="utf-8")
+    assert analyze.MODEL_ONLY_NOTE not in fees_md and analyze.MODEL_ONLY_NOTE not in test
+    verdicts = json.loads((results / "summary.json").read_text(encoding="utf-8"))["strategy"][
+        "fee_level_verdicts"
+    ]
+    for bp in FEE_LEVELS_BP:
+        if bp > 5:
+            assert verdicts[f"{bp:g}bp"] in ("holds", "fails", "inconclusive"), bp
+        elif bp < 5:
+            assert verdicts[f"{bp:g}bp"] == "not tested (below baseline)", bp
+    hedge = pl.read_csv(results / "strategy_hedge.csv")
+    assert set(hedge["strategy"]) == {"full_range", best}
 
 
 def test_fee_runs_in_worker_processes_match_in_process(world: World) -> None:

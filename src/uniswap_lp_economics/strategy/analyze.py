@@ -8,7 +8,7 @@ value taken from the file, which it never rewrites.
 import json
 import math
 from concurrent.futures import ProcessPoolExecutor
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
@@ -87,7 +87,15 @@ MODEL_ONLY_NOTE = (
     "Model-only: calibration (S3) failed in July, so every fee result here is model-only and the "
     "fee test is not tested."
 )
-_FREEZE_KEYS = ("delta", "r0", "min_profit_gas", "calibration", "best_strategy", "input_hashes")
+_FREEZE_KEYS = (
+    "delta",
+    "r0",
+    "min_profit_gas",
+    "calibration",
+    "best_strategy",
+    "lp_costs",
+    "input_hashes",
+)
 _PL = ("fee_arb_pl", "lvr_arb_pl", "fee_kept_pl", "lvr_kept_pl")
 _D_COLUMNS = ("d_ratio", "d_lo", "d_hi", "n_undefined", "inside", "above")
 
@@ -110,7 +118,8 @@ def write_freeze(path: Path, payload: dict[str, Any]) -> None:
             f"{path} exists: the July freeze is written once (delete it by hand to re-run July)"
         )
     path.parent.mkdir(parents=True, exist_ok=True)
-    write_text_atomic(path, json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    text = json.dumps(payload, indent=2, sort_keys=True, allow_nan=False)  # a NaN fails here
+    write_text_atomic(path, text + "\n")
 
 
 def read_freeze(path: Path, hashes: dict[str, str]) -> dict[str, Any]:
@@ -286,7 +295,9 @@ def strategy_analysis(
     carries `input_hashes`, which the freeze records and the report run must match.
     `processed_dir` is kept for symmetry with lp_analysis: this step writes no processed data."""
     end_us = window_end_us() if end_us is None else end_us
-    hashes: dict[str, str] = provenance.get("input_hashes", {})
+    if "input_hashes" not in provenance:
+        raise ValueError("provenance needs input_hashes: the freeze is checked against them")
+    hashes: dict[str, str] = provenance["input_hashes"]
     meta = {k: v for k, v in provenance.items() if k != "input_hashes"}
     freeze_path = results_dir / FREEZE_FILE
     frozen = read_freeze(freeze_path, hashes) if freeze_path.exists() else None
@@ -323,12 +334,16 @@ def strategy_analysis(
         how="left",
         maintain_order="left",
     )
-    costs = lp_costs(inp.events.filter(pl.col("block_number") > snap), inp.blocks)
     if frozen is None:
+        # Ruling 12: gas medians from July transactions only, frozen for the report run
+        window = pl.col("block_number") > snap
+        july_tx = pl.col("block_timestamp").dt.epoch("us") < split_us
+        costs = lp_costs(inp.events.filter(window & july_tx), inp.blocks)
         july = period(starts, JULY_START_US, split_us)
         grid = hourly_grid(inp.blocks_state, july.first_ts_us, split_us)
         cells = range_cells(identity.steps, starts, grid, costs, july)
         payload, results = _july(inp, extra, cells, replaced, split_us)
+        payload["lp_costs"] = asdict(costs)
         validate.write_report(
             gates + results, results_dir, meta, stem="strategy_checks", title="Strategy checks"
         )
@@ -340,6 +355,7 @@ def strategy_analysis(
         return "FROZEN"
     # Report run: read summary.json now, so a missing one stops before anything is written.
     summary = json.loads((results_dir / "summary.json").read_text(encoding="utf-8"))
+    costs = LpCosts(**frozen["lp_costs"])
     rep = period(starts, split_us, REPORT_END_US)
     grid = hourly_grid(inp.blocks_state, rep.first_ts_us, REPORT_END_US)
     cells = range_cells(identity.steps, starts, grid, costs, rep)
@@ -486,7 +502,7 @@ def _july(
     five = FixedFee(bp_to_pips(BASELINE_FEE_BP))
     model = run_pool(ci, five, replace=True, ref_offset_s=0.0, min_profit_gas=gas)
     sens = run_pool(ci, five, replace=True, ref_offset_s=1.0, min_profit_gas=gas)
-    s3 = check_s3(model, extra.swap_steps, inp.aligned, inp.swap_fees, replaced, sens)
+    s3 = check_s3(model, extra.swap_steps, inp.aligned, inp.swap_fees, replaced, sens, split_us)
     tested = [
         r for r in rows.values() if r["rule"] in TESTED_RULES and not math.isnan(r["bp_per_day"])
     ]
