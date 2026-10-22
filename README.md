@@ -14,8 +14,10 @@ make money, and where the LVR goes.
 > where LVR goes) and 4 (reference and timing robustness) are complete; data checks C1–C6 and the
 > gated analysis and LP checks (A1–A4, L1–L7) all pass. Proposer-payment detection is done: its
 > first pre-registered test kept a two-sided proposer/builder split, and a second one, with a
-> recipient check that follows forwarding contracts, passed, so one split is reported. Next:
-> counterfactual LP strategies; see the [roadmap](docs/roadmap.md).
+> recipient check that follows forwarding contracts, passed, so one split is reported. Phase 5
+> (strategy experiment), the fifth sub-project, is done: a pre-registered test of counterfactual
+> LP strategies, gated by checks S1–S2. Next: the open items in the
+> [roadmap](docs/roadmap.md), then the report (Phase 6).
 
 <img src="results/figures/00_hero.svg" alt="Two-stage Sankey: the LVR on searcher swaps splits into swap fees (to LPs and the protocol) and searchers' gross profit, which, topped up by searchers' own money, ends with block builders, proposers, gas and multi-pool arbitrage">
 
@@ -126,11 +128,34 @@ at the pool's price instead of Binance's)? Which LPs make money? And where does 
    difference of large totals measured at the block time; sub-project 2's positive kept at 12 s
    covers the top 4 bots only.
 
+**And can an LP do better?** Rules fixed on July 2026 data, results reported on August–September
+(61 days), every number a counterfactual.
+
+7. **The range test is inconclusive, the fee test was not run, and a hedge changes the risk, not
+   the gap.** Of 27 re-centring strategies at $1M, the only three small enough to be
+   price-takers (ranges of ±5,000 bp) keep fees ÷ LVR within the pre-registered ±0.068 of full
+   range; the other 24 hold more than 5% of the pool's active liquidity at their peak, and the
+   verdict, **inconclusive**, depends on them. It stays inconclusive among genuine price-takers:
+   at $100k 15 cells are small enough, and three of them (daily re-centring at ±250 to
+   ±1,000 bp) have intervals reaching above the margin's +0.0677. Re-centring a ±10 bp range each time the price
+   leaves it returns **−454 bp/day** of capital, against −0.19 for full range (counterfactual:
+   ignores how other traders would react to a different range). In the fee model LPs break even
+   at about **8.6 bp**, and at that fee the pool can lose at most **43%** of its other volume
+   before LPs are no better off than at 5 bp (model-only, because the model failed its July
+   calibration; counterfactual at constant volume: ignores how traders would react to a higher
+   fee). An hourly perpetual hedge cuts the spread of a full-range position's daily P&L from
+   **$16.4k to $160** per $1M (counterfactual: ignores how other traders would react) and leaves
+   fees − LVR unchanged, since that is already measured against the hedged LP.
+   *Caveat:* August–September is out of sample for every parameter, not for the analyst: the
+   window's aggregate results were known when the hypothesis was written. The protocol's cut is
+   still the largest single number: with no cut, full range's fees ÷ LVR over August–September
+   would be 1.01 (arithmetic, no model). See [Can an LP do better?](#can-an-lp-do-better).
+
 ## Contents
 
 - [What is LVR?](#what-is-lvr) · [Does the pool follow Binance?](#does-the-pool-follow-binance) · [Who wins against the pool?](#who-wins-against-the-pool)
 - [How big is LVR, and when?](#how-big-is-lvr-and-when) · [Do arbitrage bots keep the edge?](#do-arbitrage-bots-keep-the-edge) · [Who pays?](#who-pays) · [Where LVR goes](#where-lvr-goes)
-- [Is it the reference price?](#is-it-the-reference-price) · [Data](#data) · [Method](#method) · [Limitations](#limitations) · [Reproduce](#reproduce) · [Repo map](#repo-map) · [Further reading](#further-reading) · [Roadmap](docs/roadmap.md)
+- [Is it the reference price?](#is-it-the-reference-price) · [Can an LP do better?](#can-an-lp-do-better) · [Data](#data) · [Method](#method) · [Limitations](#limitations) · [Reproduce](#reproduce) · [Repo map](#repo-map) · [Further reading](#further-reading) · [Roadmap](docs/roadmap.md)
 
 ## What is LVR?
 
@@ -592,6 +617,266 @@ USDT/USDC rate. Full tables:
 [`results/reference_robustness_proxy.md`](results/reference_robustness_proxy.md); method in
 [`docs/methodology.md`](docs/methodology.md) section 18.
 
+## Can an LP do better?
+
+**The pre-registered test does not settle range width, and it did not test the fee.** Phase 5
+(strategy experiment) fixed its rules on July 2026 data and reports August–September (61 days).
+*Range and rebalancing:* **inconclusive**. 24 of the 27 re-centring strategies tested at $1M
+hold more than 5% of the pool's active liquidity at their peak, so they are not the small
+price-takers the method assumes, and the verdict depends on them; the three that are small
+enough, the ±5,000 bp ranges, all stay inside the margin of ±0.068 around full range's
+fees ÷ LVR. Among genuine price-takers it stays inconclusive: fees ÷ LVR does not depend on size,
+and at $100k, where 15 cells are small enough, three of them (daily re-centring at ±250, ±500
+and ±1,000 bp) have upper bounds of 0.105, 0.092 and 0.068, against δ = 0.0677. *Fee level:* **not tested**, because the model failed its July calibration (its
+arbitrage LVR was 1.38 times the measured one, against a tolerance of ±15%), so every fee number
+below is model-only. *Hedge:* no test, by design: it is the risk lever. An hourly perpetual hedge
+cuts the spread of a full-range position's daily P&L about 100-fold and leaves fees − LVR where
+it was, because the benchmark is already the hedged LP. Every number in this chapter is a
+counterfactual that ignores how other traders would react to a different range, fee or hedge.
+
+The hypothesis, written down before any August–September strategy result existed (the window's
+aggregate results were already known; see [Limitations](#strategy-experiment-phase-5)). It is
+what was tested, not a result ([spec](docs/superpowers/specs/2026-10-21-strategy-experiment-design.md),
+section 1):
+
+> A passive LP in this pool can't fix the loss by choosing a better range or hedging. Those change
+> the risk and the gas bill, not the gap between fees and LVR. Only the fee itself moves that gap:
+> its level, when it's charged, or the protocol's cut. Here's by how much, after costs, tested out
+> of sample.
+
+### Which levers can work, and why
+
+- **Hedge.** The −$1.06M is already measured against a rebalancing portfolio, which is the LP
+  hedged continuously and for free at Binance's price. A Binance hedge cannot change fees − LVR;
+  it adds trading and funding costs. What it changes is risk: over the window, the 7,874
+  positions lost $18.2M against holding their deposited tokens, but $1.10M against the
+  rebalancing portfolio after gas and direct builder payments (pool-level LP fees − LVR, before
+  those costs, is −$1.06M). So the hedge has no test: "it leaves fees − LVR unchanged" is an
+  identity of the benchmark.
+- **Range width and re-centring.** While the price is in range, a narrower range scales fees and
+  LVR by the same factor. It adds gas, re-centring trades and time out of range. Expected: it
+  moves costs and risk, not fees ÷ LVR.
+- **Fee level and dynamic fees.** The fee is the lever that touches LVR directly: at a higher fee
+  arbitrageurs trade less often and pay more each time.
+- **Protocol cut.** A pool-design choice, not an LP strategy, and arithmetic, not a model: $0.88M
+  of the $1.06M gap. Reported, not tested.
+- **JIT** is left out of the grid: it was the one LP type with a positive total
+  ([Who pays?](#who-pays)), but it depends on seeing the order flow before the block lands, which
+  is not a passive LP's choice.
+
+### How it was pre-registered
+
+- **July chooses, August–September reports.** Every parameter, margin and tolerance is fixed in
+  `strategy/params.py`. A first run on July only computed the full-range position's
+  fees ÷ LVR, r₀ = 0.729, and from it the margin δ = (1 − r₀) / 4 = 0.068; the minimum profit
+  for the simulated arbitrage (the block's base fee × 137,345 gas, the median of July's
+  single-pool searcher transactions); the LP gas costs (July medians: 408,316 gas to mint,
+  208,475 to burn and collect, a 0.25 gwei priority fee); the calibration verdict; and the
+  reader-facing best strategy (±5,000 bp re-centred at the band, −0.82 bp/day in July). It wrote
+  them to [`results/strategy_freeze.json`](results/strategy_freeze.json), which was committed
+  (`f565e41`) and tagged `strategy-preregistered` before any August–September strategy result existed.
+  The report run reads every July value from that file, stops if any of the inputs it hashed has
+  changed, and never rewrites it.
+- **Two gates first** ([`results/strategy_checks.md`](results/strategy_checks.md)). S2
+  replays the window through the counterfactual pool at 5 bp with nothing replaced and reproduces
+  the real pool exactly: 659,799 blocks, 586,360 swap steps, 534,377 swaps, 0 mismatches. S1
+  scores all 7,874 window-active positions with the new range formula and matches the engine's
+  fees and LVR within a relative 1e-9. It passes with little room: the largest error is 9.4e-10
+  (LVR).
+- **Two ratios per strategy:** fees ÷ LVR (LP fees after the protocol's cut ÷ LVR at 0 s), the
+  test metric, and the return against rebalancing in bp of time-weighted capital per day, after
+  gas, re-centring trades and hedge costs. Every comparison is paired: strategy minus full range
+  on the same 1,000 resampled days (seed 42).
+
+### Range width and rebalancing
+
+<img src="results/figures/14_range_test.svg" alt="Change in fees ÷ LVR against the full-range position for each re-centring rule and range width from ±10 to ±5,000 bp, with 95% paired intervals and the ±0.068 margin: daily re-centred narrow ranges sit above zero with intervals reaching past +0.068, the other rules sit at or a little below zero, and every cell narrower than ±5,000 bp is flagged as too large to be a price-taker">
+
+Each strategy is a $1M position, started fresh on 2026-08-01, that takes its share of every
+recorded swap step without changing the swaps (a price-taker). It is re-centred on the price when
+the price leaves the range (*out of range*), when it leaves the inner half of the range
+(*band*), or at the first block of each UTC day (*daily*). Change in fees ÷ LVR against full
+range, with the 95% paired day-bootstrap interval, from
+[`results/strategy_ranges.md`](results/strategy_ranges.md); **bold**: the interval is not inside
+±δ = ±0.0677. Every row but ±5,000 bp is flagged (peak share of active liquidity above 5%).
+Counterfactual: ignores how other traders would react to a different range.
+
+| half-width | out of range | band | daily |
+|---|---|---|---|
+| ±10 bp | **−0.047 [−0.085, −0.008]** | **−0.061 [−0.097, −0.021]** | **+0.111 [+0.037, +0.204]** |
+| ±25 bp | −0.037 [−0.066, −0.004] | **−0.044 [−0.073, −0.012]** | **+0.111 [+0.036, +0.199]** |
+| ±50 bp | −0.027 [−0.049, −0.002] | −0.032 [−0.052, −0.009] | **+0.088 [+0.024, +0.169]** |
+| ±100 bp | −0.008 [−0.022, +0.008] | −0.017 [−0.029, −0.004] | **+0.067 [+0.010, +0.143]** |
+| ±250 bp | −0.003 [−0.011, +0.005] | −0.011 [−0.020, −0.002] | **+0.035 [−0.016, +0.105]** |
+| ±500 bp | +0.005 [−0.005, +0.018] | −0.005 [−0.011, −0.001] | **+0.028 [−0.008, +0.092]** |
+| ±1,000 bp | −0.001 [−0.006, +0.002] | −0.001 [−0.002, 0.000] | **+0.023 [−0.002, +0.068]** |
+| ±2,500 bp | −0.002 [−0.004, 0.000] | −0.001 [−0.002, 0.000] | −0.001 [−0.003, 0.000] |
+| ±5,000 bp | 0.000 [0.000, 0.000] | −0.001 [−0.002, 0.000] | −0.001 [−0.001, 0.000] |
+
+- **Inconclusive, and it hangs on the flagged cells.** No interval lies entirely above +δ, which
+  would have failed the hypothesis, but 10 of the 27 are not inside ±δ, all of them flagged. The
+  three unflagged cells, the ±5,000 bp ranges, are inside, but that is not support for the
+  hypothesis: at $100k more cells qualify and three of them are not inside (next bullets).
+- **The point estimates above +δ** are daily re-centred ranges of ±10 to ±50 bp (+0.088 to
+  +0.111), with lower bounds of +0.024 to +0.037, below δ. Such a range is out of range most of
+  the time (±10 bp re-centred daily is in range at 18% of block starts), so it misses in-range LVR
+  when the price trends away during the day; that reading is an interpretation, not tested.
+  Re-centring at the range or band edge instead lowers the ratio slightly at narrow widths.
+- **Size changes the flag, not the ratio.** Fees and LVR scale with the position, so fees ÷ LVR
+  and its intervals are the same at $100k. There only 12 of the 27 cells are flagged (±10 to
+  ±100 bp), but the daily ±250 to ±1,000 bp cells, unflagged at $100k, still reach above +δ: a
+  smaller LP would not settle it either (derived from the size invariance of fees ÷ LVR; not
+  re-run at $100k). The test itself is pre-registered at $1M.
+
+Return against rebalancing, in bp of time-weighted capital per day, at $1M with a 5 bp taker fee
+on re-centring trades (number of re-centrings in brackets); full range: −0.19 bp/day.
+Counterfactual: ignores how other traders would react to a different range.
+
+| half-width | out of range | band | daily |
+|---|---|---|---|
+| ±10 bp | −454.46 (8,111) | −623.74 (25,126) | −14.48 (60) |
+| ±25 bp | −203.47 (2,649) | −306.90 (9,649) | −13.60 (60) |
+| ±50 bp | −106.85 (964) | −143.90 (3,445) | −14.21 (60) |
+| ±100 bp | −46.48 (288) | −60.64 (1,082) | −13.44 (60) |
+| ±250 bp | −17.00 (56) | −19.76 (200) | −10.12 (60) |
+| ±500 bp | −7.59 (9) | −8.82 (54) | −6.48 (60) |
+| ±1,000 bp | −3.93 (3) | −4.03 (9) | −3.63 (60) |
+| ±2,500 bp | −1.65 (1) | −1.66 (3) | −1.77 (60) |
+| ±5,000 bp | −0.87 (0) | −0.87 (1) | −0.93 (60) |
+
+- **Costs, not the ratio, decide the return.** Every re-centring strategy lost against
+  rebalancing, and narrower ranges lost more: re-centring a ±10 bp range each time the price
+  leaves it took 8,111 re-centrings and returned −454 bp/day (−245 with a 1 bp taker fee, −717
+  with 10 bp). Even before costs a narrower range loses more per dollar, because it multiplies
+  the same fees − LVR, which is negative here: the ±5,000 bp ranges return −0.87 bp/day against
+  full range's −0.19.
+- **Static ranges** (descriptive, not part of the test) mostly measure where 2026-08-01 happened
+  to sit: a ±10 bp range set then and never moved was in range at 0.8% of block starts, on 7 of
+  61 days.
+
+### Fee level, dynamic fee and protocol cut
+
+<img src="results/figures/15_fee_curves.svg" alt="Model-only fee curves: arbitrage-side fees ÷ LVR rising with the fee from about 0.12 at 1 bp to 0.66 at 100 bp, with the dynamic rules at their average fee and the real pool's 0.43 at 5 bp; and whole-pool fees ÷ LVR at constant volume crossing 1 at about 8.6 bp, with the share of other volume the pool could lose before LPs are no better off than at 5 bp">
+
+**Model-only.** The fee results come from a second pool carried forward block by block at the
+counterfactual fee. A simulated arbitrage trades first in each block, against Binance at the
+block time with a 1 bp Binance fee, in place of the 99,890 single-pool searcher swaps; every
+other swap is re-executed at its logged size. In the July calibration this model's arbitrage
+LVR was 1.38 times the measured LVR of the swaps it replaces (1.33 with Binance read 1 s
+later), outside the pre-registered ±15%; its fees were 1.05 times the measured ones. So the fee
+test is "not tested (calibration failed)", as pre-registered, and every fee number is model-only.
+A plausible reason, not tested: the simulated arbitrage takes the whole gap to the fee band at
+every block start, more than real searchers took (sub-project 2: captured was 0.83 of
+available). It shows at 5 bp too: the model's arbitrage-side ratio is 0.32, the real pool's 0.43,
+so read the curves for direction, not level.
+
+Fixed fee levels, August–September, from [`results/strategy_fees.md`](results/strategy_fees.md)
+(Δ against the 5 bp model run, 95% paired interval; model-only; counterfactual: ignores how
+traders would react to a different fee):
+
+| fee | arbitrage-side fees ÷ LVR | Δ vs 5 bp model | whole-pool fees ÷ LVR, constant volume | other volume the pool can lose | bp/day |
+|---|---|---|---|---|---|
+| 1 bp | 0.12 | −0.20 [−0.23, −0.18] | 0.22 | −125% | −0.65 |
+| 2.5 bp | 0.23 | −0.10 [−0.11, −0.09] | 0.44 | −60% | −0.46 |
+| 5 bp (model) | 0.32 | | 0.70 | | −0.25 |
+| 7.5 bp | 0.38 | +0.06 [+0.05, +0.06] | 0.91 | 34% | −0.07 |
+| 10 bp | 0.42 | +0.10 [+0.09, +0.10] | 1.11 | 54% | +0.09 |
+| 15 bp | 0.47 | +0.15 [+0.14, +0.16] | 1.51 | 73% | +0.42 |
+| 20 bp | 0.51 | +0.19 [+0.18, +0.20] | 1.90 | 82% | +0.75 |
+| 30 bp | 0.56 | +0.23 [+0.22, +0.25] | 2.68 | 90% | +1.40 |
+| 50 bp | 0.61 | +0.29 [+0.27, +0.30] | 4.29 | 95% | +2.70 |
+| 100 bp | 0.66 | +0.34 [+0.32, +0.35] | 8.19 | 98% | +5.92 |
+| real pool, 5 bp | 0.43 | | 0.755 | | −0.19 |
+
+**At constant volume, LPs break even at about 8.6 bp, and at that fee the pool can lose at most
+43% of its other volume before LPs are no better off than at 5 bp.** Model-only, and a
+counterfactual that ignores how traders would react to a higher fee: kept flow stays at its
+logged size at every fee, and the 43% assumes removed flow takes its fees and LVR with it in
+proportion and leaves the price path unchanged. It is the room that shortcut leaves, not a
+forecast of how much flow would leave. Below 5 bp the share is negative: the pool would need
+more other volume, not less. The arbitrage-side ratio rises with the fee, from 0.12 at 1 bp to
+0.66 at 100 bp: the mechanism the spec argues for shows up in the model, untested. Reading
+Binance 1 s later raises the arbitrage-side ratios by about 0.01 to 0.02 (in the full table,
+[`results/strategy_fees.md`](results/strategy_fees.md)).
+
+Dynamic fees, from on-chain inputs only, each at its average charged fee (model-only;
+counterfactual: ignores how traders would react to a different fee):
+
+| rule | average fee | arbitrage-side fees ÷ LVR | Δ vs 5 bp model | whole-pool fees ÷ LVR | other volume the pool can lose |
+|---|---|---|---|---|---|
+| volatility, k = 1, half-life 25 blocks | 2.3 bp | 0.33 | +0.01 [−0.04, +0.05] | 0.76 | 10% |
+| volatility, k = 1, 150 blocks | 2.5 bp | 0.32 | −0.01 [−0.05, +0.03] | 0.71 | 2% |
+| volatility, k = 1, 900 blocks | 2.8 bp | 0.30 | −0.03 [−0.06, +0.00] | 0.65 | −11% |
+| volatility, k = 2, 25 blocks | 4.0 bp | 0.44 | +0.11 [+0.07, +0.16] | 1.17 | 55% |
+| volatility, k = 2, 150 blocks | 4.5 bp | 0.41 | +0.09 [+0.05, +0.13] | 1.09 | 49% |
+| volatility, k = 2, 900 blocks | 5.1 bp | 0.39 | +0.07 [+0.03, +0.10] | 0.98 | 40% |
+| volatility, k = 4, 25 blocks | 7.1 bp | 0.53 | +0.21 [+0.17, +0.25] | 1.79 | 80% |
+| volatility, k = 4, 150 blocks | 8.2 bp | 0.51 | +0.18 [+0.14, +0.23] | 1.70 | 78% |
+| volatility, k = 4, 900 blocks | 9.4 bp | 0.48 | +0.16 [+0.12, +0.19] | 1.53 | 73% |
+| move, k = 0.5 | 5.4 bp | 0.41 | +0.09 [+0.07, +0.10] | 0.92 | 37% |
+| move, k = 1 | 5.7 bp | 0.39 | +0.07 [+0.05, +0.09] | 1.01 | 44% |
+| move, k = 2 | 6.4 bp | 0.37 | +0.05 [+0.03, +0.07] | 1.17 | 54% |
+| move, k = 4 | 7.6 bp | 0.37 | +0.04 [+0.01, +0.07] | 1.43 | 64% |
+| oracle (upper bound) | 37.8 bp | 0.66 | +0.34 [+0.32, +0.36] | 4.44 | 96% |
+
+- **Volatility fees** (k × a moving average of the pool's own block-to-block volatility) reach
+  higher arbitrage-side ratios than a fixed fee of the same average: k = 4 with a 25-block
+  half-life averages 7.1 bp and reaches 0.53, against 0.38 for a fixed 7.5 bp. **Move fees**
+  (5 bp + k × the pool's last block move) sit closer to the fixed curve: k = 4 averages 7.6 bp and
+  reaches 0.37.
+- **The oracle fee**, the larger of 5 bp and the gap to Binance at the block start, averages
+  37.8 bp and reaches 0.66, about what a fixed 100 bp gives. It reads Binance, which a pool cannot,
+  so it is an upper bound only and in no test.
+- **Protocol cut, arithmetic.** In the real pool over August–September, full range's
+  fees ÷ LVR is 0.755 at the actual cut of 1/4; at 1/10 it would be 0.906, and with no cut 1.007,
+  a return of +0.005 bp/day instead of −0.19. No model is involved: LP fees scale by
+  (1 − cut) / (1 − 1/4).
+
+### Hedge: the risk lever
+
+<img src="results/figures/16_hedge.svg" alt="Two panels, full range and the ±5,000 bp band position: mean daily P&L per $1M (symmetric-log axis, linear between −$200 and +$200) against the spread (standard deviation) of daily P&L per $1M (log axis), for unhedged, hedged daily, hourly and at 10% drift, and the rebalancing benchmark: the unhedged points sit far right with a spread of about $14k to $16k and a mean near +$3k from the price path; the hedged points sit between $160 and $2.4k of spread with means between −$182 and +$46, the hourly hedge nearest the benchmark">
+
+The rebalancing benchmark is the LP hedged continuously and for free at Binance's price, so
+fees − LVR is already the hedged result: **a hedge changes the spread of P&L, not
+fees − LVR** (an identity of the benchmark, not a finding). Delta hedge of the position's WETH
+with the Binance ETHUSDC perpetual, $1M, a 5 bp taker fee on hedge trades, funding included, from
+[`results/strategy_hedge.md`](results/strategy_hedge.md) (USD per $1M; counterfactual: ignores how
+other traders would react):
+
+| position | hedge | mean daily P&L | SD of daily P&L | bp/day |
+|---|---|---|---|---|
+| full range | none | 3,355 | 16,397 | 30.06 |
+| | daily | 17 | 466 | 0.15 |
+| | hourly | 46 | 160 | 0.41 |
+| | at 10% drift | −182 | 1,770 | −1.63 |
+| | rebalancing benchmark | −21 | 39 | −0.19 |
+| ±5,000 bp, band | none | 2,920 | 13,828 | 26.73 |
+| | daily | 1 | 2,410 | 0.01 |
+| | hourly | −109 | 606 | −1.00 |
+| | at 10% drift | −133 | 1,725 | −1.22 |
+| | rebalancing benchmark | −95 | 179 | −0.87 |
+
+- **Hedging hourly cuts the full-range position's daily spread from $16.4k to $160**, about
+  100-fold; the free continuous hedge (the benchmark) has $39. Daily re-hedging leaves $466;
+  re-hedging only when the hedge drifts by 10% of the position's value leaves $1,770 and lost
+  $182 a day.
+- **The unhedged mean (+$3,355 a day) is the period's price path**, not LP income. For full
+  range, the daily and hourly hedges end above the benchmark (+$17 and +$46 against −$21 a day),
+  likely through funding: the short received $83 a day hedged daily, $82 hourly and $90 at 10%
+  drift (`funding_daily_usd_per_1m` in `strategy_hedge`), part of which hedge trading costs take
+  back. Not every hedge ends above its benchmark: full range at
+  10% drift ends at −$182, and the ±5,000 bp band at −$109 hourly and −$133 at drift, against its
+  benchmark's −$95 (its daily hedge, +$1, is above).
+- For the ±5,000 bp band, the best July strategy, an hourly hedge cuts the spread from $13.8k to
+  $606, but its costs turn the mean to −$109 a day.
+
+Full tables, with the static cells, the $100k sensitivity, the +1 s fee runs and the 1 bp and
+10 bp taker fees: [`results/strategy_ranges.md`](results/strategy_ranges.md),
+[`results/strategy_fees.md`](results/strategy_fees.md),
+[`results/strategy_hedge.md`](results/strategy_hedge.md) and the verdicts in
+[`results/strategy_test.md`](results/strategy_test.md); method in
+[`docs/methodology.md`](docs/methodology.md) section 21.
+
 ## Data
 
 Study window: `[2026-07-01, 2026-10-01)` UTC. Pool: USDC/WETH 0.05%
@@ -632,6 +917,10 @@ the pool's full history is needed to know their state and their LP:
 | MEV-Boost relays | Relay-reported proposer payments for 1,000 random window blocks and two 600-block holdouts | Public data APIs, cross-check only |
 | Binance | ETHUSDT 1-minute candles since the pool's creation | data.binance.vision, checksum-verified |
 | `labels/lp_addresses.csv` | Four LP vaults named on Etherscan, with source links | Curated |
+
+**Added for the strategy experiment (Phase 5).** Binance USDⓈ-M ETHUSDC perpetual funding rates
+and 1-minute klines for July–September, from data.binance.vision, checksum-verified (the hedge
+instrument). No new BigQuery query.
 
 ### Validation
 
@@ -778,6 +1067,36 @@ Every definition and formula: [`docs/methodology.md`](docs/methodology.md).
 - **The headline stays at the block timestamp.** Sub-projects 2 and 3 are not re-run at the
   measured time; the robustness table re-prices LP fees − LVR only, through the L6 identity.
 
+### Strategy experiment (Phase 5)
+
+- **Out of sample for the parameters, not for the analyst.** Every parameter was fixed on July and
+  frozen before August–September was computed, but the window's aggregate results
+  (sub-projects 2–4) were known when the hypothesis was written.
+- **Price-takers.** A strategy position takes its share of the recorded swaps without changing
+  them. 24 of the 27 tested cells are flagged because at their peak they hold more than 5% of the
+  active liquidity (up to 84%); a position that large would change the swaps it trades against.
+  The flag is in the table, and the verdict depends on the flagged cells; at $100k, where only
+  12 are flagged, it is still inconclusive.
+- **No routing model; fixed volume.** Where flow would go at a higher fee (the 0.3% pool, other
+  venues) is not modelled. Kept flow is re-executed at its logged size at every fee; the
+  break-even share assumes removed flow takes its fees and LVR with it in proportion and leaves
+  the price path unchanged.
+- **The fee model failed calibration**, so every fee number is model-only (see the chapter). The
+  simulated arbitrage always trades first in the block and closes the whole gap to the fee band;
+  real arbitrage sometimes trades after other swaps, and takes less.
+- **Swap modes.** Kept swaps are re-executed in the mode check L1 found first (exact input, then
+  exact output, then to price). A swap that was really exact output but reproduces as exact input
+  at 5 bp is re-executed as exact input; at 5 bp the two cannot be told apart.
+- **What is replaced.** "Searcher" is a contract that receives the transaction and calls the
+  pool, not proven CEX-DEX arbitrage. 135 of the replaced swaps look like sandwich legs (0.34% of
+  the replaced notional, −$712 gross at 0 s). Multi-pool searcher swaps are kept, though some of
+  them are CEX-DEX arbitrage routed through other pools.
+- **Hedge.** The ETHUSDC perpetual's 1-minute closes and funding files, with a 5 bp taker fee
+  (1 and 10 bp as sensitivities); no depth, slippage or margin cost. Entry and exit of a strategy
+  are free; only re-centrings pay gas and the taker fee, the same for every strategy.
+- **Statistics:** 61 days, bootstrapped as independent days; with 27 cells, requiring every one
+  inside ±δ is conservative, the right direction for a claim that something does not matter.
+
 ## Reproduce
 
 Requirements:
@@ -874,6 +1193,26 @@ proposer-split decision. `lp` refuses to run unless validation passed on the int
 files on disk and the `analyze` outputs exist; if a check L1–L7 fails it writes the checks file
 and no results.
 
+Strategy experiment (Phase 5):
+
+```bash
+uv run ulpe fetch-futures   # Binance USD-M ETHUSDC funding rates and 1-minute klines (hedge)
+uv run ulpe strategy        # first run: checks S1-S2, then July only -> results/strategy_freeze.json
+uv run ulpe strategy        # second run: August-September from the freeze -> results/strategy_*, summary.json["strategy"]
+```
+
+`strategy` refuses to run unless `lp` has written its results. Checks S1 and S2 run first; if one
+fails it writes `results/strategy_checks.md` and no results. With no freeze file it computes July
+only and writes the freeze; commit it (here: tagged `strategy-preregistered`) before the second
+run. The second run reads every July value from the freeze, stops if any input file it hashed
+has changed, and never rewrites it; to re-run July, delete the file by hand, which shows in git.
+`ulpe all` runs `strategy` once. With the committed freeze it runs the report period. Without
+one, the first `ulpe all` writes the July freeze and then stops at `figures`, which asks for
+`ulpe strategy` (the report results do not exist yet); commit and tag the freeze, then run
+`ulpe strategy` (or `ulpe all`) again. The report run checks the freeze's input hashes; a fresh
+`ulpe analyze` and `ulpe lp` rewrite the hashed processed files byte-identically (verified
+2026-10-22), so re-running the pipeline keeps matching the committed freeze. The fee runs use 4 worker processes by default (about 1.35 GB of memory each).
+
 Figures:
 
 ```bash
@@ -905,6 +1244,7 @@ src/uniswap_lp_economics/
     builders.py     builder revenue, proposer payment and per-transaction payments (BigQuery aggregates)
     relays.py       relay-reported proposer payments for a block sample, with a circuit breaker
     block_timing.py winning-bid times from the relays that keep bid history
+    futures.py      Binance USD-M perpetual funding rates and 1-minute klines (the hedge)
   build.py          raw downloads -> interim tables (events, swaps, CEX prices)
   validate.py       checks C1-C6 and the validation report
   replay.py         public event replay: pool state after every event and at every block start
@@ -931,6 +1271,14 @@ src/uniswap_lp_economics/
     robustness.py   LP fees - LVR by reference and t0 offset, with a paired day bootstrap
     figdata.py      the stale-pool episode and the JIT block picked for the figures
     analyze.py      `ulpe lp`: validated data -> checks -> results/ and summary.json["lp"]
+  strategy/         Phase 5: counterfactual LP strategies
+    params.py       every pre-registered value (grids, fees, tolerances, margins)
+    ranges.py       price-taker attribution per swap step, rebalancing rules, gas and trade costs
+    cfpool.py       the carried-forward counterfactual pool: simulated arbitrage, fee rules
+    checks.py       checks S1-S3, the replaced swaps, the sandwich count, the minimum profit
+    stats.py        paired day bootstrap, pre-registered verdicts, break-even, protocol cut
+    hedge.py        perpetual delta hedge: rules, funding, taker fees
+    analyze.py      `ulpe strategy`: gates, the July freeze, then August-September -> results/
   viz/              `ulpe figures`: house style (style.py), results loader (data.py), registry
                     (render.py) and one module per README chapter
   cli.py            `ulpe` command-line entry point (`ulpe all` runs every step in order)
@@ -939,12 +1287,12 @@ scripts/
 tests/              unit tests, the real-data fixture test and the end-to-end analysis test
   fixtures/         real pool events and tick book for the offline fixture test
 labels/             curated address labels (addresses.csv) and LP vaults (lp_addresses.csv), with a source link per address
-results/            committed results: tables (.md, .csv), figure_data/, figures/, summary.json, analysis and LP checks
+results/            committed results: tables (.md, .csv), figure_data/, figures/, summary.json, analysis, LP and strategy checks, the strategy freeze
 assets/fonts/       Inter (SIL Open Font License), the figures' font
 data_validation/    committed validation report (.md and .json)
 docs/methodology.md every definition and formula behind results/
-docs/roadmap.md     what is done, what comes next (sub-project 4) and later phases
-docs/superpowers/   design specs and implementation plans for sub-projects 1 to 3 and the chart redesign
+docs/roadmap.md     what is done, what comes next and later phases
+docs/superpowers/   design specs and implementation plans for every sub-project and the chart redesign
 ```
 
 ## Further reading

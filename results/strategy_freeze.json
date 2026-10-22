@@ -1,0 +1,77 @@
+{
+  "best_strategy": {
+    "bp_per_day": -0.8217020303696028,
+    "half_width_bp": 5000,
+    "rule": "band",
+    "strategy": "band_5000bp"
+  },
+  "calibration": {
+    "fee_ratio": 1.0549969155468955,
+    "fee_ratio_1s": 1.0731486988993635,
+    "lvr_ratio": 1.3795718316146928,
+    "lvr_ratio_1s": 1.3284889006720721,
+    "measured_fee_usd": 746409.1200712873,
+    "measured_lvr_usd": 1094192.8119730572,
+    "model_fee_usd": 787459.3194112804,
+    "model_lvr_usd": 1509517.5817533017,
+    "passed": false,
+    "replaced_swaps": 33507,
+    "tolerance": 0.15
+  },
+  "cfpool_counts": {
+    "model_0s": {
+      "arb_trades": 34433,
+      "below_min_profit": 4337,
+      "mode_exact_input": 101928,
+      "mode_exact_output": 9925,
+      "mode_to_price": 988,
+      "no_input": 0,
+      "no_reference_blocks": 0,
+      "replaced": 33507,
+      "to_price_skipped": 245,
+      "unreproduced": 0
+    },
+    "model_1s": {
+      "arb_trades": 34717,
+      "below_min_profit": 4245,
+      "mode_exact_input": 101928,
+      "mode_exact_output": 9925,
+      "mode_to_price": 1073,
+      "no_input": 0,
+      "no_reference_blocks": 1,
+      "replaced": 33507,
+      "to_price_skipped": 160,
+      "unreproduced": 0
+    }
+  },
+  "delta": 0.06768831701735356,
+  "generated_utc": "2026-10-22T09:30:17+00:00",
+  "git_commit": "forwarder-preregistered-29-g07bd4db",
+  "input_hashes": {
+    "interim/cex_ethusdc.parquet": "2bb21f2bb6ca55b8",
+    "interim/events.parquet": "fcb1cfcb7c07a6e7",
+    "processed/aligned.parquet": "5a220fe9f21d7d8e",
+    "processed/blocks_state.parquet": "bdb31ea38f8683ba",
+    "processed/position_flows.parquet": "774b1a933bf950b6",
+    "processed/positions.parquet": "a1b16a71709ed758",
+    "processed/swap_fees.parquet": "3fe00e3df67726b4",
+    "processed/swap_steps.parquet": "bdb87688873a0dcd",
+    "raw/binance_futures/ETHUSDC-1m-2026-07.zip": "d1a444eef5498ea4",
+    "raw/binance_futures/ETHUSDC-1m-2026-08.zip": "9fc38b851cbec9f9",
+    "raw/binance_futures/ETHUSDC-1m-2026-09.zip": "5432361a823636d2",
+    "raw/binance_futures/ETHUSDC-fundingRate-2026-07.zip": "5fd17d687bd210b6",
+    "raw/binance_futures/ETHUSDC-fundingRate-2026-08.zip": "c472d87a27b966a2",
+    "raw/binance_futures/ETHUSDC-fundingRate-2026-09.zip": "16e745a83dc2d977",
+    "raw/blocks.parquet": "0026aebc769e72fd",
+    "raw/builders/pool_tx_other_logs.parquet": "2eeac370e578b763",
+    "raw/snapshot_meta.json": "3b93b79ce12ca7b0",
+    "raw/tickbook_snapshot.parquet": "ccaa9baa98726baf"
+  },
+  "lp_costs": {
+    "gas_burn_collect": 208475,
+    "gas_mint": 408316,
+    "priority_wei": 251225452
+  },
+  "min_profit_gas": 137345,
+  "r0": 0.7292467319305858
+}

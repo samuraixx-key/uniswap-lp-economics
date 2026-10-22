@@ -39,6 +39,16 @@ def step_lvr(zero_for_one: bool, amount_in: int, amount_out: int, price: float) 
     return float(-(d_usdc + d_eth * price))
 
 
+def step_values(
+    fee: int, amount_in: int, amount_out: int, zero_for_one: bool, fee_protocol: int, p0: float
+) -> tuple[int, int, float, float]:
+    """(protocol_fee, lp_fee, fee_usd, lvr_0) of one step; the fee is in the input token."""
+    usd_per_raw_in = 1 / 10**DECIMALS0 if zero_for_one else p0 / 10**DECIMALS1
+    cut = protocol_cut(fee, fee_protocol, zero_for_one)
+    lp_fee = fee - cut
+    return cut, lp_fee, lp_fee * usd_per_raw_in, step_lvr(zero_for_one, amount_in, amount_out, p0)
+
+
 @dataclass
 class FeeAccumulators:
     global0: int = 0
@@ -163,13 +173,11 @@ class PoolState:
         ts_us: int,
     ) -> list[StepRecord]:
         """Apply a reproduced swap step by step, then move the book to the logged state."""
-        usd_per_raw_in = 1 / 10**DECIMALS0 if zero_for_one else p0 / 10**DECIMALS1
         records = []
         for i, s in enumerate(run.steps):
-            cut = protocol_cut(s.fee, self.fee_protocol, zero_for_one)
-            lp_fee = s.fee - cut
-            fee_usd = lp_fee * usd_per_raw_in
-            lvr0 = step_lvr(zero_for_one, s.amount_in, s.amount_out, p0)
+            cut, lp_fee, fee_usd, lvr0 = step_values(
+                s.fee, s.amount_in, s.amount_out, zero_for_one, self.fee_protocol, p0
+            )
             lvr12 = 0.0 if p12 is None else step_lvr(zero_for_one, s.amount_in, s.amount_out, p12)
             accrued = self.acc.add(zero_for_one, lp_fee, s.liquidity, (fee_usd, lvr0, lvr12))
             if s.crossed_tick is not None:
@@ -208,10 +216,8 @@ class PoolState:
         for i, (zero_for_one, paid) in enumerate(((True, paid0), (False, paid1))):
             if paid <= 0:
                 continue
-            usd_per_raw = 1 / 10**DECIMALS0 if zero_for_one else p0 / 10**DECIMALS1
-            cut = protocol_cut(paid, self.fee_protocol, zero_for_one)
-            lp_fee = paid - cut
-            fee_usd = lp_fee * usd_per_raw
+            # no amounts move, so no LVR (0.0 kept literal: step_lvr would give -0.0)
+            cut, lp_fee, fee_usd, _ = step_values(paid, 0, 0, zero_for_one, self.fee_protocol, p0)
             accrued = self.acc.add(zero_for_one, lp_fee, liquidity, (fee_usd, 0.0, 0.0))
             records.append(
                 StepRecord(

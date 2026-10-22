@@ -25,9 +25,39 @@ def test_all_runs_every_step_in_order(monkeypatch: pytest.MonkeyPatch) -> None:
     assert ran.index("fetch-timing") + 1 == ran.index("fetch-paths") < ran.index("lp")
     assert ran.index("fetch-builders") + 1 == ran.index("fetch-payout-code")
     assert ran.index("fetch-payout-code") + 1 == ran.index("fetch-relays")
+    assert ran.index("fetch-futures") + 1 == ran.index("lp")
     assert (
         ran.index("validate") < ran.index("analyze") < ran.index("fetch-history") < ran.index("lp")
     )
+
+
+def test_all_steps_order() -> None:
+    steps = list(cli.ALL_STEPS)
+    assert steps.index("fetch-futures") < steps.index("lp")
+    assert steps.index("lp") + 1 == steps.index("strategy") == steps.index("figures") - 1
+
+
+def test_a_frozen_strategy_run_does_not_stop_all(monkeypatch: pytest.MonkeyPatch) -> None:
+    ran: list[str] = []
+
+    def step(name: str, confirm_cost: bool) -> str:
+        ran.append(name)
+        return "FROZEN" if name == "strategy" else "PASS"
+
+    monkeypatch.setattr(cli, "run_step", step)
+    monkeypatch.setattr(sys, "argv", ["ulpe", "all", "--confirm-cost"])
+    with pytest.raises(SystemExit) as e:
+        cli.main()
+    assert e.value.code == 0 and ran[-1] == "figures"
+
+
+def test_strategy_command_exit_codes(monkeypatch: pytest.MonkeyPatch) -> None:
+    for status, code in (("PASS", 0), ("FROZEN", 0), ("FAIL", 1)):
+        monkeypatch.setattr(cli.strategy_analysis_module, "run_strategy", lambda s=status: s)
+        monkeypatch.setattr(sys, "argv", ["ulpe", "strategy"])
+        with pytest.raises(SystemExit) as e:
+            cli.main()
+        assert e.value.code == code, status
 
 
 def test_all_without_the_flag_stops_at_the_paid_query(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -69,6 +99,16 @@ def test_all_turns_a_missing_input_into_a_clean_exit(monkeypatch: pytest.MonkeyP
     monkeypatch.setattr(sys, "argv", ["ulpe", "all"])
     with pytest.raises(SystemExit, match="ulpe fetch-blocks"):
         cli.main()
+
+
+def test_fetch_futures_step_downloads_the_three_months(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calls: list[tuple[Any, ...]] = []
+    monkeypatch.setattr(config, "RAW_DIR", tmp_path)
+    monkeypatch.setattr(cli.futures, "fetch_futures", lambda *a: calls.append(a))
+    assert cli.run_step("fetch-futures", False) == "OK"
+    assert calls == [([(2026, 7), (2026, 8), (2026, 9)], tmp_path)]
 
 
 def test_unknown_step_raises() -> None:

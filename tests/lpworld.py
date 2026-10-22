@@ -19,13 +19,15 @@ from uniswap_lp_economics.replay import iter_block_starts
 from uniswap_lp_economics.tickbook import TickBook
 from uniswap_lp_economics.v3math import get_sqrt_ratio_at_tick as sqrt_at
 from uniswap_lp_economics.v3math import sqrt_price_x96_to_eth_price
-from uniswap_lp_economics.v3swap import swap
+from uniswap_lp_economics.v3swap import SwapRun, swap
 
 T = 200_310  # ~2,000 USD per ETH
 L = 10**18
 SNAP = 5
 T0 = datetime(2026, 7, 1, tzinfo=UTC)
 US = 1_000_000
+LAST = 14  # the world's last block
+HUGE = 2**128  # an unlimited input: the price limit stops the swap
 MINER = "0x" + "fe" * 20
 D, J = "0x" + "d1" * 20, "0x" + "e1" * 20
 JIT_DIRECT_WEI = 2 * 10**15
@@ -119,7 +121,15 @@ class World:
         self.npm: list[dict[str, Any]] = []
 
     def swap(self, block: int, log: int, usdc_in: int) -> None:
-        r = swap(self.book, True, usdc_in)
+        self._log_swap(block, log, swap(self.book, True, usdc_in))
+
+    def swap_exact_output(self, block: int, log: int, eth_out: int) -> None:
+        self._log_swap(block, log, swap(self.book, True, -eth_out))
+
+    def swap_to_price(self, block: int, log: int, sqrt_limit: int) -> None:
+        self._log_swap(block, log, swap(self.book, True, HUGE, sqrt_limit))
+
+    def _log_swap(self, block: int, log: int, r: SwapRun) -> None:
         self.pool.append(
             ev(
                 block,
@@ -220,6 +230,8 @@ def build(collects: dict[str, tuple[int, int]] | None = None) -> tuple[World, li
         w.npm.append(ev(10, 3, "npm_collect", token_id=1, recipient=WALLET, amount0=n0, amount1=n1))
     w.swap(11, 0, 10**9)
     w.swap(12, 0, 10**9)
+    w.swap_exact_output(13, 0, 10**17)
+    w.swap_to_price(14, 0, sqrt_at(w.book.tick - 2))
     return w, w.pool
 
 
@@ -332,7 +344,7 @@ def oracle(events: pl.DataFrame, npm: pl.DataFrame) -> tuple[Ledger, Any]:
 
 def world_end_us() -> int:
     """End of the world's Binance data: an hour past its last block."""
-    return int(ts(12).timestamp()) * US + 3_700 * US
+    return int(ts(LAST).timestamp()) * US + 3_700 * US
 
 
 def world_inputs() -> LpInputs:
@@ -351,7 +363,7 @@ def world_inputs() -> LpInputs:
         kind: str, owner: str | None, lo: int | None, hi: int | None, token: int | None, m: Any
     ) -> dict[str, Any]:
         return {
-            "block": 12,
+            "block": LAST,
             "kind": kind,
             "owner": owner,
             "tick_lower": lo,
@@ -367,7 +379,7 @@ def world_inputs() -> LpInputs:
 
     end = pl.DataFrame(
         [state_row("pool_key", o, lo, hi, None, m) for (o, lo, hi), m in ledger.keys.items()]
-        + [{"block": 12, "kind": "npm_token", "token_id": 1, "found": False}],
+        + [{"block": LAST, "kind": "npm_token", "token_id": 1, "found": False}],
         schema=POSITION_STATE_SCHEMA,
     )
     cap = run.captures[7]
@@ -395,13 +407,19 @@ def world_inputs() -> LpInputs:
     )
     book = TickBook.from_snapshot(ticks, meta)
     rows = []
-    blocks = list(range(SNAP + 1, 13))
+    blocks = list(range(SNAP + 1, LAST + 1))
     for b in iter_block_starts(window, book, 0, blocks[0], blocks[-1]):
         rows.append(
-            {"block_number": b, "sqrt_price_x96": book.sqrt_price_x96, "liquidity": book.liquidity}
+            {
+                "block_number": b,
+                "sqrt_price_x96": book.sqrt_price_x96,
+                "tick": book.tick,
+                "liquidity": book.liquidity,
+            }
         )
     for i in range(len(blocks)):
         rows[i]["end_sqrt_price_x96"] = rows[i + 1]["sqrt_price_x96"]
+        rows[i]["end_tick"] = rows[i + 1]["tick"]
         rows[i]["end_liquidity"] = rows[i + 1]["liquidity"]
     state_rows = rows[: len(blocks)]
     blocks_state = pl.DataFrame(
@@ -409,8 +427,10 @@ def world_inputs() -> LpInputs:
         schema={
             "block_number": pl.Int64,
             "sqrt_price_x96": pl.Int128,
+            "tick": pl.Int64,
             "liquidity": pl.Int128,
             "end_sqrt_price_x96": pl.Int128,
+            "end_tick": pl.Int64,
             "end_liquidity": pl.Int128,
         },
     ).with_columns(

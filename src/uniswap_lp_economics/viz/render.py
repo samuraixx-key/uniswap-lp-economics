@@ -14,6 +14,7 @@ from uniswap_lp_economics.viz import discovery as viz_discovery
 from uniswap_lp_economics.viz import jit_block as viz_jit_block
 from uniswap_lp_economics.viz import markouts as viz_markouts
 from uniswap_lp_economics.viz import robustness as viz_robustness
+from uniswap_lp_economics.viz import strategy as viz_strategy
 from uniswap_lp_economics.viz.data import Results, load_results
 from uniswap_lp_economics.viz.style import save_svg, theme
 
@@ -36,6 +37,9 @@ FIGURES: list[tuple[str, FigureFn]] = [
     ("11_jit_block", viz_jit_block.jit_block),
     ("12_lifetime", who_pays.lifetime),
     ("13_reference_and_timing", viz_robustness.reference_and_timing),
+    ("14_range_test", viz_strategy.range_test),
+    ("15_fee_curves", viz_strategy.fee_curves),
+    ("16_hedge", viz_strategy.hedge_risk),
 ]
 EXTRAS: list[ExtraFn] = [what_is_lvr.episode_gif, hero.social_card]
 FIGURE_SUFFIXES = {".svg", ".png", ".gif"}

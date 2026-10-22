@@ -15,6 +15,7 @@ from uniswap_lp_economics.data import (
     block_timing,
     builders,
     chain_state,
+    futures,
     history,
     relays,
     transfers,
@@ -25,6 +26,7 @@ from uniswap_lp_economics.lp import analyze as lp_analysis_module
 from uniswap_lp_economics.lp import payouts
 from uniswap_lp_economics.lp.positions import build_positions
 from uniswap_lp_economics.rpc import RpcClient
+from uniswap_lp_economics.strategy import analyze as strategy_analysis_module
 from uniswap_lp_economics.viz import render as viz_render
 
 
@@ -105,6 +107,12 @@ def fetch_cex() -> None:
     windows = bigquery.month_windows(config.WINDOW_START, config.WINDOW_END)
     months = [(d.year, d.month) for d, _ in windows]
     binance.fetch_cex(months, config.RAW_DIR)
+
+
+def fetch_futures() -> None:
+    """Binance USDⓈ-M ETHUSDC funding rates and 1-minute klines, July-September (hedge costs)."""
+    windows = bigquery.month_windows(config.WINDOW_START, config.WINDOW_END)
+    futures.fetch_futures([(d.year, d.month) for d, _ in windows], config.RAW_DIR)
 
 
 def labelled_swaps() -> pl.DataFrame:
@@ -320,13 +328,16 @@ ALL_STEPS = (
     "fetch-relays",
     "fetch-timing",
     "fetch-paths",
+    "fetch-futures",
     "lp",
+    "strategy",
     "figures",
 )
 
 
 def run_step(name: str, confirm_cost: bool) -> str:
-    """Run one pipeline step; "PASS"/"FAIL" for the gated ones (validate, analyze, lp), else "OK".
+    """Run one pipeline step; "PASS"/"FAIL" for the gated ones (validate, analyze, lp, strategy;
+    strategy's first run returns "FROZEN", which does not stop `ulpe all`), else "OK".
 
     Without confirm_cost no billable BigQuery query runs: a BigQuery step whose output is missing
     stops the run with a message (fetch-history with its own refusal, after a free dry run)."""
@@ -364,8 +375,12 @@ def run_step(name: str, confirm_cost: bool) -> str:
         fetch_timing()
     elif name == "fetch-paths":
         fetch_paths()
+    elif name == "fetch-futures":
+        fetch_futures()
     elif name == "lp":
         return lp_analysis_module.run_lp()
+    elif name == "strategy":
+        return strategy_analysis_module.run_strategy()
     elif name == "figures":
         try:
             return viz_render.run_figures()
@@ -393,6 +408,9 @@ def main() -> None:
     sub.add_parser(
         "fetch-price-history",
         help="Binance ETHUSDT 1-minute klines since 2021 (for lifetime P&L)",
+    )
+    sub.add_parser(
+        "fetch-futures", help="Binance USD-M ETHUSDC funding rates and 1-minute klines (hedge)"
     )
     blocks_cmd = sub.add_parser(
         "fetch-blocks", help="download block miners/base fees and top-bot tx logs (BigQuery)"
@@ -427,6 +445,9 @@ def main() -> None:
     sub.add_parser("validate", help="run checks C1-C6 and write data_validation/validation_report")
     sub.add_parser("analyze", help="run checks A1-A6 and write results/ (tables, summary)")
     sub.add_parser("lp", help="LP P&L and LVR: checks L1-L7, results/ (sub-project 3)")
+    sub.add_parser(
+        "strategy", help="LP strategy experiment: gates S1/S2, July freeze, then August-September"
+    )
     sub.add_parser("figures", help="render results/figures from results/ (light SVG)")
     all_cmd = sub.add_parser(
         "all", help="run the whole pipeline (the paid BigQuery queries need --confirm-cost)"
@@ -457,6 +478,8 @@ def main() -> None:
         fetch_cex()
     elif args.command == "fetch-price-history":
         fetch_price_history()
+    elif args.command == "fetch-futures":
+        fetch_futures()
     elif args.command == "fetch-blocks":
         fetch_blocks(args.dry_run, args.confirm_cost, rerun="fetch-blocks")
     elif args.command == "fetch-transfers":
@@ -502,6 +525,12 @@ def main() -> None:
         except (FileNotFoundError, RuntimeError, ValueError) as e:
             raise SystemExit(str(e)) from e
         raise SystemExit(0 if status == "PASS" else 1)
+    elif args.command == "strategy":
+        try:
+            status = strategy_analysis_module.run_strategy()
+        except (FileNotFoundError, RuntimeError, ValueError) as e:
+            raise SystemExit(str(e)) from e
+        raise SystemExit(0 if status in ("PASS", "FROZEN") else 1)
     elif args.command == "figures":
         run_step("figures", False)
     elif args.command == "all":

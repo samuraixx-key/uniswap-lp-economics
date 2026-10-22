@@ -360,7 +360,8 @@ def positions_jit_rebal(results: Path) -> float:
 def _assert_world_numbers(inp: LpInputs, summary: dict[str, Any], positions: pl.DataFrame) -> None:
     """Expected values from the world's own constants (lpworld), not from the run's output."""
     fee_rate = 500 / 1_000_000
-    swaps_usdc = [10**9, 2 * 10**9, 10**9, 10**9]  # the four swaps; no protocol fee in the world
+    # every world swap pays USDC in; no protocol fee in the world
+    swaps_usdc = inp.events.filter(pl.col("event") == "swap")["amount0"].to_list()
     flash0, flash1 = 1_000_000, 10**15  # paid by the flash at block 8
     pool0 = sum(round(x * fee_rate) for x in swaps_usdc) + flash0
     l6 = next(v for k, v in summary["checks"].items() if k.startswith("L6"))

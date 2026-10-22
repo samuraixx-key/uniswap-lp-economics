@@ -293,6 +293,126 @@ def fixture_frames() -> dict[str, Any]:
         "episode_cex": episode_cex,
         "jit_block": jit_block,
         "robustness": robustness,
+        **strategy_frames(summary),
+    }
+
+
+def strategy_frames(summary: dict[str, Any]) -> dict[str, Any]:
+    """The Phase 5 figure inputs; adds summary["strategy"]."""
+    rows: list[dict[str, Any]] = []
+    for rule, base in (("out_of_range", -0.03), ("band", -0.02), ("daily", 0.09)):
+        for w in (10, 100, 1000, 5000):
+            d = base * (1000 / w) ** 0.2 / 3
+            rows.append(
+                {
+                    "strategy": f"{rule}_{w}bp",
+                    "rule": rule,
+                    "half_width_bp": w,
+                    "capital": 1e6,
+                    "peak_share": 0.5 if w < 500 else 0.03,
+                    "flagged": w < 500,
+                    "counted": True,
+                    "d_ratio": d,
+                    "d_lo": d - 0.04,
+                    "d_hi": d + 0.05,
+                }
+            )
+    rows += [  # not drawn: the full range, a static cell, and a $100k duplicate
+        {"strategy": "full_range", "rule": "full_range", "capital": 1e6, "counted": False},
+        {
+            "strategy": "static_100bp",
+            "rule": "static",
+            "half_width_bp": 100,
+            "capital": 1e6,
+            "peak_share": 0.3,
+            "flagged": True,
+            "counted": False,
+            "d_ratio": -0.5,
+            "d_lo": -0.6,
+            "d_hi": -0.4,
+        },
+        {
+            "strategy": "daily_10bp",
+            "rule": "daily",
+            "half_width_bp": 10,
+            "capital": 1e5,
+            "peak_share": 0.1,
+            "flagged": True,
+            "counted": True,
+            "d_ratio": 0.9,
+            "d_lo": 0.8,
+            "d_hi": 1.0,
+        },
+    ]
+    fees: list[dict[str, Any]] = []
+    for off in (0.0, 1.0):
+        for f in (1.0, 5.0, 10.0, 20.0, 100.0):
+            a = 0.1 + 0.15 * (f / 100) ** 0.3 + 0.02 * off
+            base = 0.1 + 0.15 * 0.05**0.3 + 0.02 * off
+            fees.append(
+                {
+                    "rule": f"fixed_{f:g}bp",
+                    "avg_fee_bp": f,
+                    "arb_ratio": a,
+                    "d_arb": a - base,
+                    "d_arb_lo": a - base - 0.01,
+                    "d_arb_hi": a - base + 0.01,
+                    "pool_ratio": f / 10,
+                    "break_even_share": (f - 5) / 20,
+                    "ref_offset_s": off,
+                }
+            )
+    for rule, avg in (("vol_k2_h25", 4.0), ("move_k1", 5.7), ("oracle", 37.8)):
+        a = 0.1 + 0.15 * (avg / 100) ** 0.3
+        fees.append(
+            {
+                "rule": rule,
+                "avg_fee_bp": avg,
+                "arb_ratio": a,
+                "d_arb": a - 0.33,
+                "d_arb_lo": a - 0.34,
+                "d_arb_hi": a - 0.32,
+                "pool_ratio": avg / 10,
+                "break_even_share": 0.5,
+                "ref_offset_s": 0.0,
+            }
+        )
+    fees += [
+        {"rule": "real_pool", "avg_fee_bp": 5.0, "arb_ratio": 0.43, "pool_ratio": 0.75},
+        {"rule": "protocol_cut_0", "avg_fee_bp": 5.0, "pool_ratio": 1.0},
+        {"rule": "protocol_cut_0.25", "avg_fee_bp": 5.0, "pool_ratio": 0.75},
+    ]
+    hedge: list[dict[str, Any]] = []
+    for strategy, scale in (("full_range", 1.0), ("band_5000bp", 0.8)):
+        for rule, taker, sd, mean in (
+            ("never", 0.0, 16000.0, 3300.0),
+            ("daily", 5.0, 460.0, 17.0),
+            ("daily", 1.0, 459.0, 22.0),
+            ("hourly", 5.0, 160.0, 45.0),
+            ("drift", 5.0, 1770.0, -180.0),
+            ("rebalancing_benchmark", None, 39.0, -21.0),
+        ):
+            hedge.append(
+                {
+                    "strategy": strategy,
+                    "rule": rule,
+                    "taker_fee_bp": taker,
+                    "bp_per_day": mean / 100,
+                    "sd_daily_usd_per_1m": sd * scale,
+                    "mean_daily_usd_per_1m": mean * scale,
+                }
+            )
+    summary["strategy"] = {
+        "delta": 0.068,
+        "range_verdict": "inconclusive",
+        "fee_model_only": True,
+        "break_even_fee_bp_x": 8.6,
+        "volume_loss_share_at_x_y": 0.43,
+    }
+    return {
+        "strategy_ranges": pl.DataFrame(rows, infer_schema_length=None),
+        "strategy_fees": pl.DataFrame(fees, infer_schema_length=None),
+        "strategy_hedge": pl.DataFrame(hedge, infer_schema_length=None),
     }
 
 
@@ -312,6 +432,9 @@ def write_results(d: Path, frames: dict[str, Any]) -> Path:
         "figure_data/episode_cex.csv": frames["episode_cex"],
         "figure_data/jit_block.csv": frames["jit_block"],
         "reference_robustness.csv": frames["robustness"],
+        "figure_data/strategy_ranges.csv": frames["strategy_ranges"],
+        "figure_data/strategy_fees.csv": frames["strategy_fees"],
+        "figure_data/strategy_hedge.csv": frames["strategy_hedge"],
     }
     for name, df in files.items():
         df.write_csv(d / name)

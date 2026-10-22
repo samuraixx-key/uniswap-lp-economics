@@ -67,6 +67,9 @@ def test_ulpe_figures_writes_every_expected_file(tmp_path: Path) -> None:
         "11_jit_block",
         "12_lifetime",
         "13_reference_and_timing",
+        "14_range_test",
+        "15_fee_curves",
+        "16_hedge",
     ]
     assert [s for s, _ in render.FIGURES] == stems
     expected = {f"{s}.svg" for s in stems}
