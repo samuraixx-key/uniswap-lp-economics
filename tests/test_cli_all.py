@@ -25,6 +25,7 @@ def test_all_runs_every_step_in_order(monkeypatch: pytest.MonkeyPatch) -> None:
     assert ran.index("fetch-timing") + 1 == ran.index("fetch-paths") < ran.index("lp")
     assert ran.index("fetch-builders") + 1 == ran.index("fetch-payout-code")
     assert ran.index("fetch-payout-code") + 1 == ran.index("fetch-relays")
+    assert ran.index("fetch-futures") + 1 == ran.index("lp")
     assert (
         ran.index("validate") < ran.index("analyze") < ran.index("fetch-history") < ran.index("lp")
     )
@@ -69,6 +70,16 @@ def test_all_turns_a_missing_input_into_a_clean_exit(monkeypatch: pytest.MonkeyP
     monkeypatch.setattr(sys, "argv", ["ulpe", "all"])
     with pytest.raises(SystemExit, match="ulpe fetch-blocks"):
         cli.main()
+
+
+def test_fetch_futures_step_downloads_the_three_months(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calls: list[tuple[Any, ...]] = []
+    monkeypatch.setattr(config, "RAW_DIR", tmp_path)
+    monkeypatch.setattr(cli.futures, "fetch_futures", lambda *a: calls.append(a))
+    assert cli.run_step("fetch-futures", False) == "OK"
+    assert calls == [([(2026, 7), (2026, 8), (2026, 9)], tmp_path)]
 
 
 def test_unknown_step_raises() -> None:

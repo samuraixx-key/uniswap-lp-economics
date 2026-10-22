@@ -15,6 +15,7 @@ from uniswap_lp_economics.data import (
     block_timing,
     builders,
     chain_state,
+    futures,
     history,
     relays,
     transfers,
@@ -105,6 +106,12 @@ def fetch_cex() -> None:
     windows = bigquery.month_windows(config.WINDOW_START, config.WINDOW_END)
     months = [(d.year, d.month) for d, _ in windows]
     binance.fetch_cex(months, config.RAW_DIR)
+
+
+def fetch_futures() -> None:
+    """Binance USDⓈ-M ETHUSDC funding rates and 1-minute klines, July-September (hedge costs)."""
+    windows = bigquery.month_windows(config.WINDOW_START, config.WINDOW_END)
+    futures.fetch_futures([(d.year, d.month) for d, _ in windows], config.RAW_DIR)
 
 
 def labelled_swaps() -> pl.DataFrame:
@@ -320,6 +327,7 @@ ALL_STEPS = (
     "fetch-relays",
     "fetch-timing",
     "fetch-paths",
+    "fetch-futures",
     "lp",
     "figures",
 )
@@ -364,6 +372,8 @@ def run_step(name: str, confirm_cost: bool) -> str:
         fetch_timing()
     elif name == "fetch-paths":
         fetch_paths()
+    elif name == "fetch-futures":
+        fetch_futures()
     elif name == "lp":
         return lp_analysis_module.run_lp()
     elif name == "figures":
@@ -393,6 +403,9 @@ def main() -> None:
     sub.add_parser(
         "fetch-price-history",
         help="Binance ETHUSDT 1-minute klines since 2021 (for lifetime P&L)",
+    )
+    sub.add_parser(
+        "fetch-futures", help="Binance USD-M ETHUSDC funding rates and 1-minute klines (hedge)"
     )
     blocks_cmd = sub.add_parser(
         "fetch-blocks", help="download block miners/base fees and top-bot tx logs (BigQuery)"
@@ -457,6 +470,8 @@ def main() -> None:
         fetch_cex()
     elif args.command == "fetch-price-history":
         fetch_price_history()
+    elif args.command == "fetch-futures":
+        fetch_futures()
     elif args.command == "fetch-blocks":
         fetch_blocks(args.dry_run, args.confirm_cost, rerun="fetch-blocks")
     elif args.command == "fetch-transfers":
