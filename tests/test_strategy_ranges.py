@@ -24,6 +24,7 @@ from uniswap_lp_economics.v3math import get_sqrt_ratio_at_tick as sqrt_at
 from uniswap_lp_economics.v3swap import SwapRun, swap
 
 P0 = 2000.0
+FULL = 887_270  # the widest ticks on the 10-tick spacing
 DAY = date(2026, 7, 1)
 COLS = (
     "block_number",
@@ -78,7 +79,12 @@ def _book() -> TickBook:
 
 @pytest.mark.parametrize(
     ("zero_for_one", "lo", "hi", "amount"),
-    [(True, T - 40, T - 20, 10**11), (False, T + 20, T + 40, 5 * 10**19)],
+    [
+        (True, T - 40, T - 20, 10**11),
+        (False, T + 20, T + 40, 5 * 10**19),
+        (True, -FULL, T - 20, 10**11),  # wide ranges: the far bound passes Int128
+        (False, T + 20, FULL, 5 * 10**19),
+    ],
 )
 def test_partial_step_matches_a_split_swap(
     zero_for_one: bool, lo: int, hi: int, amount: int
@@ -86,7 +92,7 @@ def test_partial_step_matches_a_split_swap(
     ell = L // 10**9
     whole = swap(_book(), zero_for_one, amount)
     path = sorted((sqrt_at(T), whole.sqrt_price_x96))
-    assert path[0] < sqrt_at(lo) and sqrt_at(hi) < path[1]  # the swap passes the whole range
+    assert any(path[0] < sqrt_at(t) < path[1] for t in (lo, hi))  # a bound inside the path
     split_book = _book()
     split_book.apply_mint(lo, hi, ell)
     fee = lvr = 0.0
@@ -103,10 +109,11 @@ def test_partial_step_matches_a_split_swap(
     assert math.isclose(got["lvr_0"].sum(), lvr, rel_tol=1e-6)
 
 
-def test_full_inside_uses_recorded_values() -> None:
+@pytest.mark.parametrize(("lo", "hi"), [(T - 200, T + 200), (-FULL, FULL)])
+def test_full_inside_uses_recorded_values(lo: int, hi: int) -> None:
     steps = _steps(swap(_book(), True, 10**10), True)
     ell = 3.0e15
-    got = attribute(steps, _held(T - 200, T + 200, ell))
+    got = attribute(steps, _held(lo, hi, ell))
     assert got.height == steps.height
     assert got["fee_usd"].to_list() == [f * (ell / L) for f in steps["fee_usd"]]
     assert got["lvr_0"].to_list() == [v * (ell / L) for v in steps["lvr_0"]]

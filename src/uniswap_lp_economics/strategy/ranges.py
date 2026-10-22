@@ -12,6 +12,7 @@ from uniswap_lp_economics.v3math import get_sqrt_ratio_at_tick
 _K = 2**20  # (block, log) order key = block * _K + log; a block's logs stay far below 2**20
 OPEN_BLOCK = 2**40  # end block of a stretch still held when the history ends
 _Q96 = float(2**96)
+_CLAMP = 2**127 - 1  # Int128 max
 
 
 def order_key(block: str, log: str) -> pl.Expr:
@@ -37,8 +38,12 @@ def attribute(steps: pl.DataFrame, held: pl.DataFrame) -> pl.DataFrame:
     move (a flash) is in range iff tick_lower <= tick_start < tick_upper, as fee growth counts
     it; a step inside the range takes its recorded values x liquidity / L; one that crosses a
     bound takes the part between the bounds from the V3 delta formulas."""
-    pa = [get_sqrt_ratio_at_tick(t) for t in held["tick_lower"].to_list()]
-    pb = [get_sqrt_ratio_at_tick(t) for t in held["tick_upper"].to_list()]
+    # Bounds of wide ranges pass Int128; clamped above every step price, they compare the same.
+    top = steps.select(pl.max_horizontal(pl.col("sqrt_start").max(), pl.col("sqrt_end").max()))
+    if top.height and (top.item() or 0) >= _CLAMP:
+        raise ValueError("a step's sqrt price reaches the range-bound clamp")
+    pa = [min(get_sqrt_ratio_at_tick(t), _CLAMP) for t in held["tick_lower"].to_list()]
+    pb = [min(get_sqrt_ratio_at_tick(t), _CLAMP) for t in held["tick_upper"].to_list()]
     h = held.select(
         "seg",
         "tick_lower",
