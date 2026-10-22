@@ -107,9 +107,27 @@ def test_builders_on_disk_are_skipped_without_bigquery(
     folder.mkdir()
     for name in (builders.BLOCK_REVENUE, builders.TX_DIRECT, builders.TX_OTHER_LOGS):
         (folder / name).write_bytes(b"")
+    (folder / builders.LAST_TX).write_bytes(b"")
     monkeypatch.setattr(config, "RAW_DIR", tmp_path)
     monkeypatch.setattr(builders, "fetch_builders", _no_query)
     assert cli.run_step("fetch-builders", False) == "OK"
+
+
+def test_a_missing_last_tx_table_is_not_skipped(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    folder = tmp_path / builders.BUILDERS_DIR
+    folder.mkdir()
+    for name in (builders.BLOCK_REVENUE, builders.TX_DIRECT, builders.TX_OTHER_LOGS):
+        (folder / name).write_bytes(b"")  # the three old tables, no last_tx.parquet
+    monkeypatch.setattr(config, "RAW_DIR", tmp_path)
+    monkeypatch.setattr(builders, "fetch_builders", _no_query)
+    with pytest.raises(SystemExit, match="--confirm-cost"):
+        cli.run_step("fetch-builders", False)
+    calls: list[tuple[Any, ...]] = []
+    monkeypatch.setattr(builders, "fetch_builders", lambda *a, **k: calls.append(a))
+    assert cli.run_step("fetch-builders", True) == "OK"
+    assert len(calls) == 1
 
 
 def test_history_step_passes_the_flag_on(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

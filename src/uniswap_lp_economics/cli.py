@@ -235,9 +235,14 @@ def fetch_logs(confirm_cost: bool) -> None:
 
 
 def fetch_builders(confirm_cost: bool) -> None:
-    """D5 (`ulpe all`): the three aggregated builder tables, unless all of them are on disk."""
+    """D5 (`ulpe all`): the four aggregated builder tables, unless all of them are on disk."""
     folder = config.RAW_DIR / builders.BUILDERS_DIR
-    names = (builders.BLOCK_REVENUE, builders.TX_DIRECT, builders.TX_OTHER_LOGS)
+    names = (
+        builders.BLOCK_REVENUE,
+        builders.TX_DIRECT,
+        builders.TX_OTHER_LOGS,
+        builders.LAST_TX,
+    )
     if all((folder / name).exists() for name in names):
         print("builder tables already downloaded, skipping")
         return
