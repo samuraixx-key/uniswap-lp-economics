@@ -55,7 +55,7 @@ def test_position_path_uses_block_state_and_segment_in_force() -> None:
             "p_ref_0": [2000.0, 2500.0, 2500.0],
         }
     )
-    minutes = pl.DataFrame({"ts_us": [T0, T0 + 90 * US, T0 + 200 * US, T0 + 310 * US]})
+    minutes = pl.DataFrame({"ts_us": [T0 - 10 * US, T0 + 90 * US, T0 + 200 * US, T0 + 310 * US]})
     out = position_path(segs, starts, minutes)
     # the first minute is before any block state, the last in the segment's end block
     assert out["ts_us"].to_list() == [T0 + 90 * US, T0 + 200 * US]
@@ -146,3 +146,41 @@ def test_table_rows() -> None:
     never = t.filter(pl.col("rule") == "never")["mean_daily_usd_per_1m"].item()
     daily = t.filter((pl.col("rule") == "daily") & (pl.col("taker_fee_bp") == 5.0))
     assert daily["mean_daily_usd_per_1m"].item() < never
+
+
+def test_position_path_reads_the_state_at_the_minutes_close() -> None:
+    lo, hi, mid, ell = -200_000, -199_000, -199_500, 1e18
+    segs = pl.DataFrame(
+        {
+            "seg": [0],
+            "start_block": [10],
+            "end_block": [30],
+            "center_tick": [mid],
+            "tick_lower": [lo],
+            "tick_upper": [hi],
+            "liquidity": [ell],
+            "eth_start": [0.0],
+        }
+    )
+    # the pool moves from the lower tick to mid-range 30 s into the minute opening at T0 + 60 s
+    starts = pl.DataFrame(
+        {
+            "block_number": [10, 20],
+            "ts_us": [T0, T0 + 90 * US],
+            "sqrt_price_x96": [sqrt_at(lo), sqrt_at(mid)],
+            "p_ref_0": [2000.0, 2000.0],
+        }
+    )
+    out = position_path(segs, starts, pl.DataFrame({"ts_us": [T0 + 15 * US, T0 + 60 * US]}))
+    sa, sp = 1.0001 ** (lo / 2), 1.0001 ** (mid / 2)
+    assert out["eth"][0] == pytest.approx(0.0, abs=1e-6)  # close at T0 + 75 s: still block 10
+    assert out["eth"][1] == pytest.approx(ell * (sp - sa) / 1e18, rel=1e-9)  # close at T0 + 120 s
+
+
+def test_funding_uses_the_hedge_held_during_the_minute() -> None:
+    # eth changes at minute 60, the first minute of the hour: hourly re-sets at that minute's
+    # close, so a funding row inside it is paid on the old h
+    eth = [ETH] * 60 + [12.0] * 61
+    funding = pl.DataFrame({"ts_us": [T0 + 60 * MIN + 2_000], "rate": [0.0001]})
+    out = simulate(_path(121, eth), _perp(121, step=0.0), funding, "hourly", 5.0)
+    assert out["funding_usd"].sum() == pytest.approx(ETH * 2000 * 0.0001)

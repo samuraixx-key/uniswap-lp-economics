@@ -47,7 +47,9 @@ def position_path(segs: pl.DataFrame, starts: pl.DataFrame, minutes: pl.DataFram
     return (
         minutes.select("ts_us")
         .sort("ts_us")
-        .join_asof(state, left_on="ts_us", right_on="_state_us", strategy="backward")
+        # a minute's close is at open + 60 s: the state in force then goes with the perp close
+        .with_columns(_close_us=pl.col("ts_us") + MINUTE_US)
+        .join_asof(state, left_on="_close_us", right_on="_state_us", strategy="backward")
         .drop_nulls("block_number")
         .set_sorted("block_number")
         .join_asof(seg, left_on="block_number", right_on="start_block", strategy="backward")
@@ -85,8 +87,9 @@ def simulate(
     """Per day of the path's minutes: hedge P&L, funding, trade cost and re-hedge count.
 
     A minute's increments are booked on its day: hedge `-h_prev x d(close)`, trade
-    `|dh| x close x fee`. A funding row applies to the hedge of the minute containing it, valued
-    at that minute's close (`+h x close x rate`); a row outside the minute grid is dropped."""
+    `|dh| x close x fee`. A funding row applies to the hedge held while its minute runs (the
+    previous re-set: this minute's trades at its close), valued at that minute's close
+    (`+h x close x rate`); a row outside the minute grid is dropped."""
     df = path.sort("ts_us").join(perp, on="ts_us", how="left", maintain_order="left")
     if df["close"].is_null().any():
         raise ValueError("a path minute has no perp close")
@@ -107,7 +110,7 @@ def simulate(
     paid = (
         funding.sort("ts_us")
         .join_asof(
-            df.select("ts_us", "h", "close").rename({"ts_us": "_minute_us"}),
+            df.select("ts_us", h="h_prev", close="close").rename({"ts_us": "_minute_us"}),
             left_on="ts_us",
             right_on="_minute_us",
             strategy="backward",
