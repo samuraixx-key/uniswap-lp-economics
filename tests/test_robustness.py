@@ -132,3 +132,12 @@ def test_a_step_reference_crosses_at_the_jump_not_by_interpolation() -> None:
     offsets, values = [-4.0, -3.5, -3.0, -2.5], [4.0, 4.0, -255.0, -255.0]
     assert robustness.crossing_offset(offsets, values, step=True) == -3.0
     assert robustness.STEP_REFERENCES == ("binance_ethusdt_1s_close",)
+
+
+def test_r6_passes_only_when_identity_and_anchor_reproduce_the_headline() -> None:
+    from uniswap_lp_economics.lp.checks import check_r6_robustness
+
+    ok = check_r6_robustness(-1_059_925.93, 316.34, -1_059_609.59, 0.0)
+    assert ok.passed and ok.reported
+    assert not check_r6_robustness(-1_059_925.93, 316.34, -1_059_609.59, 50.0).passed  # anchor
+    assert not check_r6_robustness(-1_000_000.0, 316.34, -1_059_609.59, 0.0).passed  # identity
