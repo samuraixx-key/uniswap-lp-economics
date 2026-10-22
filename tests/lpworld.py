@@ -496,6 +496,18 @@ def world_inputs() -> LpInputs:
                 "last_value_wei": pl.Int128,
             },
         ),
+        last_tx=pl.DataFrame(
+            {
+                "block_number": blocks,
+                "to_address": ["0x" + "ee" * 20] * len(blocks),
+                "receipt_gas_used": [21000] * len(blocks),
+            },
+            schema={
+                "block_number": pl.Int64,
+                "to_address": pl.String,
+                "receipt_gas_used": pl.Int64,
+            },
+        ),
         # the JIT transaction (block 9, which also swaps) pays the fee recipient directly
         tx_direct=pl.DataFrame(
             {"tx_hash": [f"0x{9:064x}"], "direct_wei": [JIT_DIRECT_WEI]},

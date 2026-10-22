@@ -9,12 +9,32 @@ from uniswap_lp_economics.lp.checks import (
 from uniswap_lp_economics.lp.destination import (
     LIMITATION_TEXT,
     block_split,
+    class_table,
     destination,
     paid_block_ratio,
     searcher_costs,
 )
+from uniswap_lp_economics.lp.payouts import (
+    EMPTY,
+    PAID,
+    PAYOUT,
+    PROPOSER_IS_FEE_RECIPIENT,
+    UNEXPLAINED,
+    block_classes,
+)
 
 MINER, PROPOSER, BOT = "0x" + "11" * 20, "0x" + "22" * 20, "0x" + "b0" * 20
+
+
+def _split(rev: pl.DataFrame, payouts: bool = False) -> pl.DataFrame:
+    """block_split with classes built from the revenue frame; every transaction goes to 0xee."""
+    txs = rev.filter(pl.col("last_from").is_not_null())
+    last_tx = txs.select(
+        "block_number",
+        to_address=pl.lit("0x" + "ee" * 20),
+        receipt_gas_used=pl.lit(21000, dtype=pl.Int64),
+    )
+    return block_split(rev, block_classes(rev, last_tx), payouts=payouts)
 
 
 def revenue() -> pl.DataFrame:
@@ -39,7 +59,7 @@ def revenue() -> pl.DataFrame:
 
 
 def test_block_split_payment_and_self_built() -> None:
-    s = block_split(revenue())
+    s = _split(revenue())
     one, two = s.row(0, named=True), s.row(1, named=True)
     assert one["revenue_wei"] == 10**18 and one["payment_wei"] == 8 * 10**17
     assert one["proposer_share"] == pytest.approx(0.8) and not one["self_built"]
@@ -73,7 +93,7 @@ def test_searcher_costs_and_destination_chain() -> None:
         schema={"tx_hash": pl.String, "direct_wei": pl.Int128},
     )
     other = pl.DataFrame({"tx_hash": ["0xa", "0xb"], "other_logs": [0, 2], "logs": [3, 9]})
-    costs = searcher_costs(aligned, events, blocks, direct, other, block_split(revenue()))
+    costs = searcher_costs(aligned, events, blocks, direct, other, _split(revenue()))
     a = costs.filter(pl.col("tx_hash") == "0xa").row(0, named=True)
     paid_wei = 100_000 * 2 * 10**9 + 10**15  # priority + direct payment
     assert a["builder_paid_usd"] == pytest.approx(paid_wei / 1e18 * 2000.0)
@@ -88,7 +108,7 @@ def test_searcher_costs_and_destination_chain() -> None:
             "fee_usd": [1.5, 0.8, 0.2],
         }
     )
-    d = destination(steps, aligned, costs, block_split(revenue()))
+    d = destination(steps, aligned, costs, _split(revenue()))
     assert d["lvr_on_searcher_swaps_usd"] == 18.0 and d["lvr_on_other_flows_usd"] == -1.0
     assert d["pool_lvr_0_usd"] == 17.0
     assert d["searcher_gross_usd"] == 15.0 and d["multi_pool_gross_usd"] == 5.0
@@ -125,12 +145,12 @@ def test_flash_records_are_not_searcher_swaps() -> None:
             "fee_usd": [1.5, 7.0],
         }
     )
-    d = destination(steps, aligned, costs, block_split(revenue()))
+    d = destination(steps, aligned, costs, _split(revenue()))
     assert d["fees_on_searcher_swaps_usd"] == 1.5 and d["lvr_on_other_flows_usd"] == 0.0
 
 
 def test_reported_checks_r1_and_r2() -> None:
-    split = block_split(revenue())  # block 1 pays 8e17, self-built block 2 pays its 1e17
+    split = _split(revenue())  # block 1 pays 8e17, self-built block 2 pays its 1e17
     relays = pl.DataFrame(
         {
             "block_number": [1, 2, 3, 9],
@@ -220,7 +240,7 @@ def test_shares_sum_to_one_when_the_identity_holds() -> None:
             "fee_usd": [2.0, 0.5, 0.3],
         }
     )
-    d = destination(steps, aligned, costs, block_split(revenue()))
+    d = destination(steps, aligned, costs, _split(revenue()))
     assert d["pool_lvr_0_usd"] == 14.0 and d["lvr_on_other_flows_usd"] == 4.0
     assert d["share_searcher_of_pool_lvr"] == pytest.approx(10 / 14)
     assert d["share_fees"] == pytest.approx(0.2) and d["share_searcher_kept"] == pytest.approx(0.2)
@@ -255,9 +275,9 @@ def test_searcher_costs_counts_its_fallbacks() -> None:
     blocks = pl.DataFrame({"block_number": [1], "miner": [MINER], "base_fee_per_gas": [10**9]})
     direct = pl.DataFrame(schema={"tx_hash": pl.String, "direct_wei": pl.Int128})
     other = pl.DataFrame({"tx_hash": ["0xa", "0xc"], "other_logs": [0, 0], "logs": [1, 1]})
-    costs = searcher_costs(aligned, events, blocks, direct, other, block_split(revenue()))
+    costs = searcher_costs(aligned, events, blocks, direct, other, _split(revenue()))
     steps = pl.DataFrame({"flow_label": ["searcher"], "lvr_0": [3.0], "fee_usd": [0.0]})
-    d = destination(steps, aligned, costs, block_split(revenue()))
+    d = destination(steps, aligned, costs, _split(revenue()))
     assert d["n_searcher_swaps"] == 3
     assert d["n_swaps_no_other_logs_row"] == 1  # 0xb: treated as multi-pool
     assert costs.filter(pl.col("tx_hash") == "0xb")["scope"].item() == "multi_pool"
@@ -266,7 +286,7 @@ def test_searcher_costs_counts_its_fallbacks() -> None:
 
 
 def test_r1_counts_not_found_blocks_by_relay_coverage() -> None:
-    split = block_split(revenue())
+    split = _split(revenue())
     relays = pl.DataFrame(
         {
             "block_number": [1, 2, 3, 4],
@@ -318,13 +338,13 @@ def _three_block_revenue() -> pl.DataFrame:
 
 
 def test_paid_block_ratio_is_volume_weighted() -> None:
-    assert paid_block_ratio(block_split(_three_block_revenue())) == pytest.approx(0.82 / 1.1)
-    only_self_built = block_split(revenue()).filter(pl.col("self_built"))
+    assert paid_block_ratio(_split(_three_block_revenue())) == pytest.approx(0.82 / 1.1)
+    only_self_built = _split(revenue()).filter(pl.col("self_built"))
     assert paid_block_ratio(only_self_built) == 0.0
 
 
 def test_destination_reports_a_self_built_sensitivity() -> None:
-    split = block_split(_three_block_revenue())
+    split = _split(_three_block_revenue())
     aligned = pl.DataFrame(
         {
             "block_number": [1, 2],
@@ -387,3 +407,60 @@ def test_r3_lists_lp_types_in_a_fixed_order() -> None:
     rows = check_r3_lp_types(positions).summary["by_lp_type"]
     assert [r["lp_type"] for r in rows] == ["jit", "lp_vault", "nft_wallet"]  # pnl.LP_TYPES order
     assert rows[0] == {"lp_type": "jit", "positions": 2, "fee_usd": 1.5}
+
+
+PAYER = "0x" + "44" * 20
+
+
+def _class_world() -> tuple[pl.DataFrame, pl.DataFrame]:
+    """Blocks 1-50: PAYER (not the miner) sends the last transaction with value 7 (payout pair);
+    block 51: the miner pays 9 (paid); block 52: empty."""
+    n = 52
+    rev = pl.DataFrame(
+        {
+            "block_number": list(range(1, n + 1)),
+            "miner": [MINER] * n,
+            "priority_wei": [100] * (n - 1) + [0],
+            "direct_wei": [0] * n,
+            "last_from": [PAYER] * 50 + [MINER, None],
+            "last_value_wei": [7] * 50 + [9, None],
+        },
+        schema=revenue().schema,
+    )
+    last_tx = rev.filter(pl.col("last_from").is_not_null()).select(
+        "block_number",
+        to_address=pl.lit("0x" + "ee" * 20),
+        receipt_gas_used=pl.lit(21000, dtype=pl.Int64),
+    )
+    return rev, block_classes(rev, last_tx)
+
+
+def test_split_pays_from_the_payout_address_only_when_asked() -> None:
+    rev, classes = _class_world()
+    where = pl.col("block_number") == 3
+    on = block_split(rev, classes, payouts=True).row(by_predicate=where, named=True)
+    off = block_split(rev, classes, payouts=False).row(by_predicate=where, named=True)
+    assert on["cls"] == PAYOUT
+    assert on["payment_wei"] == on["last_value_wei"] == 7 and not on["self_built"]
+    assert off["payment_wei"] == off["revenue_wei"] == 100 and off["self_built"]
+
+
+def test_empty_blocks_are_not_self_built() -> None:
+    rev, classes = _class_world()
+    empty = block_split(rev, classes, payouts=False).filter(pl.col("cls") == EMPTY)
+    assert empty.height == 1 and not empty["self_built"].any()
+    assert empty["payment_wei"].to_list() == [0] and empty["proposer_share"].to_list() == [0.0]
+
+
+def test_class_table_shares_sum_to_one() -> None:
+    _, classes = _class_world()
+    single = pl.DataFrame(
+        {"block_number": [1, 2, 51], "builder_paid_usd": [3.0, 1.0, 4.0]},
+        schema={"block_number": pl.Int64, "builder_paid_usd": pl.Float64},
+    )
+    t = class_table(classes, single)
+    assert t["cls"].to_list() == [EMPTY, PAID, PAYOUT, PROPOSER_IS_FEE_RECIPIENT, UNEXPLAINED]
+    assert t["blocks"].to_list() == [1, 1, 50, 0, 0]
+    assert t["builder_paid_usd"].to_list() == [0.0, 4.0, 4.0, 0.0, 0.0]
+    assert t["share_blocks"].sum() == pytest.approx(1)
+    assert t["share_builder_paid_usd"].sum() == pytest.approx(1)

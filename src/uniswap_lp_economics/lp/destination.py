@@ -5,6 +5,7 @@ from typing import Any
 
 import polars as pl
 
+from uniswap_lp_economics.lp import payouts as payouts_mod
 from uniswap_lp_economics.lp.pnl import tx_receipts
 
 LIMITATION_TEXT = (
@@ -20,25 +21,66 @@ SELF_BUILT_SHARE_BASIS = (
 )
 
 
-def block_split(block_revenue: pl.DataFrame) -> pl.DataFrame:
-    """Builder revenue R_b and proposer payment Q_b per block. Without a payment transaction (the
-    block's last transaction is not from the fee recipient) the block is classed self-built: the
-    fee recipient is taken to be the proposer and Q_b = R_b. That is the primary method. The relay
-    sample shows that most such blocks are in fact MEV-Boost blocks that pay the proposer some
-    other way (a payment not in the last transaction, or from a separate payout address), so
-    `destination` also reports a sensitivity with these blocks at the paid-block share."""
+def block_split(block_revenue: pl.DataFrame, classes: pl.DataFrame, payouts: bool) -> pl.DataFrame:
+    """Builder revenue R_b and proposer payment Q_b per block, from the block's class
+    (`payouts.block_classes`). A `paid` block pays its last transaction's value; a `payout` block
+    does so only when `payouts` is set (the payout rule). Every other non-empty block is classed
+    self-built: the fee recipient is taken to be the proposer and Q_b = R_b. That is the primary
+    method. The relay sample shows that most such blocks are in fact MEV-Boost blocks that pay the
+    proposer some other way, so `destination` also reports a sensitivity with these blocks at the
+    paid-block share. An empty block pays nothing and is not self-built."""
     revenue = pl.col("priority_wei") + pl.col("direct_wei")
-    paid = pl.col("last_from") == pl.col("miner")
-    return block_revenue.select(
-        "block_number",
-        "miner",
-        revenue_wei=revenue,
-        payment_wei=pl.when(paid).then(pl.col("last_value_wei")).otherwise(revenue),
-        self_built=~paid.fill_null(False),
-    ).with_columns(
-        proposer_share=pl.when(pl.col("revenue_wei") > 0)
-        .then(pl.col("payment_wei").cast(pl.Float64) / pl.col("revenue_wei").cast(pl.Float64))
-        .otherwise(0.0)
+    empty = pl.col("cls") == payouts_mod.EMPTY
+    from_last = (pl.col("cls") == payouts_mod.PAID) | (
+        pl.lit(payouts) & (pl.col("cls") == payouts_mod.PAYOUT)
+    )
+    return (
+        block_revenue.select(
+            "block_number", "miner", "priority_wei", "direct_wei", "last_value_wei"
+        )
+        .join(classes.select("block_number", "cls", "to_address"), on="block_number", how="left")
+        .select(
+            "block_number",
+            "miner",
+            revenue_wei=revenue,
+            payment_wei=pl.when(from_last)
+            .then(pl.col("last_value_wei"))
+            .when(empty)
+            .then(pl.lit(0, dtype=pl.Int128))
+            .otherwise(revenue),
+            self_built=~(from_last | empty),
+            cls=pl.col("cls"),
+            to_address=pl.col("to_address"),
+            last_value_wei=pl.col("last_value_wei"),
+        )
+        .with_columns(
+            proposer_share=pl.when(pl.col("revenue_wei") > 0)
+            .then(pl.col("payment_wei").cast(pl.Float64) / pl.col("revenue_wei").cast(pl.Float64))
+            .otherwise(0.0)
+        )
+    )
+
+
+def class_table(classes: pl.DataFrame, single: pl.DataFrame) -> pl.DataFrame:
+    """Blocks and single-pool builder dollars per class, in the order of `payouts.CLASSES`; a class
+    with no blocks or no single-pool swaps shows 0 and 0.0."""
+    usd = single.join(classes.select("block_number", "cls"), on="block_number", how="left")
+    rows = [
+        {
+            "cls": c,
+            "blocks": int((classes["cls"] == c).sum()),
+            "builder_paid_usd": float(usd.filter(pl.col("cls") == c)["builder_paid_usd"].sum()),
+        }
+        for c in payouts_mod.CLASSES
+    ]
+    t = pl.DataFrame(rows, schema_overrides={"blocks": pl.Int64})
+    blocks, dollars = int(t["blocks"].sum()), float(t["builder_paid_usd"].sum())
+    return t.select(
+        "cls",
+        "blocks",
+        share_blocks=pl.col("blocks") / blocks if blocks else pl.lit(0.0),
+        builder_paid_usd=pl.col("builder_paid_usd"),
+        share_builder_paid_usd=pl.col("builder_paid_usd") / dollars if dollars else pl.lit(0.0),
     )
 
 

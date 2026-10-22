@@ -22,7 +22,15 @@ from uniswap_lp_economics.data import (
 )
 from uniswap_lp_economics.data import blocks as bq_blocks
 from uniswap_lp_economics.io import read_exact, write_exact, write_text_atomic
-from uniswap_lp_economics.lp import destination, figdata, lifetime, pnl, robustness, theory
+from uniswap_lp_economics.lp import (
+    destination,
+    figdata,
+    lifetime,
+    payouts,
+    pnl,
+    robustness,
+    theory,
+)
 from uniswap_lp_economics.lp.checks import (
     check_l1,
     check_l2,
@@ -118,6 +126,7 @@ class LpInputs:
     lp_labels: pl.DataFrame
     blocks: pl.DataFrame
     block_revenue: pl.DataFrame
+    last_tx: pl.DataFrame
     tx_direct: pl.DataFrame
     tx_other_logs: pl.DataFrame
     relays: pl.DataFrame
@@ -160,6 +169,7 @@ def load_lp_inputs(raw: Path, interim: Path, processed: Path, lp_labels_csv: Pat
         lp_labels=pnl.load_lp_labels(lp_labels_csv),
         blocks=pl.read_parquet(_need(raw / bq_blocks.BLOCKS_FILE, "fetch-blocks")),
         block_revenue=block_revenue,
+        last_tx=builders.load_last_tx(raw),
         tx_direct=tx_direct,
         tx_other_logs=tx_other_logs,
         relays=read_exact(_need(raw / relays.RELAY_FILE, "fetch-relays")),  # wei: Int128
@@ -425,7 +435,8 @@ def lp_analysis(
         "checks": {r.name: r.summary for r in results},
     }
     # Where LVR goes (spec section 7), and the reported checks R1-R5: neither gates the run.
-    split = destination.block_split(inp.block_revenue)
+    classes = payouts.block_classes(inp.block_revenue, inp.last_tx)
+    split = destination.block_split(inp.block_revenue, classes, payouts=False)
     costs = destination.searcher_costs(
         inp.aligned, inp.events, inp.blocks, inp.tx_direct, inp.tx_other_logs, split
     )
