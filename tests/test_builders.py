@@ -8,6 +8,7 @@ from google.cloud import bigquery
 
 from uniswap_lp_economics.config import POOL_ADDRESS
 from uniswap_lp_economics.data import builders
+from uniswap_lp_economics.rpc import RpcError
 
 START, END = date(2026, 7, 1), date(2026, 10, 1)
 
@@ -26,6 +27,17 @@ def test_pool_tx_queries_only_touch_pool_transactions() -> None:
         builders.build_tx_other_logs_query(START, END),
     ):
         assert f"address = '{POOL_ADDRESS}'" in q
+
+
+def test_last_tx_query_reads_no_calldata() -> None:
+    q = builders.build_last_tx_query(START, END)
+    assert "to_address" in q and "receipt_gas_used" in q and "input" not in q
+    assert "MAX(transaction_index) OVER (PARTITION BY block_number)" in q
+
+
+def test_load_last_tx_names_the_command_when_missing(tmp_path: Path) -> None:
+    with pytest.raises(FileNotFoundError, match="fetch-builders"):
+        builders.load_last_tx(tmp_path)
 
 
 def test_wei_columns_parse_decimal_strings() -> None:
@@ -118,18 +130,28 @@ class FakeClient:
                     }
                 )
             )
+        if "receipt_gas_used FROM" in query:
+            return FakeJob(
+                pa.table(
+                    {
+                        "block_number": [1, 2],
+                        "to_address": ["0xcc", None],
+                        "receipt_gas_used": [21000, 50000],
+                    }
+                )
+            )
         if "AS direct_wei" in query:
             return FakeJob(pa.table({"tx_hash": ["0x1"], "direct_wei": ["7"]}))
         return FakeJob(pa.table({"tx_hash": ["0x1"], "other_logs": [2], "logs": [5]}))
 
 
-def test_fetch_builders_writes_three_typed_tables_then_skips(
+def test_fetch_builders_writes_four_typed_tables_then_skips(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     fake = FakeClient()
     monkeypatch.setattr(builders.bigquery, "Client", lambda project: fake)
     builders.fetch_builders(tmp_path, START, END, confirm_cost=True)
-    assert len(fake.paid) == 3
+    assert len(fake.paid) == 4
     assert all(cap == builders.MAX_GB_BILLED * 10**9 for _, cap in fake.paid)
     rev, direct, other = builders.load_builders(tmp_path)
     assert rev.schema["block_number"] == pl.Int64
@@ -137,9 +159,13 @@ def test_fetch_builders_writes_three_typed_tables_then_skips(
     assert rev["direct_wei"].to_list() == [0, 30 * 10**18]
     assert direct["direct_wei"].to_list() == [7]
     assert other.schema["other_logs"] == pl.Int64 and other["logs"].to_list() == [5]
+    last = builders.load_last_tx(tmp_path)
+    assert last.schema["block_number"] == pl.Int64
+    assert last.schema["receipt_gas_used"] == pl.Int64
+    assert last.schema["to_address"] == pl.String and last["to_address"].to_list() == ["0xcc", None]
     assert not list((tmp_path / builders.BUILDERS_DIR).glob("*.part"))
     builders.fetch_builders(tmp_path, START, END, confirm_cost=True)
-    assert len(fake.paid) == 3  # existing files are not re-queried
+    assert len(fake.paid) == 4  # existing files are not re-queried
 
 
 def test_fetch_builders_dry_run_runs_no_paid_query(
@@ -148,7 +174,7 @@ def test_fetch_builders_dry_run_runs_no_paid_query(
     fake = FakeClient()
     monkeypatch.setattr(builders.bigquery, "Client", lambda project: fake)
     builders.fetch_builders(tmp_path, START, END, dry_run=True)
-    assert len(fake.dry) == 3 and fake.paid == []
+    assert len(fake.dry) == 4 and fake.paid == []
     assert not list((tmp_path / builders.BUILDERS_DIR).glob("*.parquet"))
 
 
@@ -161,7 +187,7 @@ def test_fetch_builders_without_the_flag_refuses_before_any_query(
         builders.fetch_builders(tmp_path, START, END)
     assert fake.dry == [] and fake.paid == []
     builders.fetch_builders(tmp_path, START, END, dry_run=True)  # a dry run needs no flag
-    assert len(fake.dry) == 3 and fake.paid == []
+    assert len(fake.dry) == 4 and fake.paid == []
 
 
 def test_fetch_builders_without_the_flag_skips_tables_on_disk(
@@ -171,7 +197,7 @@ def test_fetch_builders_without_the_flag_skips_tables_on_disk(
     monkeypatch.setattr(builders.bigquery, "Client", lambda project: fake)
     builders.fetch_builders(tmp_path, START, END, confirm_cost=True)
     builders.fetch_builders(tmp_path, START, END)  # nothing missing: nothing to bill, no refusal
-    assert len(fake.paid) == 3
+    assert len(fake.paid) == 4
 
 
 def test_fetch_builders_turns_a_billing_error_into_help(
@@ -221,4 +247,41 @@ def test_dry_run_reports_an_oversized_estimate_without_stopping(
     fake.scanned = (builders.MAX_GB_BILLED + 1) * 10**9
     monkeypatch.setattr(builders.bigquery, "Client", lambda project: fake)
     builders.fetch_builders(tmp_path, START, END, dry_run=True)
-    assert len(fake.dry) == 3 and "WARNING" in capsys.readouterr().out
+    assert len(fake.dry) == 4 and "WARNING" in capsys.readouterr().out
+
+
+class _FakeCodeClient:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, int]] = []
+
+    def get_code(self, address: str, block: int) -> str:
+        self.calls.append((address, block))
+        return "0x6080" if address == "0xaa" else "0x"
+
+
+def test_payout_code_is_cached_by_address_and_block(tmp_path: Path) -> None:
+    client = _FakeCodeClient()
+    path = builders.fetch_payout_code(client, tmp_path, [("0xaa", 5), ("0xbb", 5)])  # type: ignore[arg-type]
+    assert path == tmp_path / builders.BUILDERS_DIR / builders.PAYOUT_CODE
+    builders.fetch_payout_code(client, tmp_path, [("0xaa", 5), ("0xaa", 9), ("0xbb", 5)])  # type: ignore[arg-type]
+    assert client.calls == [("0xaa", 5), ("0xbb", 5), ("0xaa", 9)]  # only the missing pair
+    df = pl.read_parquet(path).sort("address", "block")
+    assert df.columns == ["address", "block", "code"] and df.schema["block"] == pl.Int64
+    assert df["code"].to_list() == ["0x6080", "0x6080", "0x"]
+
+
+def test_payout_code_keeps_the_reads_done_before_an_rpc_error(tmp_path: Path) -> None:
+    class Failing(_FakeCodeClient):
+        def get_code(self, address: str, block: int) -> str:
+            if len(self.calls) == 3:
+                raise RpcError("boom")
+            return super().get_code(address, block)
+
+    reads = [("0xaa", b) for b in range(1, 6)]
+    with pytest.raises(RpcError):
+        builders.fetch_payout_code(Failing(), tmp_path, reads)  # type: ignore[arg-type]
+    out = tmp_path / builders.BUILDERS_DIR / builders.PAYOUT_CODE
+    assert pl.read_parquet(out)["block"].to_list() == [1, 2, 3]
+    client = _FakeCodeClient()
+    builders.fetch_payout_code(client, tmp_path, reads)  # type: ignore[arg-type]
+    assert client.calls == [("0xaa", 4), ("0xaa", 5)]  # the rerun reads only the rest

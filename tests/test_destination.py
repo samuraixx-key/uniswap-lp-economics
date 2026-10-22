@@ -2,19 +2,51 @@ import polars as pl
 import pytest
 
 from uniswap_lp_economics.lp.checks import (
+    HOLDOUT_BAR,
     check_r1_relays,
     check_r2_traces_vs_alchemy,
     check_r3_lp_types,
+    holdout_decision,
 )
 from uniswap_lp_economics.lp.destination import (
     LIMITATION_TEXT,
+    LIMITATION_TEXT_HEDGE,
     block_split,
+    class_table,
     destination,
     paid_block_ratio,
     searcher_costs,
 )
+from uniswap_lp_economics.lp.payouts import (
+    EMPTY,
+    PAID,
+    PAYOUT,
+    PROPOSER_IS_FEE_RECIPIENT,
+    UNEXPLAINED,
+    block_classes,
+)
 
 MINER, PROPOSER, BOT = "0x" + "11" * 20, "0x" + "22" * 20, "0x" + "b0" * 20
+NO_USD = pl.DataFrame(schema={"block_number": pl.Int64, "builder_paid_usd": pl.Float64})
+_ZERO = {
+    "sampled": 0,
+    "found": 0,
+    "match_within_1_wei": 0,
+    "match_within_1pct": 0,
+    "recipient_match": 0,
+    "recipient_compared": 0,
+}
+
+
+def _split(rev: pl.DataFrame, payouts: bool = False) -> pl.DataFrame:
+    """block_split with classes built from the revenue frame; every transaction goes to 0xee."""
+    txs = rev.filter(pl.col("last_from").is_not_null())
+    last_tx = txs.select(
+        "block_number",
+        to_address=pl.lit("0x" + "ee" * 20),
+        receipt_gas_used=pl.lit(21000, dtype=pl.Int64),
+    )
+    return block_split(rev, block_classes(rev, last_tx), payouts=payouts)
 
 
 def revenue() -> pl.DataFrame:
@@ -39,7 +71,7 @@ def revenue() -> pl.DataFrame:
 
 
 def test_block_split_payment_and_self_built() -> None:
-    s = block_split(revenue())
+    s = _split(revenue())
     one, two = s.row(0, named=True), s.row(1, named=True)
     assert one["revenue_wei"] == 10**18 and one["payment_wei"] == 8 * 10**17
     assert one["proposer_share"] == pytest.approx(0.8) and not one["self_built"]
@@ -73,7 +105,7 @@ def test_searcher_costs_and_destination_chain() -> None:
         schema={"tx_hash": pl.String, "direct_wei": pl.Int128},
     )
     other = pl.DataFrame({"tx_hash": ["0xa", "0xb"], "other_logs": [0, 2], "logs": [3, 9]})
-    costs = searcher_costs(aligned, events, blocks, direct, other, block_split(revenue()))
+    costs = searcher_costs(aligned, events, blocks, direct, other, _split(revenue()))
     a = costs.filter(pl.col("tx_hash") == "0xa").row(0, named=True)
     paid_wei = 100_000 * 2 * 10**9 + 10**15  # priority + direct payment
     assert a["builder_paid_usd"] == pytest.approx(paid_wei / 1e18 * 2000.0)
@@ -88,7 +120,7 @@ def test_searcher_costs_and_destination_chain() -> None:
             "fee_usd": [1.5, 0.8, 0.2],
         }
     )
-    d = destination(steps, aligned, costs, block_split(revenue()))
+    d = destination(steps, aligned, costs, _split(revenue()), sensitivity=True)
     assert d["lvr_on_searcher_swaps_usd"] == 18.0 and d["lvr_on_other_flows_usd"] == -1.0
     assert d["pool_lvr_0_usd"] == 17.0
     assert d["searcher_gross_usd"] == 15.0 and d["multi_pool_gross_usd"] == 5.0
@@ -96,7 +128,11 @@ def test_searcher_costs_and_destination_chain() -> None:
         d["gas_burned_usd"] + d["builder_margin_usd"] + d["proposer_usd"] + d["searcher_kept_usd"]
     )
     assert single == pytest.approx(d["single_pool_gross_usd"])
-    assert "last transaction from the fee recipient" in LIMITATION_TEXT
+    assert "last transaction, sent by the fee recipient" in LIMITATION_TEXT
+    assert "last transaction from the fee recipient" in LIMITATION_TEXT_HEDGE
+    assert "sensitivity_self_built" not in destination(
+        steps, aligned, costs, _split(revenue()), sensitivity=False
+    )
 
 
 def test_flash_records_are_not_searcher_swaps() -> None:
@@ -125,12 +161,12 @@ def test_flash_records_are_not_searcher_swaps() -> None:
             "fee_usd": [1.5, 7.0],
         }
     )
-    d = destination(steps, aligned, costs, block_split(revenue()))
+    d = destination(steps, aligned, costs, _split(revenue()), sensitivity=True)
     assert d["fees_on_searcher_swaps_usd"] == 1.5 and d["lvr_on_other_flows_usd"] == 0.0
 
 
 def test_reported_checks_r1_and_r2() -> None:
-    split = block_split(revenue())  # block 1 pays 8e17, self-built block 2 pays its 1e17
+    split = _split(revenue())  # block 1 pays 8e17, block 2 (class 5) is built for its 1e17
     relays = pl.DataFrame(
         {
             "block_number": [1, 2, 3, 9],
@@ -139,36 +175,22 @@ def test_reported_checks_r1_and_r2() -> None:
         },
         schema={"block_number": pl.Int64, "found": pl.Boolean, "value_wei": pl.Int128},
     )
-    r1 = check_r1_relays(relays, split)
+    r1 = check_r1_relays(relays, split, NO_USD)
     assert r1.passed  # reported, never gating
-    assert r1.summary == {
-        "sampled": 4,
-        "found_on_a_relay": 3,  # counted before the join: block 9 is not in our split
-        "compared_with_on_chain": 2,
+    s = r1.summary
+    assert (s["sampled"], s["found_on_a_relay"], s["compared_with_on_chain"]) == (4, 3, 2)
+    assert (s["match_within_1_wei"], s["match_within_1pct"]) == (1, 2)
+    assert s["not_found_unchecked"] is None and s["not_found_all_answered"] is None
+    seen = s["by_round"]["seen"]  # a file with no round column: everything is seen
+    assert seen[PAID] == {
+        **_ZERO,
+        "sampled": 1,
+        "found": 1,
         "match_within_1_wei": 1,
-        "match_within_1pct": 2,
-        # Self-built here means: the block's last transaction is not from its fee recipient.
-        "by_block_type": {
-            "paid": {
-                "sampled": 1,
-                "found": 1,
-                "match_within_1_wei": 1,
-                "match_within_1pct": 1,
-                "median_relay_value_over_revenue": pytest.approx(0.8),
-                "relay_recipient_not_fee_recipient": None,  # no recipient column in this file
-            },
-            "self_built": {
-                "sampled": 1,
-                "found": 1,
-                "match_within_1_wei": 0,
-                "match_within_1pct": 1,
-                "median_relay_value_over_revenue": pytest.approx(1.005),
-                "relay_recipient_not_fee_recipient": None,
-            },
-        },
-        "not_found_unchecked": None,  # relays.parquet from before the column: unknown
-        "not_found_all_answered": None,
+        "match_within_1pct": 1,
     }
+    assert seen[UNEXPLAINED] == {**_ZERO, "sampled": 1, "found": 1, "match_within_1pct": 1}
+    assert s["by_round"]["holdout"][PAID] == _ZERO
     blocks = pl.DataFrame({"block_number": [1], "miner": [MINER], "base_fee_per_gas": [10**9]})
     transfers = pl.DataFrame(
         {
@@ -220,7 +242,7 @@ def test_shares_sum_to_one_when_the_identity_holds() -> None:
             "fee_usd": [2.0, 0.5, 0.3],
         }
     )
-    d = destination(steps, aligned, costs, block_split(revenue()))
+    d = destination(steps, aligned, costs, _split(revenue()), sensitivity=True)
     assert d["pool_lvr_0_usd"] == 14.0 and d["lvr_on_other_flows_usd"] == 4.0
     assert d["share_searcher_of_pool_lvr"] == pytest.approx(10 / 14)
     assert d["share_fees"] == pytest.approx(0.2) and d["share_searcher_kept"] == pytest.approx(0.2)
@@ -255,9 +277,9 @@ def test_searcher_costs_counts_its_fallbacks() -> None:
     blocks = pl.DataFrame({"block_number": [1], "miner": [MINER], "base_fee_per_gas": [10**9]})
     direct = pl.DataFrame(schema={"tx_hash": pl.String, "direct_wei": pl.Int128})
     other = pl.DataFrame({"tx_hash": ["0xa", "0xc"], "other_logs": [0, 0], "logs": [1, 1]})
-    costs = searcher_costs(aligned, events, blocks, direct, other, block_split(revenue()))
+    costs = searcher_costs(aligned, events, blocks, direct, other, _split(revenue()))
     steps = pl.DataFrame({"flow_label": ["searcher"], "lvr_0": [3.0], "fee_usd": [0.0]})
-    d = destination(steps, aligned, costs, block_split(revenue()))
+    d = destination(steps, aligned, costs, _split(revenue()), sensitivity=True)
     assert d["n_searcher_swaps"] == 3
     assert d["n_swaps_no_other_logs_row"] == 1  # 0xb: treated as multi-pool
     assert costs.filter(pl.col("tx_hash") == "0xb")["scope"].item() == "multi_pool"
@@ -266,7 +288,7 @@ def test_searcher_costs_counts_its_fallbacks() -> None:
 
 
 def test_r1_counts_not_found_blocks_by_relay_coverage() -> None:
-    split = block_split(revenue())
+    split = _split(revenue())
     relays = pl.DataFrame(
         {
             "block_number": [1, 2, 3, 4],
@@ -283,20 +305,284 @@ def test_r1_counts_not_found_blocks_by_relay_coverage() -> None:
             "relays_unchecked": pl.String,
         },
     )
-    r1 = check_r1_relays(relays, split)
+    r1 = check_r1_relays(relays, split, NO_USD)
     assert r1.summary["not_found_unchecked"] == 2
     assert r1.summary["not_found_all_answered"] == 1
-    by = r1.summary["by_block_type"]
-    assert by["paid"]["found"] == 1 and by["paid"]["match_within_1_wei"] == 1
-    assert by["paid"]["relay_recipient_not_fee_recipient"] == 1  # PROPOSER is not MINER
-    assert by["self_built"] == {
+    paid = r1.summary["by_round"]["seen"][PAID]
+    # PROPOSER is not the last transaction's to_address (0xee): compared, not matched.
+    assert paid == {
+        **_ZERO,
         "sampled": 1,
-        "found": 0,
-        "match_within_1_wei": 0,
-        "match_within_1pct": 0,
-        "median_relay_value_over_revenue": None,
-        "relay_recipient_not_fee_recipient": 0,
+        "found": 1,
+        "match_within_1_wei": 1,
+        "match_within_1pct": 1,
+        "recipient_compared": 1,
     }
+
+
+def _world(rows: list[tuple]) -> tuple[pl.DataFrame, pl.DataFrame]:
+    """(relays, split) from (block, round, cls, relay value, on-chain payment, relay recipient,
+    to_address) rows, every block found on relay 'r'. The fee recipient is MINER."""
+    n = len(rows)
+    relays = pl.DataFrame(
+        {
+            "block_number": [r[0] for r in rows],
+            "relay": ["r"] * n,
+            "found": [True] * n,
+            "value_wei": [r[3] for r in rows],
+            "proposer_fee_recipient": [r[5] for r in rows],
+            "relays_unchecked": [None] * n,
+            "round": [r[1] for r in rows],
+        },
+        schema={
+            "block_number": pl.Int64,
+            "relay": pl.String,
+            "found": pl.Boolean,
+            "value_wei": pl.Int128,
+            "proposer_fee_recipient": pl.String,
+            "relays_unchecked": pl.String,
+            "round": pl.String,
+        },
+    )
+    split = pl.DataFrame(
+        {
+            "block_number": [r[0] for r in rows],
+            "miner": [MINER] * n,
+            "payment_wei": [r[4] for r in rows],
+            "cls": [r[2] for r in rows],
+            "to_address": [r[6] for r in rows],
+        },
+        schema={
+            "block_number": pl.Int64,
+            "miner": pl.String,
+            "payment_wei": pl.Int128,
+            "cls": pl.String,
+            "to_address": pl.String,
+        },
+    )
+    return relays, split
+
+
+def _twenty(off_value: int = 0, off_recipient: int = 0) -> list[tuple]:
+    """20 found holdout payout blocks; the first `off_value` are 5 wei off the relay, the first
+    `off_recipient` pay someone other than the relay's recipient."""
+    return [
+        (
+            i,
+            "holdout",
+            PAYOUT,
+            10**18 + (5 if i < off_value else 0),
+            10**18,
+            BOT if i < off_recipient else PROPOSER,
+            PROPOSER,
+        )
+        for i in range(20)
+    ]
+
+
+def test_decision_passes_at_95_percent_on_both() -> None:
+    d = holdout_decision(*_world(_twenty(off_value=1, off_recipient=1)))  # 19 of 20 on each
+    assert d["n_found_payout"] == 20 and d["bar"] == HOLDOUT_BAR == 0.95
+    assert d["share_within_1_wei"] == pytest.approx(0.95)
+    assert d["share_recipient_match"] == pytest.approx(0.95)
+    assert d["share_within_1pct"] == 1.0 and d["one_split"] is True
+
+
+def test_decision_fails_below_the_bar_on_either() -> None:
+    assert holdout_decision(*_world(_twenty(off_value=2)))["one_split"] is False  # 18/20 exact
+    assert holdout_decision(*_world(_twenty(off_recipient=2)))["one_split"] is False  # 18/20 paid
+    no_recipient = [(*r[:5], None, r[6]) for r in _twenty()]
+    d = holdout_decision(*_world(no_recipient))  # no relay recipient counts as a failure
+    assert d["share_recipient_match"] == 0.0 and d["one_split"] is False
+
+
+def test_decision_with_no_found_payout_blocks_is_hedge() -> None:
+    relays, split = _world([(1, "seen", PAYOUT, 10**18, 10**18, PROPOSER, PROPOSER)])
+    d = holdout_decision(relays, split)
+    assert d["n_found_payout"] == 0 and d["one_split"] is False
+    assert d["share_within_1_wei"] is None
+    # a relay file with no round column at all is the same
+    assert holdout_decision(relays.drop("round"), split)["one_split"] is False
+
+
+def test_only_holdout_payout_rows_decide() -> None:
+    noise = [
+        (100, "seen", PAYOUT, 1, 10**18, BOT, PROPOSER),
+        (101, "retry", PAYOUT, 1, 10**18, BOT, PROPOSER),
+        (102, "holdout", PAID, 1, 10**18, BOT, PROPOSER),
+        (103, "holdout", UNEXPLAINED, 1, 10**18, BOT, PROPOSER),
+    ]
+    d = holdout_decision(*_world(_twenty() + noise))
+    assert d["n_found_payout"] == 20 and d["one_split"] is True
+    assert d["share_within_1_wei"] == 1.0 and d["share_recipient_match"] == 1.0
+
+
+def test_recipient_match_ignores_address_case() -> None:
+    mixed = "0xAbC" + "d" * 37
+    relays, split = _world([(1, "holdout", PAYOUT, 10**18, 10**18, mixed, mixed.lower())])
+    assert holdout_decision(relays, split)["share_recipient_match"] == 1.0
+    part = check_r1_relays(relays, split, NO_USD).summary["by_round"]["holdout"][PAYOUT]
+    assert part["recipient_match"] == 1 and part["recipient_compared"] == 1
+
+
+def test_r1_by_round_stratum_failures_and_unexplained_relays() -> None:
+    relays, split = _world(
+        [
+            (1, "seen", PAID, 10**18, 10**18, PROPOSER, PROPOSER),
+            (2, "retry", UNEXPLAINED, 10**18, 10**18, PROPOSER, PROPOSER),
+            (3, "holdout", PAYOUT, 10**18, 10**18, BOT, PROPOSER),  # R1b failure
+            (4, "holdout", PAYOUT, 10**18, 10**18, PROPOSER, PROPOSER),
+            (5, "holdout", UNEXPLAINED, 7, 10**18, None, PROPOSER),
+        ]
+    )
+    unfound = pl.DataFrame(  # unfound unexplained blocks name the relays that gave no answer
+        {
+            "block_number": [6, 7],
+            "relay": [None, None],
+            "found": [False, False],
+            "value_wei": [None, None],
+            "proposer_fee_recipient": [None, None],
+            "relays_unchecked": ["x,y", "x"],
+            "round": ["retry", None],
+        },
+        schema=relays.schema,
+    )
+    extra = split.head(2).with_columns(block_number=pl.Series([6, 7]), cls=pl.lit(UNEXPLAINED))
+    s = check_r1_relays(pl.concat([relays, unfound]), pl.concat([split, extra]), NO_USD).summary
+    br = s["by_round"]
+    assert br["seen"][PAID]["found"] == 1 and br["seen"][UNEXPLAINED]["sampled"] == 1  # block 7
+    assert br["retry"][UNEXPLAINED]["sampled"] == 2 and br["retry"][UNEXPLAINED]["found"] == 1
+    assert br["holdout"][PAYOUT]["recipient_match"] == 1 and br["holdout"][PAYOUT]["found"] == 2
+    st = s["holdout_by_stratum"]
+    assert st["payout"]["sampled"] == 2 and st["rest"]["sampled"] == 1
+    assert st["rest"]["match_within_1_wei"] == 0 and st["rest"]["match_within_1pct"] == 0
+    assert s["holdout_recipient_failures"] == [
+        {"block_number": 3, "to_address": PROPOSER, "proposer_fee_recipient": BOT}
+    ]
+    assert s["unexplained_by_relay"] == {  # blocks 2 and 5 found on r; 6 and 7 unanswered
+        "seen": {"delivered": {}, "unchecked": {"x": 1}},
+        "retry": {"delivered": {"r": 1}, "unchecked": {"x": 1, "y": 1}},
+        "holdout": {"delivered": {"r": 1}, "unchecked": {}},
+    }
+    # top-level counts: the original sample only (seen, retry, null), never holdout rows
+    assert (s["sampled"], s["found_on_a_relay"]) == (4, 2)
+
+
+def _unfound(
+    blocks: list[int], round_: str, unchecked: str | None, like: pl.DataFrame
+) -> pl.DataFrame:
+    n = len(blocks)
+    return pl.DataFrame(
+        {
+            "block_number": blocks,
+            "relay": [None] * n,
+            "found": [False] * n,
+            "value_wei": [None] * n,
+            "proposer_fee_recipient": [None] * n,
+            "relays_unchecked": [unchecked] * n,
+            "round": [round_] * n,
+        },
+        schema=like.schema,
+    )
+
+
+def test_recipient_failures_list_every_round_but_the_decision_uses_the_holdout() -> None:
+    relays, split = _world(
+        [
+            (1, "seen", PAYOUT, 10**18, 10**18, BOT, PROPOSER),  # fails R1b
+            (2, "retry", PAYOUT, 10**18, 10**18, PROPOSER, PROPOSER),  # passes
+            (3, "holdout", PAYOUT, 10**18, 10**18, BOT, PROPOSER),  # fails R1b
+            (4, "seen", PAID, 10**18, 10**18, BOT, PROPOSER),  # not class 3
+            (5, "seen", PAYOUT, 10**18, 10**18, None, PROPOSER),  # no relay recipient: fails
+        ]
+    )
+    lost = _unfound([6], "seen", None, relays)  # not found: nothing to compare
+    extra = split.head(1).with_columns(block_number=pl.Series([6]))
+    s = check_r1_relays(pl.concat([relays, lost]), pl.concat([split, extra]), NO_USD).summary
+    assert s["recipient_failures"] == [
+        {"round": "seen", "block_number": 1, "to_address": PROPOSER, "proposer_fee_recipient": BOT},
+        {
+            "round": "holdout",
+            "block_number": 3,
+            "to_address": PROPOSER,
+            "proposer_fee_recipient": BOT,
+        },
+        {
+            "round": "seen",
+            "block_number": 5,
+            "to_address": PROPOSER,
+            "proposer_fee_recipient": None,
+        },
+    ]
+    assert [r["block_number"] for r in s["holdout_recipient_failures"]] == [3]
+
+
+def test_holdout_by_stratum_counts_unanswered_blocks() -> None:
+    relays, split = _world([(1, "holdout", PAYOUT, 10**18, 10**18, PROPOSER, PROPOSER)])
+    lost = pl.concat(
+        [
+            _unfound([2, 3], "holdout", "x", relays),
+            _unfound([4], "holdout", None, relays),  # every relay answered: not unchecked
+            _unfound([5], "retry", "x", relays),  # not a holdout row
+        ]
+    )
+    rows = [(2, PAYOUT), (3, "paid"), (4, PAYOUT), (5, PAYOUT)]
+    extra = pl.concat(
+        [
+            split.head(1).with_columns(block_number=pl.lit(b, dtype=pl.Int64), cls=pl.lit(c))
+            for b, c in rows
+        ]
+    )
+    st = check_r1_relays(pl.concat([relays, lost]), pl.concat([split, extra]), NO_USD).summary[
+        "holdout_by_stratum"
+    ]
+    assert (st["payout"]["sampled"], st["payout"]["found"], st["payout"]["unchecked"]) == (3, 1, 1)
+    assert (st["rest"]["sampled"], st["rest"]["unchecked"]) == (1, 1)
+
+
+def test_unknown_relay_recipient_is_no_recipient() -> None:
+    # rows fetched before the fix stored "none" or "" for a missing recipient
+    rows = [(i, "seen", PAYOUT, 10**18, 10**18, r, PROPOSER) for i, r in enumerate(["none", ""])]
+    rows += [(9, "seen", PAID, 10**18, 10**18, "none", PROPOSER)]
+    rows += [(10, "seen", PROPOSER_IS_FEE_RECIPIENT, 10**18, 10**18, "none", MINER)]
+    relays, split = _world(rows)
+    s = check_r1_relays(relays, split, NO_USD).summary
+    assert s["by_round"]["seen"][PAYOUT]["recipient_compared"] == 0
+    assert s["by_round"]["seen"][PAID]["recipient_compared"] == 0
+    assert s["r1c_breaking_blocks"] == []  # "none" is not a recipient that differs from the miner
+    assert [r["proposer_fee_recipient"] for r in s["recipient_failures"]] == [None, None]
+
+
+def test_unfound_holdout_payout_row_does_not_decide() -> None:
+    relays, split = _world(_twenty())
+    lost = _unfound([500], "holdout", "x", relays)
+    extra = split.head(1).with_columns(
+        block_number=pl.Series([500]), payment_wei=pl.lit(0, dtype=pl.Int128)
+    )
+    d = holdout_decision(pl.concat([relays, lost]), pl.concat([split, extra]))
+    assert d == holdout_decision(relays, split)
+    assert d["n_found_payout"] == 20 and d["one_split"] is True
+
+
+def test_r1c_lists_fee_recipient_blocks_delivered_for_someone_else() -> None:
+    cls = PROPOSER_IS_FEE_RECIPIENT
+    relays, split = _world(
+        [
+            (1, "seen", cls, 5, 5, MINER, MINER),  # delivered to the fee recipient itself: fine
+            (2, "seen", cls, 5, 5, PROPOSER, MINER),  # delivered for someone else: breaks the class
+            (3, "seen", cls, 5, 5, PROPOSER, MINER),
+            (4, "seen", PAID, 5, 5, PROPOSER, MINER),  # other classes are not R1c
+        ]
+    )
+    usd = pl.DataFrame(
+        {"block_number": [2, 2, 4], "builder_paid_usd": [1.5, 2.0, 99.0]},
+        schema={"block_number": pl.Int64, "builder_paid_usd": pl.Float64},
+    )
+    got = check_r1_relays(relays, split, usd).summary["r1c_breaking_blocks"]
+    assert got == [
+        {"block_number": 2, "builder_paid_usd": 3.5},
+        {"block_number": 3, "builder_paid_usd": 0.0},  # no single-pool swap
+    ]
 
 
 def _three_block_revenue() -> pl.DataFrame:
@@ -318,13 +604,13 @@ def _three_block_revenue() -> pl.DataFrame:
 
 
 def test_paid_block_ratio_is_volume_weighted() -> None:
-    assert paid_block_ratio(block_split(_three_block_revenue())) == pytest.approx(0.82 / 1.1)
-    only_self_built = block_split(revenue()).filter(pl.col("self_built"))
+    assert paid_block_ratio(_split(_three_block_revenue())) == pytest.approx(0.82 / 1.1)
+    only_self_built = _split(revenue()).filter(pl.col("self_built"))
     assert paid_block_ratio(only_self_built) == 0.0
 
 
 def test_destination_reports_a_self_built_sensitivity() -> None:
-    split = block_split(_three_block_revenue())
+    split = _split(_three_block_revenue())
     aligned = pl.DataFrame(
         {
             "block_number": [1, 2],
@@ -353,7 +639,7 @@ def test_destination_reports_a_self_built_sensitivity() -> None:
     costs = searcher_costs(aligned, events, blocks, direct, other, split)
     assert costs.sort("tx_hash")["self_built"].to_list() == [False, True]
     steps = pl.DataFrame({"flow_label": ["searcher"], "lvr_0": [20.0], "fee_usd": [1.0]})
-    d = destination(steps, aligned, costs, split)
+    d = destination(steps, aligned, costs, split, sensitivity=True)
     paid_a = 100_000 * 2 * 10**9 / 1e18 * 2000.0  # block 1, paid: proposer share 0.8
     paid_b = 100_000 * 1 * 10**9 / 1e18 * 2000.0  # block 2, self-built: share 1 (primary)
     assert d["proposer_usd"] == pytest.approx(0.8 * paid_a + paid_b)
@@ -387,3 +673,60 @@ def test_r3_lists_lp_types_in_a_fixed_order() -> None:
     rows = check_r3_lp_types(positions).summary["by_lp_type"]
     assert [r["lp_type"] for r in rows] == ["jit", "lp_vault", "nft_wallet"]  # pnl.LP_TYPES order
     assert rows[0] == {"lp_type": "jit", "positions": 2, "fee_usd": 1.5}
+
+
+PAYER = "0x" + "44" * 20
+
+
+def _class_world() -> tuple[pl.DataFrame, pl.DataFrame]:
+    """Blocks 1-50: PAYER (not the miner) sends the last transaction with value 7 (payout pair);
+    block 51: the miner pays 9 (paid); block 52: empty."""
+    n = 52
+    rev = pl.DataFrame(
+        {
+            "block_number": list(range(1, n + 1)),
+            "miner": [MINER] * n,
+            "priority_wei": [100] * (n - 1) + [0],
+            "direct_wei": [0] * n,
+            "last_from": [PAYER] * 50 + [MINER, None],
+            "last_value_wei": [7] * 50 + [9, None],
+        },
+        schema=revenue().schema,
+    )
+    last_tx = rev.filter(pl.col("last_from").is_not_null()).select(
+        "block_number",
+        to_address=pl.lit("0x" + "ee" * 20),
+        receipt_gas_used=pl.lit(21000, dtype=pl.Int64),
+    )
+    return rev, block_classes(rev, last_tx)
+
+
+def test_split_pays_from_the_payout_address_only_when_asked() -> None:
+    rev, classes = _class_world()
+    where = pl.col("block_number") == 3
+    on = block_split(rev, classes, payouts=True).row(by_predicate=where, named=True)
+    off = block_split(rev, classes, payouts=False).row(by_predicate=where, named=True)
+    assert on["cls"] == PAYOUT
+    assert on["payment_wei"] == on["last_value_wei"] == 7 and not on["self_built"]
+    assert off["payment_wei"] == off["revenue_wei"] == 100 and off["self_built"]
+
+
+def test_empty_blocks_are_not_self_built() -> None:
+    rev, classes = _class_world()
+    empty = block_split(rev, classes, payouts=False).filter(pl.col("cls") == EMPTY)
+    assert empty.height == 1 and not empty["self_built"].any()
+    assert empty["payment_wei"].to_list() == [0] and empty["proposer_share"].to_list() == [0.0]
+
+
+def test_class_table_shares_sum_to_one() -> None:
+    _, classes = _class_world()
+    single = pl.DataFrame(
+        {"block_number": [1, 2, 51], "builder_paid_usd": [3.0, 1.0, 4.0]},
+        schema={"block_number": pl.Int64, "builder_paid_usd": pl.Float64},
+    )
+    t = class_table(classes, single)
+    assert t["cls"].to_list() == [EMPTY, PAID, PAYOUT, PROPOSER_IS_FEE_RECIPIENT, UNEXPLAINED]
+    assert t["blocks"].to_list() == [1, 1, 50, 0, 0]
+    assert t["builder_paid_usd"].to_list() == [0.0, 4.0, 4.0, 0.0, 0.0]
+    assert t["share_blocks"].sum() == pytest.approx(1)
+    assert t["share_builder_paid_usd"].sum() == pytest.approx(1)

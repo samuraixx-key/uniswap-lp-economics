@@ -234,8 +234,8 @@ def hero(r: Results, size: tuple[float, float] = CANVAS) -> Figure:
     lp = r.summary["lp"]
     dest = lp["destination"]
     st = stages(dest, p)
-    sens = dest["sensitivity_self_built"]
-    moved = float(sens["proposer_usd"]) - float(dest["proposer_usd"])
+    sens = dest.get("sensitivity_self_built")  # only under the hedge
+    moved = 0.0 if sens is None else float(sens["proposer_usd"]) - float(dest["proposer_usd"])
     lvr = st.sources[0][1]
     fees = st.middle[0][1]
     gross = next(a for i, m, a in st.stage1 if i == 0 and m == 1) if lvr > fees else 0.0

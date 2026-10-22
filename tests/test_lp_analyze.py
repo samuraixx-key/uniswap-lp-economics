@@ -1,4 +1,6 @@
 import json
+import re
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -7,10 +9,12 @@ import pytest
 from lpworld import JIT_DIRECT_WEI, T0, US, WALLET, D, J, L, T, world_end_us, world_inputs
 
 from uniswap_lp_economics.config import HOUR_US
+from uniswap_lp_economics.data import relays
+from uniswap_lp_economics.io import write_exact
 from uniswap_lp_economics.lp import analyze as lp
 from uniswap_lp_economics.lp import destination
 from uniswap_lp_economics.lp.analyze import LpInputs
-from uniswap_lp_economics.lp.checks import check_l6
+from uniswap_lp_economics.lp.checks import HOLDOUT_DECISION_FILE, check_l6
 from uniswap_lp_economics.lp.pnl import (
     Edge,
     liquidity_path,
@@ -85,7 +89,7 @@ def test_lp_analysis_end_to_end(tmp_path: Path) -> None:
     assert summary["lp"]["n_excluded_carry"] == 0 == summary["lp"]["lifetime"]["n_excluded_carry"]
     assert any("L6" in name for name in summary["lp"]["checks"])
     assert "destination" in summary["lp"]
-    assert summary["lp"]["destination_limitation"] == destination.LIMITATION_TEXT
+    assert summary["lp"]["destination_limitation"] == destination.LIMITATION_TEXT_HEDGE
     checks_text = (results / "lp_checks.md").read_text(encoding="utf-8")
     assert all(f"R{i}" in checks_text for i in range(1, 6))
     rows = [line for line in checks_text.splitlines() if line.startswith("| ")]
@@ -94,7 +98,7 @@ def test_lp_analysis_end_to_end(tmp_path: Path) -> None:
     l1 = next(v for k, v in summary["lp"]["checks"].items() if k.startswith("L1"))
     assert l1["engine_unmatched"] == 0
     r1 = next(v for k, v in summary["lp"]["checks"].items() if k.startswith("R1"))
-    assert r1["by_block_type"]["paid"]["found"] == 1  # the world's relay row: block 7, paid
+    assert r1["by_round"]["seen"]["paid"]["found"] == 1  # the world's relay row: block 7, paid
     jit = summary["lp"]["jit_per_swap"]
     assert jit["positions"] == 1 and jit["swaps"] >= 1
     assert jit["pnl_rebal_usd_per_swap"] == pytest.approx(
@@ -134,6 +138,8 @@ def test_lp_analysis_end_to_end(tmp_path: Path) -> None:
     assert sens["proposer_usd"] == pytest.approx(dest["proposer_usd"])
     dest_text = (results / "lvr_destination.md").read_text(encoding="utf-8")
     assert "Sensitivity" in dest_text and "primary" in dest_text
+    assert "Block classes" in dest_text and "Payout recipients" in dest_text
+    assert "at least 50 of the fee recipient's blocks" in dest_text
     builder_paid = dest["proposer_usd"] + dest["builder_margin_usd"]
     assert builder_paid == pytest.approx(JIT_DIRECT_WEI / 1e18 * p9)
     assert dest["searcher_kept_usd"] == pytest.approx(
@@ -150,6 +156,199 @@ def test_lp_analysis_end_to_end(tmp_path: Path) -> None:
         "lp_blocks.parquet",
     ):
         assert (processed / name).exists(), name
+
+
+PAYOUT_BLOCK = 7  # a world block with a searcher swap; last_value 5e14, builder revenue 1e15
+
+
+def _run_world(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    inp: LpInputs | None = None,
+    raw_dir: Path | None = None,
+) -> tuple[dict[str, Any], str, pl.DataFrame]:
+    """Run the world with block 7 classed `payout` and return the summary's "lp" part, the
+    destination file and the split that `searcher_costs` was given (the published split)."""
+    real_classes, real_costs = lp.payouts.block_classes, destination.searcher_costs
+    seen: list[pl.DataFrame] = []
+
+    def classes(rev: pl.DataFrame, last: pl.DataFrame, min_blocks: int = 50) -> pl.DataFrame:
+        c = real_classes(rev, last, min_blocks)
+        return c.with_columns(
+            cls=pl.when(pl.col("block_number") == PAYOUT_BLOCK)
+            .then(pl.lit("payout"))
+            .otherwise(pl.col("cls"))
+        )
+
+    def costs(*args: Any) -> pl.DataFrame:
+        seen.append(args[-1])
+        return real_costs(*args)
+
+    monkeypatch.setattr(lp.payouts, "block_classes", classes)
+    monkeypatch.setattr(destination, "searcher_costs", costs)
+    results = tmp_path / "results"
+    results.mkdir(exist_ok=True)
+    (results / "summary.json").write_text(json.dumps({"swaps": 4}))
+    lp.lp_analysis(
+        inp or world_inputs(),
+        results,
+        tmp_path / "processed",
+        {"git_commit": "t"},
+        end_us=world_end_us(),
+        raw_dir=raw_dir,
+    )
+    summary = json.loads((results / "summary.json").read_text(encoding="utf-8"))
+    text = (results / "lvr_destination.md").read_text(encoding="utf-8")
+    return summary["lp"], text, seen[0]
+
+
+def _payment(split: pl.DataFrame) -> int:
+    return int(split.filter(pl.col("block_number") == PAYOUT_BLOCK)["payment_wei"].item())
+
+
+def test_hedge_keeps_the_sensitivity(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # the world has no holdout blocks, so the decision fails and the hedge stays
+    base = world_inputs()
+    extra = (
+        pl.DataFrame(  # the payout block's swap pays the fee recipient directly, so the split bites
+            {"tx_hash": [f"0x{PAYOUT_BLOCK:064x}"], "direct_wei": [JIT_DIRECT_WEI]},
+            schema=base.tx_direct.schema,
+        )
+    )
+    lpd, text, split = _run_world(
+        tmp_path, monkeypatch, replace(base, tx_direct=pl.concat([base.tx_direct, extra]))
+    )
+    dest = lpd["destination"]
+    assert dest["proposer_split"] == "hedge" and dest["holdout_decision"]["one_split"] is False
+    assert _payment(split) == 10**15  # payouts=False: the payout block takes the revenue fallback
+    assert "sensitivity_self_built" in dest and "Sensitivity" in text
+    assert lpd["destination_limitation"] == destination.LIMITATION_TEXT_HEDGE
+    assert [r["cls"] for r in dest["block_classes"]][:3] == ["empty", "paid", "payout"]
+    assert dest["block_classes"][1]["blocks"] > 0 and dest["block_classes"][2]["blocks"] == 1
+    assert [r["type"] for r in dest["recipient_types"]] == ["wallet", "7702_wallet", "contract"]
+    assert dest["recipient_types"][0]["payments"] == 1
+    assert dest["n_recipients_reads_differ"] == 0 and dest["n_top_up"] == 0
+    assert dest["decision_frozen"] is False and "holdout_decision_recomputed" not in dest
+    by_n = dest["class_counts_by_n"]  # string keys; the published classes are the N = 50 ones
+    assert list(by_n) == ["20", "50", "100"] and by_n["50"]["payout"] == 1
+    inp = world_inputs()
+    for n, counts in by_n.items():
+        classes = lp.payouts.block_classes(inp.block_revenue, inp.last_tx, min_blocks=int(n))
+        assert counts == lp.payouts.class_counts(classes)
+    _assert_classes_note(dest, text)
+    rule = dest["rule_split"]  # block 7 is payout-class and now pays: the proposer part differs
+    assert rule["proposer_usd"] != pytest.approx(dest["proposer_usd"])
+    assert rule["proposer_usd"] + rule["builder_margin_usd"] == pytest.approx(
+        dest["proposer_usd"] + dest["builder_margin_usd"], rel=1e-9
+    )
+    assert rule["share_proposer"] == pytest.approx(
+        rule["proposer_usd"] / dest["lvr_on_searcher_swaps_usd"]
+    )
+    assert rule["label"].startswith("measured payments; not adopted")
+    assert "Payout rule's split (measured payments; not adopted)" in text
+
+
+def test_one_split_drops_the_sensitivity(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    passing = {"bar": 0.95, "n_found_payout": 300, "one_split": True}
+    monkeypatch.setattr(lp, "holdout_decision", lambda relays, split: passing)
+    lpd, text, split = _run_world(tmp_path, monkeypatch)
+    dest = lpd["destination"]
+    assert dest["proposer_split"] == "one" and dest["holdout_decision"] == passing
+    assert _payment(split) == 5 * 10**14  # payouts=True: the payout block pays its last value
+    assert "sensitivity_self_built" not in dest and "rule_split" not in dest
+    assert "Payout rule's split" not in text
+    assert "Sensitivity" not in text and "sensitivity" not in text.replace("Sensitivity", "")
+    assert lpd["destination_limitation"] == destination.LIMITATION_TEXT
+    _assert_classes_note(dest, text)
+
+
+PASSING = {"bar": 0.95, "n_found_payout": 300, "one_split": True}
+FAILING = {"bar": 0.95, "n_found_payout": 300, "one_split": False}
+
+
+def _holdout_world(raw: Path, rows_for: list[int]) -> LpInputs:
+    """The world with a 2-block holdout (blocks 7 and 8) on disk in `raw`, and a holdout relay
+    row for each block in `rows_for`."""
+    raw.mkdir(exist_ok=True)
+    drawn = pl.DataFrame(
+        {"block_number": [7, 8], "stratum": ["payout", "rest"], "seed": [44, 44]},
+        schema={"block_number": pl.Int64, "stratum": pl.String, "seed": pl.Int64},
+    )
+    write_exact(drawn, raw / relays.HOLDOUT_FILE)
+    n = len(rows_for)
+    held = pl.DataFrame(
+        {
+            "block_number": rows_for,
+            "relay": ["https://r"] * n,
+            "found": [True] * n,
+            "value_wei": [5 * 10**14] * n,
+            "proposer_fee_recipient": ["0x"] * n,
+            "builder_pubkey": ["0x"] * n,
+            "relays_unchecked": [None] * n,
+            "round": ["holdout"] * n,
+        },
+        schema=relays.RELAY_SCHEMA,
+    )
+    return replace(world_inputs(), relays=held)
+
+
+def test_incomplete_holdout_is_not_frozen(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    raw = tmp_path / "raw"
+    inp = _holdout_world(raw, [7])  # block 8 has no relay row yet
+    monkeypatch.setattr(lp, "holdout_decision", lambda relays, split: PASSING)
+    lpd, _, _ = _run_world(tmp_path, monkeypatch, inp, raw)
+    dest = lpd["destination"]
+    assert dest["decision_frozen"] is False and dest["holdout_decision"] == PASSING
+    assert dest["proposer_split"] == "one" and "holdout_decision_recomputed" not in dest
+    assert not (raw / HOLDOUT_DECISION_FILE).exists()
+    out = capsys.readouterr().out
+    assert "proposer split one, 300 found payout blocks" in out and out.rstrip().endswith(
+        "not frozen"
+    )
+
+
+def test_complete_holdout_freezes_and_later_runs_publish_the_frozen_decision(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    raw = tmp_path / "raw"
+    inp = _holdout_world(raw, [7, 8])
+    monkeypatch.setattr(lp, "holdout_decision", lambda relays, split: PASSING)
+    dest = _run_world(tmp_path, monkeypatch, inp, raw)[0]["destination"]
+    frozen = json.loads((raw / HOLDOUT_DECISION_FILE).read_text(encoding="utf-8"))
+    assert frozen["decision"] == PASSING and frozen["n_holdout_blocks"] == 2
+    assert re.fullmatch(r"\d{4}-\d\d-\d\d", frozen["frozen_utc"])
+    assert dest["decision_frozen"] is True and dest["proposer_split"] == "one"
+    assert "holdout_decision_recomputed" not in dest  # nothing to compare on the freezing run
+    assert capsys.readouterr().out.rstrip().endswith(", frozen")
+    # a later run recomputes a different answer: the frozen one still picks the split
+    monkeypatch.setattr(lp, "holdout_decision", lambda relays, split: FAILING)
+    lpd, text, split = _run_world(tmp_path, monkeypatch, inp, raw)
+    dest = lpd["destination"]
+    assert dest["holdout_decision"] == PASSING and dest["holdout_decision_recomputed"] == FAILING
+    assert dest["decision_frozen"] is True and dest["proposer_split"] == "one"
+    assert _payment(split) == 5 * 10**14 and "sensitivity_self_built" not in dest
+    assert json.loads((raw / HOLDOUT_DECISION_FILE).read_text(encoding="utf-8")) == frozen
+
+
+def test_an_unreadable_frozen_file_never_raises_and_is_not_overwritten(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    raw = tmp_path / "raw"
+    inp = _holdout_world(raw, [7, 8])
+    (raw / HOLDOUT_DECISION_FILE).write_text("{not json", encoding="utf-8")
+    dest = _run_world(tmp_path, monkeypatch, inp, raw)[0]["destination"]
+    assert dest["decision_frozen"] is False
+    assert (raw / HOLDOUT_DECISION_FILE).read_text(encoding="utf-8") == "{not json"
+
+
+def _assert_classes_note(dest: dict[str, Any], text: str) -> None:
+    un = next(r for r in dest["block_classes"] if r["cls"] == "unexplained")
+    flat = " ".join(text.split())
+    assert f"{un['share_blocks']:.2%} of blocks and {un['share_builder_paid_usd']:.2%}" in flat
+    assert f"(${un['builder_paid_usd']:,.2f})" in flat
+    assert "at least 50 of the fee recipient's blocks" in flat and "at least 99%" in flat
 
 
 def positions_jit_rebal(results: Path) -> float:

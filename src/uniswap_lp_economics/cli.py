@@ -22,6 +22,7 @@ from uniswap_lp_economics.data import (
 from uniswap_lp_economics.data import blocks as bq_blocks
 from uniswap_lp_economics.io import read_exact, write_exact, write_text_atomic
 from uniswap_lp_economics.lp import analyze as lp_analysis_module
+from uniswap_lp_economics.lp import payouts
 from uniswap_lp_economics.lp.positions import build_positions
 from uniswap_lp_economics.rpc import RpcClient
 from uniswap_lp_economics.viz import render as viz_render
@@ -211,6 +212,23 @@ def fetch_relays() -> None:
     """D6: relay-reported proposer payments for a random sample of window blocks."""
     blocks = pl.read_parquet(config.RAW_DIR / bq_blocks.BLOCKS_FILE)["block_number"]
     relays.fetch_relay_sample(config.RAW_DIR, int(blocks.min()), int(blocks.max()))  # type: ignore[arg-type]
+    relays.retry_unchecked(config.RAW_DIR)
+    if (config.RAW_DIR / builders.BUILDERS_DIR / builders.LAST_TX).exists():
+        relays.fetch_holdout(config.RAW_DIR, _block_classes())
+    else:
+        print("holdout waits for `ulpe fetch-builders` (last-transaction table missing)")
+
+
+def _block_classes() -> pl.DataFrame:
+    block_revenue, _, _ = builders.load_builders(config.RAW_DIR)
+    return payouts.block_classes(block_revenue, builders.load_last_tx(config.RAW_DIR))
+
+
+def fetch_payout_code() -> None:
+    """Code of each payout recipient at its first and last payout block (RPC)."""
+    reads = payouts.recipient_reads(_block_classes())
+    builders.fetch_payout_code(_rpc(), config.RAW_DIR, reads)
+    print(f"payout recipient code: {len(reads)} reads")
 
 
 def fetch_timing() -> None:
@@ -235,9 +253,14 @@ def fetch_logs(confirm_cost: bool) -> None:
 
 
 def fetch_builders(confirm_cost: bool) -> None:
-    """D5 (`ulpe all`): the three aggregated builder tables, unless all of them are on disk."""
+    """D5 (`ulpe all`): the four aggregated builder tables, unless all of them are on disk."""
     folder = config.RAW_DIR / builders.BUILDERS_DIR
-    names = (builders.BLOCK_REVENUE, builders.TX_DIRECT, builders.TX_OTHER_LOGS)
+    names = (
+        builders.BLOCK_REVENUE,
+        builders.TX_DIRECT,
+        builders.TX_OTHER_LOGS,
+        builders.LAST_TX,
+    )
     if all((folder / name).exists() for name in names):
         print("builder tables already downloaded, skipping")
         return
@@ -265,6 +288,7 @@ ALL_STEPS = (
     "fetch-chain-state",
     "fetch-price-history",
     "fetch-builders",
+    "fetch-payout-code",
     "fetch-relays",
     "fetch-timing",
     "lp",
@@ -303,6 +327,8 @@ def run_step(name: str, confirm_cost: bool) -> str:
         fetch_price_history()
     elif name == "fetch-builders":
         fetch_builders(confirm_cost)
+    elif name == "fetch-payout-code":
+        fetch_payout_code()
     elif name == "fetch-relays":
         fetch_relays()
     elif name == "fetch-timing":
@@ -358,6 +384,9 @@ def main() -> None:
     builders_cmd.add_argument(
         "--confirm-cost", action="store_true", help="allow the paid BigQuery queries"
     )
+    sub.add_parser(
+        "fetch-payout-code", help="code of the payout recipients at their first/last block (RPC)"
+    )
     sub.add_parser("fetch-relays", help="relay-reported proposer payments for a block sample")
     sub.add_parser("fetch-timing", help="winning-bid times for the relay sample's blocks")
     sub.add_parser("build", help="decode raw data into interim tables")
@@ -408,6 +437,8 @@ def main() -> None:
         builders.fetch_builders(
             config.RAW_DIR, config.WINDOW_START, config.WINDOW_END, args.dry_run, args.confirm_cost
         )
+    elif args.command == "fetch-payout-code":
+        fetch_payout_code()
     elif args.command == "fetch-relays":
         fetch_relays()
     elif args.command == "fetch-timing":

@@ -5,9 +5,17 @@ from typing import Any
 
 import polars as pl
 
+from uniswap_lp_economics.lp import payouts as payouts_mod
 from uniswap_lp_economics.lp.pnl import tx_receipts
 
 LIMITATION_TEXT = (
+    "The split of builder payments between builder and proposer uses each block's ratio of "
+    "proposer payment to builder revenue; how a builder prices an individual transaction is not "
+    "observed. Proposer payments are identified as the block's last transaction, sent by the fee "
+    "recipient or by a payout address learned from chain data, and tested on a blind stratified "
+    "relay sample; blocks where neither applies give the proposer the whole builder revenue."
+)
+LIMITATION_TEXT_HEDGE = (
     "The split of builder payments between builder and proposer uses each block's ratio of "
     "proposer payment to builder revenue; how a builder prices an individual transaction is not "
     "observed. Proposer payments are identified as the block's last transaction from the fee "
@@ -20,25 +28,67 @@ SELF_BUILT_SHARE_BASIS = (
 )
 
 
-def block_split(block_revenue: pl.DataFrame) -> pl.DataFrame:
-    """Builder revenue R_b and proposer payment Q_b per block. Without a payment transaction (the
-    block's last transaction is not from the fee recipient) the block is classed self-built: the
-    fee recipient is taken to be the proposer and Q_b = R_b. That is the primary method. The relay
-    sample shows that most such blocks are in fact MEV-Boost blocks that pay the proposer some
-    other way (a payment not in the last transaction, or from a separate payout address), so
-    `destination` also reports a sensitivity with these blocks at the paid-block share."""
+def block_split(block_revenue: pl.DataFrame, classes: pl.DataFrame, payouts: bool) -> pl.DataFrame:
+    """Builder revenue R_b and proposer payment Q_b per block, from the block's class
+    (`payouts.block_classes`). A `paid` block pays its last transaction's value; a `payout` block
+    does so only when `payouts` is set (the payout rule). Every other non-empty block is classed
+    self-built: the fee recipient is taken to be the proposer and Q_b = R_b. That is the primary
+    method. Under the hedge (the holdout did not support one split) the relay sample shows that
+    most such blocks are in fact MEV-Boost blocks that pay the proposer some other way, so
+    `destination` also reports a sensitivity with these blocks at the paid-block share; under the
+    one split it does not. An empty block pays nothing and is not self-built."""
     revenue = pl.col("priority_wei") + pl.col("direct_wei")
-    paid = pl.col("last_from") == pl.col("miner")
-    return block_revenue.select(
-        "block_number",
-        "miner",
-        revenue_wei=revenue,
-        payment_wei=pl.when(paid).then(pl.col("last_value_wei")).otherwise(revenue),
-        self_built=~paid.fill_null(False),
-    ).with_columns(
-        proposer_share=pl.when(pl.col("revenue_wei") > 0)
-        .then(pl.col("payment_wei").cast(pl.Float64) / pl.col("revenue_wei").cast(pl.Float64))
-        .otherwise(0.0)
+    empty = pl.col("cls") == payouts_mod.EMPTY
+    from_last = (pl.col("cls") == payouts_mod.PAID) | (
+        pl.lit(payouts) & (pl.col("cls") == payouts_mod.PAYOUT)
+    )
+    return (
+        block_revenue.select(
+            "block_number", "miner", "priority_wei", "direct_wei", "last_value_wei"
+        )
+        .join(classes.select("block_number", "cls", "to_address"), on="block_number", how="left")
+        .select(
+            "block_number",
+            "miner",
+            revenue_wei=revenue,
+            payment_wei=pl.when(from_last)
+            .then(pl.col("last_value_wei"))
+            .when(empty)
+            .then(pl.lit(0, dtype=pl.Int128))
+            .otherwise(revenue),
+            self_built=~(from_last | empty),
+            cls=pl.col("cls"),
+            to_address=pl.col("to_address"),
+            last_value_wei=pl.col("last_value_wei"),
+        )
+        .with_columns(
+            proposer_share=pl.when(pl.col("revenue_wei") > 0)
+            .then(pl.col("payment_wei").cast(pl.Float64) / pl.col("revenue_wei").cast(pl.Float64))
+            .otherwise(0.0)
+        )
+    )
+
+
+def class_table(classes: pl.DataFrame, single: pl.DataFrame) -> pl.DataFrame:
+    """Blocks and single-pool builder dollars per class, in the order of `payouts.CLASSES`; a class
+    with no blocks or no single-pool swaps shows 0 and 0.0."""
+    usd = single.join(classes.select("block_number", "cls"), on="block_number", how="left")
+    rows = [
+        {
+            "cls": c,
+            "blocks": int((classes["cls"] == c).sum()),
+            "builder_paid_usd": float(usd.filter(pl.col("cls") == c)["builder_paid_usd"].sum()),
+        }
+        for c in payouts_mod.CLASSES
+    ]
+    t = pl.DataFrame(rows, schema_overrides={"blocks": pl.Int64})
+    blocks, dollars = int(t["blocks"].sum()), float(t["builder_paid_usd"].sum())
+    return t.select(
+        "cls",
+        "blocks",
+        share_blocks=pl.col("blocks") / blocks if blocks else pl.lit(0.0),
+        builder_paid_usd=pl.col("builder_paid_usd"),
+        share_builder_paid_usd=pl.col("builder_paid_usd") / dollars if dollars else pl.lit(0.0),
     )
 
 
@@ -148,7 +198,12 @@ def sensitivity_self_built(
 
 
 def destination(
-    steps: pl.DataFrame, aligned: pl.DataFrame, costs: pl.DataFrame, split: pl.DataFrame
+    steps: pl.DataFrame,
+    aligned: pl.DataFrame,
+    costs: pl.DataFrame,
+    split: pl.DataFrame,
+    *,
+    sensitivity: bool,
 ) -> dict[str, Any]:
     """Pool LVR (0 s) -> LVR on searcher steps -> where it goes, in USD and as shares of the LVR
     on searcher steps. Only steps labelled "searcher" count: flash-fee records carry the label
@@ -161,7 +216,8 @@ def destination(
     say how many swaps were handled by a fallback in `searcher_costs`.
 
     The proposer/builder split is primary as `block_split` defines it (self-built blocks give
-    the proposer everything); `sensitivity_self_built` holds the alternative split."""
+    the proposer everything); `sensitivity_self_built` holds the alternative split, and is added
+    only when `sensitivity` is set (the hedge, when the holdout did not support one split)."""
     searcher = pl.col("flow_label") == "searcher"
     single = costs.filter(pl.col("scope") == SINGLE)
 
@@ -197,7 +253,7 @@ def destination(
         "share_proposer": parts["proposer_usd"],
         "share_searcher_kept": parts["searcher_kept_usd"],
     }
-    return {
+    out: dict[str, Any] = {
         "pool_lvr_0_usd": pool_lvr,
         "share_searcher_of_pool_lvr": lvr_searcher / pool_lvr if pool_lvr else 0.0,
         **parts,
@@ -209,5 +265,7 @@ def destination(
         "n_swaps_null_costs": int(
             (costs["burned_usd"].is_null() | costs["builder_paid_usd"].is_null()).sum()
         ),
-        "sensitivity_self_built": sensitivity_self_built(single, split, lvr_searcher),
     }
+    if sensitivity:
+        out["sensitivity_self_built"] = sensitivity_self_built(single, split, lvr_searcher)
+    return out

@@ -1,6 +1,7 @@
 # Proposer-payment detection: design
 
-Date: 2026-10-21. Status: approved for planning.
+Date: 2026-10-21. Status: implemented (branch `proposer-payments`). Result: the pre-registered
+decision kept the two-split hedge (value 289/289, recipient 45.7%; methodology section 19).
 
 ## 1. Why
 
@@ -170,6 +171,14 @@ If both hold, the README, `lvr_destination.md` and the hero state **one split** 
 Otherwise the rule is left as it is, the holdout result is published as it stands, and the README
 keeps the **two-split hedge** (primary and sensitivity, as now, with the classes reported beside
 it). Classes 2, 4 and 5 and the other two parts are reported but decide nothing.
+
+**Stopping rule** (added 2026-10-21 after the code review, before any holdout relay call). The
+holdout is fetched, then retried once (`fetch-relays` run twice). The first `ulpe lp` run after
+every holdout block has a row in `relays.parquet` freezes the decision in
+`data/raw/holdout_decision.json`. Later runs publish the frozen decision and report any
+recomputed result beside it, so answers that arrive later cannot change the outcome. The number
+of found class-3 holdout blocks is reported as it is; there is no minimum. The commit that holds
+this rule and the decision code is tagged `holdout-preregistered` before the holdout is fetched.
 
 ## 7. What changes downstream
 

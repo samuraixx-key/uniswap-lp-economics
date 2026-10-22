@@ -14,11 +14,14 @@ from uniswap_lp_economics.data.bigquery import DATASET
 from uniswap_lp_economics.data.blocks import _window
 from uniswap_lp_economics.data.history import BILLING_HELP, is_billing_error
 from uniswap_lp_economics.io import read_exact, write_exact
+from uniswap_lp_economics.rpc import RpcClient
 
 BUILDERS_DIR = "builders"
 BLOCK_REVENUE = "block_revenue.parquet"
 TX_DIRECT = "pool_tx_direct_payments.parquet"
 TX_OTHER_LOGS = "pool_tx_other_logs.parquet"
+LAST_TX = "last_tx.parquet"
+PAYOUT_CODE = "payout_recipient_code.parquet"
 MAX_GB_BILLED = 700
 
 
@@ -121,6 +124,15 @@ GROUP BY l.transaction_hash
 """
 
 
+def build_last_tx_query(start: date, end: date) -> str:
+    """Each block's last transaction: where it went and its gas. No calldata is read."""
+    return f"""
+SELECT block_number, to_address, receipt_gas_used FROM `{DATASET}.transactions`
+WHERE {_window("block_timestamp", start, end)}
+QUALIFY transaction_index = MAX(transaction_index) OVER (PARTITION BY block_number)
+"""
+
+
 def wei_columns(df: pl.DataFrame, cols: list[str]) -> pl.DataFrame:
     """Decimal strings from BigQuery (NUMERIC/BIGNUMERIC) to exact Int128; nulls become 0."""
     return df.with_columns(
@@ -154,11 +166,11 @@ def _run(client: bigquery.Client, query: str, dry_run: bool) -> pl.DataFrame | N
 def fetch_builders(
     raw_dir: Path, start: date, end: date, dry_run: bool = False, confirm_cost: bool = False
 ) -> None:
-    """Download the three aggregated tables; files that exist are skipped. The queries are billed
-    (about 661 GB together), so a real run with a table missing needs `confirm_cost`; a dry run
+    """Download the four aggregated tables; files that exist are skipped. The queries are billed
+    (about 676 GB together), so a real run with a table missing needs `confirm_cost`; a dry run
     (free: it only reports the bytes each query would scan) does not."""
     out = raw_dir / BUILDERS_DIR
-    names = (BLOCK_REVENUE, TX_DIRECT, TX_OTHER_LOGS)
+    names = (BLOCK_REVENUE, TX_DIRECT, TX_OTHER_LOGS, LAST_TX)
     if not (dry_run or confirm_cost) and not all((out / n).exists() for n in names):
         raise SystemExit(
             "this is a paid BigQuery query; check its size with `ulpe fetch-builders --dry-run`, "
@@ -179,6 +191,12 @@ def fetch_builders(
             build_tx_other_logs_query(start, end),
             [],
             {"other_logs": pl.Int64, "logs": pl.Int64},
+        ),
+        (
+            LAST_TX,
+            build_last_tx_query(start, end),
+            [],
+            {"block_number": pl.Int64, "receipt_gas_used": pl.Int64},
         ),
     ]
     for name, query, wei, casts in jobs:
@@ -210,3 +228,39 @@ def load_builders(raw_dir: Path) -> tuple[pl.DataFrame, pl.DataFrame, pl.DataFra
         read_exact(folder / TX_DIRECT),
         read_exact(folder / TX_OTHER_LOGS),
     )
+
+
+def load_last_tx(raw_dir: Path) -> pl.DataFrame:
+    """(block_number, to_address, receipt_gas_used) of each block's last transaction."""
+    path = raw_dir / BUILDERS_DIR / LAST_TX
+    if not path.exists():
+        raise FileNotFoundError(f"{path} missing; run `ulpe fetch-builders` first")
+    return read_exact(path)
+
+
+def fetch_payout_code(client: RpcClient, raw_dir: Path, reads: list[tuple[str, int]]) -> Path:
+    """`eth_getCode` of each (address, block) read; cached, so reruns read only missing pairs."""
+    out = raw_dir / BUILDERS_DIR / PAYOUT_CODE
+    out.parent.mkdir(parents=True, exist_ok=True)
+    schema = {"address": pl.String, "block": pl.Int64, "code": pl.String}
+    known = pl.read_parquet(out) if out.exists() else pl.DataFrame(schema=schema)
+    done = set(zip(known["address"].to_list(), known["block"].to_list(), strict=True))
+    todo = [r for r in sorted(set(reads)) if r not in done]
+    rows: list[dict[str, Any]] = []
+
+    def save() -> None:
+        write_exact(pl.concat([known, pl.DataFrame(rows, schema=schema)]), out)
+
+    try:
+        for i, (address, block) in enumerate(todo):
+            rows.append(
+                {"address": address, "block": block, "code": client.get_code(address, block)}
+            )
+            if (i + 1) % 500 == 0:
+                save()
+                print(f"  {i + 1}/{len(todo)} payout recipient reads")
+    finally:
+        # Also on an RPC error or interrupt: keep every read done so far.
+        if rows or not out.exists():
+            save()
+    return out
