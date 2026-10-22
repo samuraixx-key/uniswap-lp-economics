@@ -25,7 +25,10 @@ def title(
     latest = max(found)
     if latest >= 0 or (p10_s is not None and latest >= p10_s):
         return NEUTRAL
-    return f"LPs lose at every reference unless prices are read {-latest:.1f} s before the slot"
+    return (
+        f"LPs lose at every reference unless prices are read more than {-latest:.1f} s "
+        "before the slot"
+    )
 
 
 def reference_and_timing(r: Results) -> Figure:
@@ -77,6 +80,7 @@ def reference_and_timing(r: Results) -> Figure:
             lw=2.4 if is_primary else 1.3,
             alpha=1.0 if is_primary else 0.9,
             zorder=3 if is_primary else 2,
+            drawstyle="steps-post" if name in lp_robustness.STEP_REFERENCES else "default",
         )
     zero = primary.filter(primary["offset_s"] == 0)["fees_minus_lvr_usd"][0]
     ax.scatter([0], [zero], s=36, color=p.lvr, zorder=4)

@@ -125,3 +125,10 @@ def test_cells_are_anchored_on_the_primary_zero_offset_cell() -> None:
     assert cell(table, "binance_last_trade", 0.0)["fees_minus_lvr_usd"] == pytest.approx(-5.0)
     assert cell(table, "binance_last_trade", 0.0)["lp_fees_usd"] == pytest.approx(30.0)
     assert cell(table, "binance_last_trade", 1.0)["shift_usd"] == pytest.approx(9.99)
+
+
+def test_a_step_reference_crosses_at_the_jump_not_by_interpolation() -> None:
+    # 1 s closes: equal pairs on the 0.5 s grid, the jump below zero happens at -3.0 s
+    offsets, values = [-4.0, -3.5, -3.0, -2.5], [4.0, 4.0, -255.0, -255.0]
+    assert robustness.crossing_offset(offsets, values, step=True) == -3.0
+    assert robustness.STEP_REFERENCES == ("binance_ethusdt_1s_close",)

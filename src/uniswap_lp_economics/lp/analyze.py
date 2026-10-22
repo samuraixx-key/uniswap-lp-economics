@@ -216,7 +216,8 @@ def reference_robustness(
     gap = totals["fees_minus_lvr_usd"]
     summary = {
         "crossing_offset_s": {
-            n: robustness.crossing_offset(*line(n)) for n in robustness.REFERENCES
+            n: robustness.crossing_offset(*line(n), step=n in robustness.STEP_REFERENCES)
+            for n in robustness.REFERENCES
         },
         "timing": timing,
         "fees_minus_lvr_at_median_timing_usd": None

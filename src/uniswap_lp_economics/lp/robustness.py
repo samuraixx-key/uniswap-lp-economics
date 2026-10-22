@@ -20,6 +20,9 @@ REFERENCES: tuple[str, ...] = (
     "binance_trade_side_mid",
     "binance_ethusdt_1s_close",
 )
+# References that only change at whole seconds (1 s closes stamped at the bar end, read from
+# whole-second block times): their lines are steps, so a crossing is at the jump.
+STEP_REFERENCES: tuple[str, ...] = ("binance_ethusdt_1s_close",)
 REFERENCE_LABELS: dict[str, str] = {
     "binance_last_trade": "Binance last trade",
     "binance_trade_side_mid": "Binance trade-side mid",
@@ -123,12 +126,12 @@ def robustness_table(
     return pl.DataFrame(rows)
 
 
-def crossing_offset(offsets: list[float], values: list[float]) -> float | None:
+def crossing_offset(offsets: list[float], values: list[float], step: bool = False) -> float | None:
     """The offset where the curve last goes from >= 0 to < 0, interpolated linearly between grid
-    points; None when it never does."""
+    points (at the first point below zero for a step line); None when it never does."""
     found = None
     points = list(zip(offsets, values, strict=True))
     for (x0, y0), (x1, y1) in zip(points, points[1:], strict=False):
         if y0 >= 0 > y1:
-            found = x0 + (x1 - x0) * y0 / (y0 - y1)
+            found = x1 if step else x0 + (x1 - x0) * y0 / (y0 - y1)
     return found
