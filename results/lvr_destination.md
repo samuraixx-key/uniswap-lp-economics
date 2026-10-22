@@ -59,9 +59,9 @@ The split of builder payments between builder and proposer uses each block's rat
 |---|---|
 | bar | 0.9500 |
 | n_found_payout | 290 |
+| one_split | True |
+| recipient_check | R1d |
+| round | holdout2 |
+| share_recipient_match | 1.0000 |
 | share_within_1_wei | 1.0000 |
 | share_within_1pct | 1.0000 |
-| share_recipient_match | 1.0000 |
-| one_split | True |
-| round | holdout2 |
-| recipient_check | R1d |

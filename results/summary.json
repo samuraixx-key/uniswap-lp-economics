@@ -1,6 +1,6 @@
 {
-  "generated_utc": "2026-10-21T21:28:22+00:00",
-  "git_commit": "73cc004",
+  "generated_utc": "2026-10-22T16:51:30+00:00",
+  "git_commit": "forwarder-preregistered-39-g225f999-dirty",
   "input_sha256_16": {
     "interim/cex_ethusdc.parquet": "2bb21f2bb6ca55b8",
     "interim/cex_ethusdt_1s.parquet": "02a5ea793a51eea0",
@@ -37,7 +37,7 @@
       "mean_bp": 0.2533863032608462,
       "median_bp": -2.190964682981687,
       "ci_lo_bp": -0.13707210662318492,
-      "ci_hi_bp": 0.7654885312344646
+      "ci_hi_bp": 0.7654885312344649
     },
     {
       "grouping": "all",
@@ -50,7 +50,7 @@
       "mean_bp": 0.8003325761386547,
       "median_bp": -2.4475963231812514,
       "ci_lo_bp": 0.30422292525156625,
-      "ci_hi_bp": 1.4765565673567533
+      "ci_hi_bp": 1.4765565673567527
     },
     {
       "grouping": "all",
@@ -75,7 +75,7 @@
       "markout_usd": 612580.8163396935,
       "mean_bp": 0.8689365973422072,
       "median_bp": -3.177538340441922,
-      "ci_lo_bp": 0.027551694043656087,
+      "ci_lo_bp": 0.027551694043656046,
       "ci_hi_bp": 2.0574559480907912
     },
     {
@@ -89,7 +89,7 @@
       "mean_bp": 2.3923019168198274,
       "median_bp": -3.24674007863463,
       "ci_lo_bp": -0.7247769265912234,
-      "ci_hi_bp": 7.686210412905924
+      "ci_hi_bp": 7.6862104129059245
     }
   ],
   "markouts_by_label": [
@@ -130,7 +130,7 @@
       "mean_bp": -4.346917053634721,
       "median_bp": -2.5100917219053747,
       "ci_lo_bp": -5.294067765851208,
-      "ci_hi_bp": -3.4579161250211654
+      "ci_hi_bp": -3.4579161250211645
     },
     {
       "grouping": "flow_label",
@@ -155,7 +155,7 @@
       "markout_usd": -871726.4059627443,
       "mean_bp": -10.655430359828273,
       "median_bp": -4.676340699263138,
-      "ci_lo_bp": -11.276910944741305,
+      "ci_lo_bp": -11.276910944741307,
       "ci_hi_bp": -10.01038173059664
     },
     {
@@ -194,8 +194,8 @@
       "markout_usd": -345522.1069032639,
       "mean_bp": -4.497533353711994,
       "median_bp": -2.7797070103358767,
-      "ci_lo_bp": -5.568823877538868,
-      "ci_hi_bp": -3.569019270079818
+      "ci_lo_bp": -5.568823877538867,
+      "ci_hi_bp": -3.569019270079819
     },
     {
       "grouping": "flow_label",
@@ -220,7 +220,7 @@
       "markout_usd": -857815.0407373641,
       "mean_bp": -10.485386659929718,
       "median_bp": -4.695237217661521,
-      "ci_lo_bp": -11.182200268106852,
+      "ci_lo_bp": -11.182200268106858,
       "ci_hi_bp": -9.765685245428335
     },
     {
@@ -246,7 +246,7 @@
       "markout_usd": -14725.652092365497,
       "mean_bp": -4.19324994397742,
       "median_bp": -1.7539808169205116,
-      "ci_lo_bp": -6.431228954174645,
+      "ci_lo_bp": -6.431228954174644,
       "ci_hi_bp": -2.2295437436570142
     },
     {
@@ -259,7 +259,7 @@
       "markout_usd": -352047.26631909644,
       "mean_bp": -4.582471871496328,
       "median_bp": -3.147712379132865,
-      "ci_lo_bp": -5.865677950948155,
+      "ci_lo_bp": -5.865677950948154,
       "ci_hi_bp": -3.4999439647337045
     },
     {
@@ -273,7 +273,7 @@
       "mean_bp": 3.927074042755208,
       "median_bp": -1.5158851004643394,
       "ci_lo_bp": 2.8843905590950425,
-      "ci_hi_bp": 5.448299762709718
+      "ci_hi_bp": 5.448299762709719
     },
     {
       "grouping": "flow_label",
@@ -286,7 +286,7 @@
       "mean_bp": -10.533535618236717,
       "median_bp": -4.754761403732704,
       "ci_lo_bp": -11.20739173551974,
-      "ci_hi_bp": -9.828556132487472
+      "ci_hi_bp": -9.828556132487469
     },
     {
       "grouping": "flow_label",
@@ -311,8 +311,8 @@
       "markout_usd": -11680.970550880947,
       "mean_bp": -3.326251958205484,
       "median_bp": -2.0616988159991916,
-      "ci_lo_bp": -6.452730172221628,
-      "ci_hi_bp": -0.35140023922525604
+      "ci_lo_bp": -6.4527301722216235,
+      "ci_hi_bp": -0.35140023922525626
     },
     {
       "grouping": "flow_label",
@@ -325,7 +325,7 @@
       "mean_bp": -4.73912714461559,
       "median_bp": -3.515358246292058,
       "ci_lo_bp": -5.90810048596322,
-      "ci_hi_bp": -3.469640241174709
+      "ci_hi_bp": -3.4696402411747087
     },
     {
       "grouping": "flow_label",
@@ -338,7 +338,7 @@
       "mean_bp": 3.7846298034284502,
       "median_bp": -1.8681396681947473,
       "ci_lo_bp": 2.5564321882348797,
-      "ci_hi_bp": 5.461323582886349
+      "ci_hi_bp": 5.4613235828863465
     },
     {
       "grouping": "flow_label",
@@ -364,7 +364,7 @@
       "mean_bp": -6.97862479010052,
       "median_bp": -3.556195685032252,
       "ci_lo_bp": -10.066564828841743,
-      "ci_hi_bp": -4.025337453379658
+      "ci_hi_bp": -4.025337453379657
     },
     {
       "grouping": "flow_label",
@@ -376,8 +376,8 @@
       "markout_usd": 1944.7778192657472,
       "mean_bp": 0.5537965499338834,
       "median_bp": -1.975028464235236,
-      "ci_lo_bp": -11.204630257982483,
-      "ci_hi_bp": 14.490210532667003
+      "ci_lo_bp": -11.204630257982478,
+      "ci_hi_bp": 14.490210532667014
     },
     {
       "grouping": "flow_label",
@@ -389,8 +389,8 @@
       "markout_usd": -439267.28963038453,
       "mean_bp": -5.718472719132928,
       "median_bp": -3.8436081057916534,
-      "ci_lo_bp": -8.537786245233331,
-      "ci_hi_bp": -2.7692464978546387
+      "ci_lo_bp": -8.537786245233328,
+      "ci_hi_bp": -2.769246497854639
     },
     {
       "grouping": "flow_label",
@@ -415,8 +415,8 @@
       "markout_usd": -1270226.6209226348,
       "mean_bp": -15.529799014483007,
       "median_bp": -4.882726004500455,
-      "ci_lo_bp": -24.61710932995569,
-      "ci_hi_bp": -9.007394907040226
+      "ci_lo_bp": -24.6171093299557,
+      "ci_hi_bp": -9.007394907040224
     }
   ],
   "markouts_robustness_0s": [
@@ -454,7 +454,7 @@
       "mean_bp": -4.346917053634721,
       "median_bp": -2.5100917219053747,
       "ci_lo_bp": -5.294067765851208,
-      "ci_hi_bp": -3.4579161250211654
+      "ci_hi_bp": -3.4579161250211645
     },
     {
       "variant": "primary",
@@ -477,7 +477,7 @@
       "markout_usd": -871726.4059627443,
       "mean_bp": -10.655430359828273,
       "median_bp": -4.676340699263138,
-      "ci_lo_bp": -11.276910944741305,
+      "ci_lo_bp": -11.276910944741307,
       "ci_hi_bp": -10.01038173059664
     },
     {
@@ -490,7 +490,7 @@
       "mean_bp": -7.785125004498307,
       "median_bp": -3.987733882402159,
       "ci_lo_bp": -8.795209071600048,
-      "ci_hi_bp": -6.8343548420324085
+      "ci_hi_bp": -6.834354842032407
     },
     {
       "variant": "ethusdt_reference",
@@ -501,7 +501,7 @@
       "markout_usd": -19873.407367146265,
       "mean_bp": -5.659115386280995,
       "median_bp": -2.7960669357996766,
-      "ci_lo_bp": -7.768156225766595,
+      "ci_lo_bp": -7.768156225766592,
       "ci_hi_bp": -3.7495116786839278
     },
     {
@@ -513,7 +513,7 @@
       "markout_usd": -350563.08152374474,
       "mean_bp": -4.563149854184353,
       "median_bp": -2.968364086316032,
-      "ci_lo_bp": -5.5803431527956375,
+      "ci_lo_bp": -5.58034315279564,
       "ci_hi_bp": -3.6239872650356046
     },
     {
@@ -526,7 +526,7 @@
       "mean_bp": 3.3438839928043635,
       "median_bp": -1.0870277049081547,
       "ci_lo_bp": 2.8159021055789992,
-      "ci_hi_bp": 4.015115309478691
+      "ci_hi_bp": 4.01511530947869
     },
     {
       "variant": "ethusdt_reference",
@@ -561,7 +561,7 @@
       "markout_usd": -17804.90417592513,
       "mean_bp": -5.070092174521019,
       "median_bp": -1.4835029352934583,
-      "ci_lo_bp": -7.32657657275221,
+      "ci_lo_bp": -7.326576572752209,
       "ci_hi_bp": -3.181593857353086
     },
     {
@@ -574,7 +574,7 @@
       "mean_bp": -4.489551614571652,
       "median_bp": -2.6509903666226373,
       "ci_lo_bp": -5.3462264428144515,
-      "ci_hi_bp": -3.626877879979719
+      "ci_hi_bp": -3.6268778799797183
     },
     {
       "variant": "t0_minus_2s",
@@ -585,7 +585,7 @@
       "markout_usd": 946400.8308957895,
       "mean_bp": 1.7957550716259756,
       "median_bp": -1.0065992986717285,
-      "ci_lo_bp": 1.445636608883103,
+      "ci_lo_bp": 1.4456366088831032,
       "ci_hi_bp": 2.25096991686216
     },
     {
@@ -597,8 +597,8 @@
       "markout_usd": -876456.9248859858,
       "mean_bp": -10.713253221000846,
       "median_bp": -4.678988179475301,
-      "ci_lo_bp": -11.329043741507604,
-      "ci_hi_bp": -10.069899231610206
+      "ci_lo_bp": -11.329043741507602,
+      "ci_hi_bp": -10.069899231610208
     },
     {
       "variant": "exclude_stale_over_5s",
@@ -621,7 +621,7 @@
       "markout_usd": -16817.928777730624,
       "mean_bp": -5.318041642113704,
       "median_bp": -1.4266813747502496,
-      "ci_lo_bp": -7.63138857581806,
+      "ci_lo_bp": -7.631388575818058,
       "ci_hi_bp": -3.289840688979321
     },
     {
@@ -633,8 +633,8 @@
       "markout_usd": -290169.6882204732,
       "mean_bp": -4.185339935675736,
       "median_bp": -2.526792769088247,
-      "ci_lo_bp": -5.234047344080142,
-      "ci_hi_bp": -3.212108163766997
+      "ci_lo_bp": -5.2340473440801425,
+      "ci_hi_bp": -3.2121081637669984
     },
     {
       "variant": "exclude_stale_over_5s",
@@ -646,7 +646,7 @@
       "mean_bp": 2.940701845826351,
       "median_bp": -0.45454817438918615,
       "ci_lo_bp": 2.4370777629980203,
-      "ci_hi_bp": 3.604880643653077
+      "ci_hi_bp": 3.6048806436530767
     },
     {
       "variant": "exclude_stale_over_5s",
@@ -686,7 +686,7 @@
       "mean_bp": -2.9877490769824835,
       "median_bp": -2.0034399080144225,
       "ci_lo_bp": -3.1370777783820705,
-      "ci_hi_bp": -2.823234509710544
+      "ci_hi_bp": -2.8232345097105433
     },
     {
       "grouping": "flow_label_x_size",
@@ -725,7 +725,7 @@
       "mean_bp": -2.065376418008301,
       "median_bp": -1.3566369474157594,
       "ci_lo_bp": -2.303828378928731,
-      "ci_hi_bp": -1.8176235725937382
+      "ci_hi_bp": -1.8176235725937384
     },
     {
       "grouping": "flow_label_x_size",
@@ -751,7 +751,7 @@
       "mean_bp": -3.4772819397780994,
       "median_bp": -1.8824737512797285,
       "ci_lo_bp": -3.852310942472879,
-      "ci_hi_bp": -3.090961397513558
+      "ci_hi_bp": -3.0909613975135577
     },
     {
       "grouping": "flow_label_x_size",
@@ -777,7 +777,7 @@
       "mean_bp": -3.161994663205526,
       "median_bp": -2.999353807450497,
       "ci_lo_bp": -3.311402139100329,
-      "ci_hi_bp": -2.999494804162943
+      "ci_hi_bp": -2.9994948041629432
     },
     {
       "grouping": "flow_label_x_size",
@@ -789,7 +789,7 @@
       "markout_usd": -32513.33014381771,
       "mean_bp": -2.7357367252215217,
       "median_bp": -1.8939008925163656,
-      "ci_lo_bp": -2.9257449586030235,
+      "ci_lo_bp": -2.925744958603023,
       "ci_hi_bp": -2.555029354012448
     },
     {
@@ -803,7 +803,7 @@
       "mean_bp": -3.4661412022495197,
       "median_bp": -2.595632464447744,
       "ci_lo_bp": -3.8764410453275033,
-      "ci_hi_bp": -3.0462311110589178
+      "ci_hi_bp": -3.046231111058918
     },
     {
       "grouping": "flow_label_x_size",
@@ -815,7 +815,7 @@
       "markout_usd": -158300.25471356802,
       "mean_bp": -6.7213239523770865,
       "median_bp": -6.225543621074179,
-      "ci_lo_bp": -9.767128134348612,
+      "ci_lo_bp": -9.767128134348614,
       "ci_hi_bp": -3.7822114844091343
     },
     {
@@ -829,7 +829,7 @@
       "mean_bp": -4.381618601415178,
       "median_bp": -4.57388867850412,
       "ci_lo_bp": -4.561365827145097,
-      "ci_hi_bp": -4.144230585306928
+      "ci_hi_bp": -4.144230585306929
     },
     {
       "grouping": "flow_label_x_size",
@@ -907,7 +907,7 @@
       "mean_bp": -5.92048408727054,
       "median_bp": -4.516697328737067,
       "ci_lo_bp": -6.266035026255385,
-      "ci_hi_bp": -5.578315231656224
+      "ci_hi_bp": -5.578315231656225
     },
     {
       "grouping": "flow_label_x_size",
@@ -920,7 +920,7 @@
       "mean_bp": -17.159581875306863,
       "median_bp": -13.084807497321057,
       "ci_lo_bp": -18.239507888772856,
-      "ci_hi_bp": -16.0682102804808
+      "ci_hi_bp": -16.068210280480802
     }
   ],
   "basis": {
@@ -1155,38 +1155,38 @@
     {
       "flow_label": "searcher",
       "swaps": 253280,
-      "notional_usd": 5270211098.659838,
-      "notional_share": 0.747554137005693
+      "notional_usd": 5270211098.659831,
+      "notional_share": 0.747554137005692
     },
     {
       "flow_label": "uniswap_router",
       "swaps": 167988,
-      "notional_usd": 818105300.7949964,
-      "notional_share": 0.11604430840941164
+      "notional_usd": 818105300.794996,
+      "notional_share": 0.11604430840941159
     },
     {
       "flow_label": "other_contract",
       "swaps": 91722,
-      "notional_usd": 768248014.4768476,
-      "notional_share": 0.10897229175784202
+      "notional_usd": 768248014.476848,
+      "notional_share": 0.10897229175784207
     },
     {
       "flow_label": "aggregator",
       "swaps": 17822,
-      "notional_usd": 158257115.23412305,
-      "notional_share": 0.02244801185173386
+      "notional_usd": 158257115.23412302,
+      "notional_share": 0.022448011851733854
     },
     {
       "flow_label": "intent_settlement",
       "swaps": 3565,
-      "notional_usd": 35117515.743403986,
-      "notional_share": 0.004981250975320493
+      "notional_usd": 35117515.743404,
+      "notional_share": 0.004981250975320495
     }
   ],
   "limitation": "Builder payments are detected only as direct ETH transfers from the bot contract to the block's fee recipient within the same transaction. Payments routed elsewhere (another contract, a separate transaction in the bundle, off-chain agreements) are missed, so the reported net profit is an **upper bound** on what the bots keep. Binance-side trading fees, inventory and hedging costs are not observed.",
   "lp": {
-    "generated_utc": "2026-10-22T04:50:46+00:00",
-    "git_commit": "forwarder-preregistered-8-g99ae1de",
+    "generated_utc": "2026-10-22T16:53:07+00:00",
+    "git_commit": "forwarder-preregistered-39-g225f999-dirty",
     "lp_fees_usd": 2644187.170867051,
     "protocol_fees_usd": 881290.1311692027,
     "lvr_0_usd": 3703796.759283188,
@@ -4926,7 +4926,7 @@
           {
             "lp_type": "jit",
             "positions": 844,
-            "fee_usd": 4752.915576564617
+            "fee_usd": 4752.915576564618
           },
           {
             "lp_type": "lp_vault",
@@ -4936,7 +4936,7 @@
           {
             "lp_type": "nft_wallet",
             "positions": 5788,
-            "fee_usd": 2572025.8377652224
+            "fee_usd": 2572025.837765224
           },
           {
             "lp_type": "nft_contract",
@@ -4946,7 +4946,7 @@
           {
             "lp_type": "direct_other",
             "positions": 397,
-            "fee_usd": 17100.83084260079
+            "fee_usd": 17100.830842600786
           }
         ]
       },
@@ -5045,12 +5045,12 @@
       "holdout_decision_2": {
         "bar": 0.95,
         "n_found_payout": 290,
-        "share_within_1_wei": 1.0,
-        "share_within_1pct": 1.0,
-        "share_recipient_match": 1.0,
         "one_split": true,
+        "recipient_check": "R1d",
         "round": "holdout2",
-        "recipient_check": "R1d"
+        "share_recipient_match": 1.0,
+        "share_within_1_wei": 1.0,
+        "share_within_1pct": 1.0
       },
       "decision_2_frozen": true,
       "published_decision": "holdout2",
@@ -5124,6 +5124,16 @@
         "share_recipient_match": 0.45674740484429066,
         "one_split": false
       },
+      "holdout_decision_2_recomputed": {
+        "bar": 0.95,
+        "n_found_payout": 290,
+        "share_within_1_wei": 1.0,
+        "share_within_1pct": 1.0,
+        "share_recipient_match": 1.0,
+        "one_split": true,
+        "round": "holdout2",
+        "recipient_check": "R1d"
+      },
       "class_counts_by_n": {
         "20": {
           "empty": 175,
@@ -5154,8 +5164,8 @@
     "destination_limitation": "The split of builder payments between builder and proposer uses each block's ratio of proposer payment to builder revenue; how a builder prices an individual transaction is not observed. Proposer payments are identified as the block's last transaction, sent by the fee recipient or by a payout address learned from chain data, and tested on a blind stratified relay sample; blocks where neither applies give the proposer the whole builder revenue."
   },
   "strategy": {
-    "generated_utc": "2026-10-22T15:59:23+00:00",
-    "git_commit": "forwarder-preregistered-38-gc5f5e90-dirty",
+    "generated_utc": "2026-10-22T16:55:23+00:00",
+    "git_commit": "forwarder-preregistered-39-g225f999-dirty",
     "delta": 0.06768831701735356,
     "r0": 0.7292467319305858,
     "range_verdict": "inconclusive",

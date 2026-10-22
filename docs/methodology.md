@@ -1516,4 +1516,8 @@ fees − LVR: the benchmark is the free continuous hedge.
    by day, and every committed strategy report file comes from one run of that code; two
    consecutive runs are byte-identical apart from `generated_utc`. Against the first run, values
    moved by at most 2.9e-11 and no flag, verdict or frozen value changed. The freeze
-   (`f565e41`) was not touched.
+   (`f565e41`) was not touched. The same fix (`io.ordered_group_by`, guarded by a test because polars does not
+   promise the behaviour) covers the four sums in `ulpe analyze` and `ulpe lp` whose output varied
+   between runs: label coverage, check R3, the markout day bootstrap and `lp_blocks.parquet`'s row
+   order. Their results moved by at most 2e-15 relative, and every freeze-hashed input stayed
+   byte-identical.

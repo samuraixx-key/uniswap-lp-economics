@@ -12,6 +12,7 @@ from datetime import date
 import polars as pl
 
 from uniswap_lp_economics.config import DECIMALS0, DECIMALS1, NPM_ADDRESS
+from uniswap_lp_economics.io import ordered_group_by
 from uniswap_lp_economics.strategy.params import FULL_RANGE, RULES
 from uniswap_lp_economics.v3math import get_sqrt_ratio_at_tick
 
@@ -347,16 +348,12 @@ def score(
         end_log=pl.lit(-2),
     )
     att = attribute(steps, held)
-    # polars' parallel group sums differ run to run in the last bits; sorted keys sum in order
-    fees = (
-        att.sort("day", maintain_order=True)
-        .group_by("day", maintain_order=True)
-        .agg(fee_usd=pl.col("fee_usd").sum(), lvr_usd=pl.col("lvr_0").sum())
+    fees = ordered_group_by(att, "day").agg(
+        fee_usd=pl.col("fee_usd").sum(), lvr_usd=pl.col("lvr_0").sum()
     )
     paid = (
         s.filter(pl.col("seg") > 0)
-        .sort("day", maintain_order=True)
-        .group_by("day", maintain_order=True)
+        .pipe(ordered_group_by, "day")
         .agg(pl.col("gas_usd").sum(), pl.col("trade_usd").sum(), recentres=pl.len())
     )
     ranges = s.select("ts_us", "start_block", "tick_lower", "tick_upper", "liquidity")
@@ -369,8 +366,7 @@ def score(
             pl.col("tick_lower", "tick_upper", "liquidity").fill_null(strategy="backward")
         )
         .with_columns(day=pl.from_epoch("ts_us", "us").dt.date())
-        .sort("day", maintain_order=True)
-        .group_by("day", maintain_order=True)
+        .pipe(ordered_group_by, "day")
         .agg(twv_usd=(ell * (u + e * pl.col("p_cex"))).mean())
     )
     first, end = s["start_block"][0], s["end_block"][-1]

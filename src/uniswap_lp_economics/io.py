@@ -9,6 +9,7 @@ Use ``write_exact`` / ``read_exact`` for any parquet file that holds Int128 colu
 from pathlib import Path
 
 import polars as pl
+from polars.dataframe.group_by import GroupBy
 
 DISK_DECIMAL = pl.Decimal(38, 0)
 
@@ -34,6 +35,15 @@ def write_text_atomic(path: Path, text: str) -> None:
     part = path.with_name(path.name + ".part")
     part.write_text(text, encoding="utf-8", newline="\n")  # same bytes on every platform
     part.replace(path)
+
+
+def ordered_group_by(df: pl.DataFrame, key: str) -> GroupBy:
+    """`df.group_by(key)` whose float sums are the same bits on every run.
+
+    polars' parallel group sums add a group's rows in a different order each call; on rows
+    stably sorted by the key each group is one contiguous slice, summed in row order. polars
+    does not promise this, so `test_ordered_group_by_is_deterministic` guards it."""
+    return df.sort(key, maintain_order=True).group_by(key, maintain_order=True)
 
 
 U256 = 2**256

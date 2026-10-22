@@ -11,6 +11,7 @@ import math
 import polars as pl
 
 from uniswap_lp_economics.config import HOUR_US
+from uniswap_lp_economics.io import ordered_group_by
 from uniswap_lp_economics.strategy.params import (
     HEDGE_DRIFT,
     HEDGE_RULES,
@@ -104,9 +105,7 @@ def simulate(
             trade_usd=(pl.col("h") - pl.col("h_prev")).abs() * pl.col("close") * taker_fee_bp / 1e4,
             rehedges=pl.col("fired").cast(pl.Int64),
         )
-        # polars' parallel group sums differ run to run in the last bits; sorted keys sum in order
-        .sort("day", maintain_order=True)
-        .group_by("day", maintain_order=True)
+        .pipe(ordered_group_by, "day")
         .agg(pl.all().sum())
     )
     paid = (
@@ -119,8 +118,7 @@ def simulate(
         )
         .filter(pl.col("ts_us") - pl.col("_minute_us") < MINUTE_US)  # inside the minute's span
         .select(day=_day("_minute_us"), funding_usd=pl.col("h") * pl.col("close") * pl.col("rate"))
-        .sort("day", maintain_order=True)
-        .group_by("day", maintain_order=True)
+        .pipe(ordered_group_by, "day")
         .agg(pl.col("funding_usd").sum())
     )
     return (
@@ -158,8 +156,7 @@ def hedge_table(
     dv = (
         path.sort("ts_us")
         .select(day=_day("ts_us"), dv=pl.col("value_usd").diff().fill_null(0.0))
-        .sort("day", maintain_order=True)
-        .group_by("day", maintain_order=True)
+        .pipe(ordered_group_by, "day")
         .agg(pl.col("dv").sum())
     )
     if missing := set(dv["day"]) - set(grid["day"]):

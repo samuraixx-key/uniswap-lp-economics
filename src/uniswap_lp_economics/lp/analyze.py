@@ -21,7 +21,7 @@ from uniswap_lp_economics.data import (
     transfers,
 )
 from uniswap_lp_economics.data import blocks as bq_blocks
-from uniswap_lp_economics.io import read_exact, write_exact, write_text_atomic
+from uniswap_lp_economics.io import ordered_group_by, read_exact, write_exact, write_text_atomic
 from uniswap_lp_economics.lp import (
     destination,
     figdata,
@@ -584,7 +584,7 @@ def lp_analysis(
     summary["lp"]["destination"] = dest
     summary["lp"]["checks"].update({r.name: r.summary for r in reported})
     summary["lp"]["destination_limitation"] = limitation
-    blocks_theory = int_1s.group_by("block_number").agg(
+    blocks_theory = ordered_group_by(int_1s, "block_number").agg(
         pl.col("r2").sum(), pl.col("lvr_theory").sum()
     )
 

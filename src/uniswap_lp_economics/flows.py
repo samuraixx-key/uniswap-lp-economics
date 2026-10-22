@@ -5,6 +5,8 @@ from pathlib import Path
 
 import polars as pl
 
+from uniswap_lp_economics.io import ordered_group_by
+
 CATEGORIES = ("uniswap_router", "aggregator", "intent_settlement")
 FLOW_LABELS = (*CATEGORIES, "searcher", "other_contract")
 LABEL_COLUMNS = ["address", "name", "category", "source_url", "notes"]
@@ -100,7 +102,7 @@ def label_coverage(labelled: pl.DataFrame) -> pl.DataFrame:
     total = float(labelled["notional_usd"].sum())
     share = pl.col("notional_usd") / total if total > 0 else pl.lit(None, dtype=pl.Float64)
     return (
-        labelled.group_by("flow_label")
+        ordered_group_by(labelled, "flow_label")
         .agg(swaps=pl.len(), notional_usd=pl.col("notional_usd").sum())
         .with_columns(notional_share=share)
         .sort("notional_usd", descending=True)

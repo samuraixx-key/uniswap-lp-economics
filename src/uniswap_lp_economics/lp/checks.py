@@ -9,7 +9,7 @@ import polars as pl
 
 from uniswap_lp_economics.arbprofit import coinbase_payments
 from uniswap_lp_economics.data.relays import HOLDOUT2_FILE, HOLDOUT2_ROUND, HOLDOUT_FILE
-from uniswap_lp_economics.io import hex_u256, read_exact, write_text_atomic
+from uniswap_lp_economics.io import hex_u256, ordered_group_by, read_exact, write_text_atomic
 from uniswap_lp_economics.lp import payouts
 from uniswap_lp_economics.lp.payouts import CLASSES
 from uniswap_lp_economics.lp.pnl import LP_TYPES
@@ -676,7 +676,7 @@ def check_r2_traces_vs_alchemy(
 def check_r3_lp_types(positions: pl.DataFrame) -> CheckResult:
     order = pl.DataFrame({"lp_type": list(LP_TYPES), "_o": list(range(len(LP_TYPES)))})
     by = (
-        positions.group_by("lp_type")
+        ordered_group_by(positions, "lp_type")
         .agg(positions=pl.len(), fee_usd=pl.col("fee_usd").sum())
         .join(order, on="lp_type", how="left")
         .sort("_o", "lp_type", nulls_last=True)  # pnl.LP_TYPES order, stable between runs

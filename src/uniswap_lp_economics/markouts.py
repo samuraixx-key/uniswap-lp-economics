@@ -14,6 +14,7 @@ from numpy.typing import NDArray
 
 from uniswap_lp_economics.config import DECIMALS0, DECIMALS1, HORIZONS_S
 from uniswap_lp_economics.flows import SIZE_BUCKETS
+from uniswap_lp_economics.io import ordered_group_by
 
 N_BOOT = 1000
 SEED = 42
@@ -118,7 +119,7 @@ def markout_table(
         )
         for key in sorted(groups, key=lambda k: _group_order(group_cols, k)):
             g = groups[key]
-            daily = g.group_by("day").agg(pl.col(m).sum(), pl.col("notional_usd").sum())
+            daily = ordered_group_by(g, "day").agg(pl.col(m).sum(), pl.col("notional_usd").sum())
             by_day = {d: (mk, nt) for d, mk, nt in daily.iter_rows()}
             dm = np.array([by_day.get(d, (0.0, 0.0))[0] for d in days], dtype=np.float64)
             dn = np.array([by_day.get(d, (0.0, 0.0))[1] for d in days], dtype=np.float64)

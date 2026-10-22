@@ -1,12 +1,14 @@
 from pathlib import Path
 
 import duckdb
+import numpy as np
 import polars as pl
 import pyarrow.parquet as pq
 import pytest
 
 from uniswap_lp_economics.io import (
     hex_u256,
+    ordered_group_by,
     read_exact,
     u256_hex,
     write_exact,
@@ -89,3 +91,19 @@ def test_u256_hex_round_trip_and_wrap() -> None:
     assert len(u256_hex(2**256 - 1)) == 64
     assert u256_hex(-1) == "f" * 64  # wraps like uint256
     assert hex_u256(u256_hex(2**200 + 7)) == 2**200 + 7
+
+
+def test_ordered_group_by_is_deterministic() -> None:
+    # guards a polars behaviour, not a promise: plain group_by sums differ on nearly every call
+    rng = np.random.default_rng(0)
+    n = 1_000_000
+    df = pl.DataFrame(
+        {"day": rng.integers(0, 61, n), "x": rng.standard_normal(n) * rng.lognormal(0, 3, n)}
+    )
+    runs = {
+        ordered_group_by(df, "day").agg(pl.col("x").sum(), m=pl.col("x").mean()).write_csv()
+        for _ in range(20)
+    }
+    assert len(runs) == 1
+    out = ordered_group_by(df, "day").agg(pl.col("x").sum())
+    assert out["day"].to_list() == list(range(61))  # groups in key order
