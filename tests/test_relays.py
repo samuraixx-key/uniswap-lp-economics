@@ -312,3 +312,17 @@ def test_an_error_mid_retry_keeps_every_row(
         relays.retry_unchecked(tmp_path, client, (R1,), pace_s=0)
     df = read_exact(tmp_path / relays.RELAY_FILE).sort("block_number")
     assert df["round"].to_list() == ["retry", "seen", "seen"]  # block 1 retried; 2, 3 untouched
+
+
+@pytest.mark.parametrize("answer", [[], [{"value": "9", "proposer_fee_recipient": "0xab"}]])
+def test_a_retried_holdout_row_stays_in_the_holdout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, answer: list[object]
+) -> None:
+    monkeypatch.setattr(relays.time, "sleep", lambda s: None)
+    rows = [_row(3, False, R1, "holdout"), _row(4, False, R1, "seen")]
+    write_exact(pl.DataFrame(rows, schema=relays.RELAY_SCHEMA), tmp_path / relays.RELAY_FILE)
+    client = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(200, json=answer)))
+    assert relays.retry_unchecked(tmp_path, client, (R1,), pace_s=0) == 2
+    df = read_exact(tmp_path / relays.RELAY_FILE).sort("block_number")
+    assert df["round"].to_list() == ["holdout", "retry"]
+    assert df["found"].to_list() == [bool(answer)] * 2 and df["relays_unchecked"].null_count() == 2

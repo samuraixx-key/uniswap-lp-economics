@@ -181,11 +181,13 @@ def retry_unchecked(
 ) -> int:
     """Re-query the not-found blocks a relay never answered (`relays_unchecked` set), paced and
     with a fresh breaker and a longer timeout. Each such row is replaced in place and marked
-    `round = "retry"`, found or not. Returns the number of blocks retried."""
+    `round = "retry"`, found or not; holdout rows are retried too but stay "holdout". Returns the
+    number of blocks retried."""
     out = raw_dir / RELAY_FILE
     done = _read(out)
     todo = done.filter(~pl.col("found") & pl.col("relays_unchecked").is_not_null())
     todo_blocks = todo["block_number"].to_list()
+    holdout = set(todo.filter(pl.col("round") == "holdout")["block_number"].to_list())
     keep = done.filter(~pl.col("block_number").is_in(todo_blocks))
     breaker = RelayBreaker()
     rows: list[dict[str, Any]] = []
@@ -201,7 +203,8 @@ def retry_unchecked(
             if i:
                 time.sleep(pace_s)
             row = query_block(http, b, relay_urls, breaker=breaker, timeout_s=timeout_s)
-            rows.append({**row, "round": "retry"})
+            # A holdout row stays in the holdout: its membership is not a retry's to rewrite.
+            rows.append({**row, "round": "holdout" if b in holdout else "retry"})
             if (i + 1) % 100 == 0:
                 # Rows not retried yet must stay in the file: write them back with the new ones.
                 save()
