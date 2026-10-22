@@ -293,7 +293,7 @@ The net ratio reported (`kept_over_top_bot_gross` in
 transactions. The spec's `kept / captured` would divide the top bots' single-pool result by all
 searchers' 0 s markouts, mixing two populations, so it is not reported.
 
-Required limitation text (also in the README, `results/arbitrage.md` and `results/bot_profit.md`):
+Required limitation text (also in [REPORT.md](../REPORT.md), `results/arbitrage.md` and `results/bot_profit.md`):
 
 > Builder payments are detected only as direct ETH transfers from the bot contract to the block's fee recipient within the same transaction. Payments routed elsewhere (another contract, a separate transaction in the bundle, off-chain agreements) are missed, so the reported net profit is an **upper bound** on what the bots keep. Binance-side trading fees, inventory and hedging costs are not observed.
 
@@ -878,7 +878,7 @@ split (proposer 594,782.47, 0.1435; builder margin 848,648.09, 0.2048), which li
 pair: most of these blocks paid their proposer from a payout address, and paid less than either
 method assumed.
 
-Required limitation text (also in the README and `results/lvr_destination.md`):
+Required limitation text (also in [REPORT.md](../REPORT.md) and `results/lvr_destination.md`):
 
 > The split of builder payments between builder and proposer uses each block's ratio of proposer payment to builder revenue; how a builder prices an individual transaction is not observed. Proposer payments are identified as the block's last transaction, sent by the fee recipient or by a payout address learned from chain data, and tested on a blind stratified relay sample; blocks where neither applies give the proposer the whole builder revenue.
 
@@ -958,7 +958,11 @@ ties); within it, the 20-block stretch with the largest absolute Binance log mov
 **JIT block selection (figure 11).** Among JIT positions whose own transactions (mint and burn) also
 hold a pool swap before the first liquidity add and one after the last removal, the one with the
 largest P&L vs rebalancing (then the lowest block, then the id). Without such a position, the most
-profitable JIT position, and the figure says so.
+profitable JIT position, and the figure says so. In the block shown, the operator's first swap
+moves the pool from $1,794.90 to $1,759.93; its liquidity then buys the next trader's ETH at that
+low price, a "negative LVR" of $2,093.08. The position made $1,125.36 against rebalancing, but the
+operator's own two swaps lost $1,088.90 against Binance at 0 s: all in, the operator came out
+$36.47 ahead ([`results/figure_data/jit_block.csv`](../results/figure_data/jit_block.csv)).
 
 **"$10k" framing (figure 10).** P&L per $10,000 of time-weighted position value per 30 days =
 `bp_per_day × 30`, since `bp_per_day` is P&L per 10⁴ of value per day.
@@ -1478,7 +1482,10 @@ defined draws.
   cell is inside, **fails** if any is above, **inconclusive** otherwise. The verdict is recomputed
   on the unflagged cells alone; if it differs, it "depends on flagged cells". Result:
   inconclusive, and it depends on the 24 flagged cells (the three unflagged, ±5,000 bp, are
-  inside; no cell is above).
+  inside; no cell is above). The point estimates above +δ are daily re-centred ranges of ±10 to
+  ±50 bp (+0.088 to +0.111). Such a range is out of range most of the time (±10 bp re-centred
+  daily is in range at 18% of block starts), so it misses in-range LVR when the price trends away
+  during the day; that reading is an interpretation, not tested.
 - **Fee part**, per fixed level f > 5 bp on the arbitrage side: holds if the lower bound > +δ,
   fails if the upper bound < +δ, inconclusive otherwise; the summary is the lowest level where it
   holds, or "fails". Levels below 5 bp are not tested, and with calibration failed no level is:
