@@ -1,0 +1,10 @@
+# GitHub Pages: built-in Jekyll serves the repo's Markdown from main (README.md is the index).
+title: Who makes money on Uniswap V3?
+theme: jekyll-theme-primer
+exclude:
+  - src/
+  - tests/
+  - scripts/
+  - labels/
+  - uv.lock
+  - pyproject.toml
