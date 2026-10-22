@@ -1,24 +1,40 @@
 """Range attribution of recorded steps (spec 5.1) and check S1 against the engine (spec 5.2)."""
 
 import math
-from datetime import date
+from datetime import UTC, date, datetime
+from typing import Any
 
 import polars as pl
 import pytest
-from lpworld import EVENT_SCHEMA, SNAP, J, L, T, ev, oracle
+from lpworld import EVENT_SCHEMA, SNAP, US, J, L, T, ev, oracle, world_end_us
 from test_strategy_cfpool import NO_BLOCKS, _world
 
+from uniswap_lp_economics.config import HOUR_US, NPM_ADDRESS
+from uniswap_lp_economics.lp.analyze import hourly_grid
 from uniswap_lp_economics.lp.engine import iter_engine_rows
 from uniswap_lp_economics.lp.state import step_values
 from uniswap_lp_economics.strategy.cfpool import (
     CF_STEP_SCHEMA,
     CfInputs,
+    CfRun,
     FixedFee,
     SwapInfo,
+    prepare_inputs,
     run_pool,
 )
 from uniswap_lp_economics.strategy.checks import check_s1
-from uniswap_lp_economics.strategy.ranges import attribute, held_from_flows
+from uniswap_lp_economics.strategy.params import PRIMARY_CAPITAL, RULES, TAKER_FEE_BP
+from uniswap_lp_economics.strategy.ranges import (
+    LpCosts,
+    StrategyResult,
+    attribute,
+    held_from_flows,
+    lp_costs,
+    peak_share,
+    range_ticks,
+    score,
+    segments,
+)
 from uniswap_lp_economics.tickbook import TickBook
 from uniswap_lp_economics.v3math import get_sqrt_ratio_at_tick as sqrt_at
 from uniswap_lp_economics.v3swap import SwapRun, swap
@@ -197,3 +213,185 @@ def test_s1_on_the_world() -> None:
     assert not r.passed
     assert r.summary["worst_position"] == top
     assert r.summary["failures"] >= 1
+
+
+# --- Task 5: segments, scoring and costs (spec 5.3-5.4) ---
+
+GAS = LpCosts(gas_mint=400_000, gas_burn_collect=200_000, priority_wei=10**8)
+BASE_FEE = 10**9
+STARTS_SCHEMA = {
+    "block_number": pl.Int64,
+    "ts_us": pl.Int64,
+    "day": pl.Date,
+    "tick": pl.Int64,
+    "sqrt_price_x96": pl.Int128,
+    "p_ref_0": pl.Float64,
+    "base_fee_wei": pl.Int64,
+}
+SEG_COLS = ["seg", "start_block", "end_block", "center_tick", "tick_lower", "tick_upper"]
+
+
+def _starts(ticks: list[int], days: list[date]) -> pl.DataFrame:
+    """Block-start states for blocks 1..n, 12 s apart, at a constant reference of 2,000 USD."""
+    rows = []
+    for i, (t, d) in enumerate(zip(ticks, days, strict=True)):
+        ts = int(datetime(d.year, d.month, d.day, tzinfo=UTC).timestamp()) * US + 12 * US * i
+        rows.append((i + 1, ts, d, t, sqrt_at(t), P0, BASE_FEE))
+    return pl.DataFrame(rows, schema=STARTS_SCHEMA, orient="row")
+
+
+def _unit(tick: int, lo: int, hi: int, p: float) -> tuple[float, float]:
+    """(USD value, WETH) per unit of liquidity at `tick`, as pnl.time_weighted_value."""
+    s, sa, sb = (1.0001 ** (x / 2) for x in (tick, lo, hi))
+    s = min(max(s, sa), sb)
+    eth = (s - sa) / 1e18
+    return (1 / s - 1 / sb) / 1e6 + eth * p, eth
+
+
+def _world_cell(
+    rule: str, width: int | None, capital: float
+) -> tuple[StrategyResult, CfRun, list[date]]:
+    inp, run, _ = _world()
+    assert run.steps is not None
+    ci = prepare_inputs(
+        inp.events,
+        inp.ticks,
+        inp.meta,
+        inp.aligned,
+        inp.swap_fees,
+        inp.blocks_state,
+        inp.blocks,
+        inp.trades,
+        set(),
+        world_end_us(),
+    )
+    starts = inp.blocks_state.select("block_number", "ts_us", "tick", "sqrt_price_x96").join(
+        ci.blocks.select("block_number", "day", "p_ref_0", "base_fee_wei"), on="block_number"
+    )
+    first, last = starts["block_number"].min(), starts["block_number"].max()
+    assert isinstance(first, int) and isinstance(last, int)
+    segs = segments(rule, width, starts, first, last)
+    t0 = int(starts["ts_us"].min())  # type: ignore[arg-type]
+    grid = hourly_grid(inp.blocks_state, t0 - t0 % HOUR_US, world_end_us())
+    days = run.daily["day"].to_list()
+    r = score(run.steps, segs, starts, grid, capital, GAS, TAKER_FEE_BP, days)
+    return r, run, days
+
+
+def test_range_ticks() -> None:
+    assert range_ticks(201_003, 100) == (200_900, 201_110)
+    assert range_ticks(201_000, 100) == (200_900, 201_100)
+    assert range_ticks(5, None) == (-FULL, FULL)
+    assert range_ticks(5, 0) == (0, 10)  # a zero width still spans one tick spacing
+
+
+def test_rules() -> None:
+    d1, d2 = DAY, date(2026, 7, 2)
+    c = 201_003
+    ticks = [c] * 5 + [c + 150] * 10  # leaves the +-100 bp range once, at block 6
+    starts = _starts(ticks, [d1] * 10 + [d2] * 5)  # midnight before block 11
+    got = {r: segments(r, 100, starts, 1, 15) for r in RULES}
+    oor = got["out_of_range"]
+    assert oor.columns == SEG_COLS
+    assert oor.select("seg", "start_block", "end_block", "center_tick").rows() == [
+        (0, 1, 6, c),
+        (1, 6, 16, c + 150),  # the last segment ends after the period's last block
+    ]
+    assert oor.select("tick_lower", "tick_upper").row(1) == range_ticks(c + 150, 100)
+    assert got["band"].height >= 2
+    assert got["daily"]["start_block"].to_list() == [1, 11]  # the first day does not re-centre
+    assert got["static"].height == 1
+    assert segments("band", None, starts, 1, 15).height == 1  # full range never re-centres
+    assert segments("out_of_range", 100, starts, 1, 5).height == 1  # the period ends first
+    with pytest.raises(ValueError, match="block 20"):
+        segments("static", 100, starts, 20, 30)
+
+
+def test_value_is_carried_and_costs_charged() -> None:
+    starts = _starts([T] * 4, [DAY] * 4)
+    lo0, hi0, lo1, hi1 = T - 100, T + 100, T - 50, T + 150
+    segs = pl.DataFrame(
+        [(0, 1, 3, T, lo0, hi0), (1, 3, 5, T + 50, lo1, hi1)], schema=SEG_COLS, orient="row"
+    )
+    t1 = int(starts["ts_us"][0])
+    grid = pl.DataFrame({"ts_us": [t1 + 3_600 * US], "sqrt": [sqrt_at(T) / 2**96], "p_cex": [P0]})
+    steps = pl.DataFrame(schema=CF_STEP_SCHEMA)
+    r = score(steps, segs, starts, grid, 1e6, GAS, TAKER_FEE_BP, [DAY])
+    (v0, e0), (v1, e1) = _unit(T, lo0, hi0, P0), _unit(T, lo1, hi1, P0)
+    ell0, ell1 = r.segs["liquidity"].to_list()
+    assert math.isclose(ell0 * v0, 1e6, rel_tol=1e-9)
+    assert math.isclose(ell1 * v1, ell0 * v0, rel_tol=1e-9)  # the old value, carried
+    assert r.segs["eth_start"].to_list() == pytest.approx([ell0 * e0, ell1 * e1], rel=1e-9)
+    day = r.daily.row(0, named=True)
+    assert day["recentres"] == 1
+    assert math.isclose(day["trade_usd"], abs(ell1 * e1 - ell0 * e0) * P0 * 5e-4, rel_tol=1e-9)
+    gas = (GAS.gas_burn_collect + GAS.gas_mint) * (BASE_FEE + GAS.priority_wei) / 1e18 * P0
+    assert math.isclose(day["gas_usd"], gas, rel_tol=1e-12)
+    assert math.isclose(day["twv_usd"], 1e6, rel_tol=1e-9)
+    assert (day["fee_usd"], day["lvr_usd"], day["n_blocks"], day["in_range_blocks"]) == (
+        0.0,
+        0.0,
+        4,
+        4,
+    )
+    assert math.isclose(r.bp_per_day, -(gas + day["trade_usd"]) / 1e6 * 1e4, rel_tol=1e-9)
+    assert r.peak_ratio == 0.0
+
+
+def test_capital_scaling() -> None:
+    a, _, days = _world_cell("daily", 10, PRIMARY_CAPITAL)
+    b, _, _ = _world_cell("daily", 10, 100_000.0)
+    assert a.daily["day"].to_list() == b.daily["day"].to_list() == days
+    assert a.daily["recentres"].sum() == 1
+    for col in ("fee_usd", "lvr_usd", "trade_usd", "twv_usd"):
+        assert a.daily[col].sum() > 0, col
+        for x, y in zip(a.daily[col], b.daily[col], strict=True):
+            assert math.isclose(x * 0.1, y, rel_tol=1e-9), col
+    assert a.daily["gas_usd"].sum() > 0
+    assert a.daily["gas_usd"].to_list() == b.daily["gas_usd"].to_list()
+    assert math.isclose(a.peak_ratio * 0.1, b.peak_ratio, rel_tol=1e-9)
+
+
+def test_score_full_range_equals_per_liquidity() -> None:
+    r, run, _ = _world_cell("static", None, PRIMARY_CAPITAL)
+    (ell,) = r.segs["liquidity"].to_list()
+    per_l = run.daily.select(pl.col("fee_arb_pl") + pl.col("fee_kept_pl")).to_series()
+    for got, want in zip(r.daily["fee_usd"], per_l, strict=True):
+        assert math.isclose(got, ell * want, rel_tol=1e-9)
+    assert r.daily["fee_usd"].sum() > 0
+    assert r.daily["n_blocks"].to_list() == run.daily["n_blocks"].to_list()
+    assert r.daily["in_range_blocks"].to_list() == r.daily["n_blocks"].to_list()
+    assert r.daily["recentres"].sum() == 0 and r.daily["gas_usd"].sum() == 0
+    assert r.peak_ratio > 0
+    assert peak_share(r.peak_ratio) == r.peak_ratio / (1 + r.peak_ratio)
+    assert math.isclose(peak_share(0.1, 0.5), 0.05 / 1.05)
+
+
+def test_lp_costs() -> None:
+    npm, other = NPM_ADDRESS, "0x" + "b2" * 20
+
+    def e(tx: str, block: int, event: str, owner: str | None, gas: int, p: int) -> tuple[Any, ...]:
+        return (tx, block, event, owner, gas, p)
+
+    events = pl.DataFrame(
+        [
+            e("m1", 1, "mint", npm, 300, 12),
+            e("m1", 1, "collect", npm, 300, 12),  # a second log of the same transaction
+            e("m2", 2, "mint", npm, 500, 15),
+            e("m3", 2, "mint", other, 9_000, 99),  # not the position manager
+            e("r1", 1, "mint", npm, 7_000, 99),  # burns too, and collects nothing: neither kind
+            e("r1", 1, "burn", npm, 7_000, 99),
+            e("b1", 2, "burn", npm, 200, 14),
+            e("b1", 2, "collect", npm, 200, 14),
+            e("b2", 1, "burn", npm, 8_000, 99),  # a burn with no collect
+            e("s1", 1, "swap", None, 1, 99),
+        ],
+        schema=["tx_hash", "block_number", "event", "owner", "receipt_gas_used"]
+        + ["receipt_effective_gas_price"],
+        orient="row",
+    )
+    blocks = pl.DataFrame({"block_number": [1, 2], "base_fee_per_gas": [10, 11]})
+    # mints m1, m2; burn + collect b1; priority fees 2 (m1), 4 (m2), 3 (b1)
+    assert lp_costs(events, blocks) == LpCosts(gas_mint=400, gas_burn_collect=200, priority_wei=3)
+    with pytest.raises(ValueError, match="mint"):
+        lp_costs(events.filter(pl.col("event") != "mint"), blocks)
