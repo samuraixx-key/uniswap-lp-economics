@@ -27,6 +27,8 @@ def day_index(n_days: int, n_boot: int = N_BOOT, seed: int = SEED) -> np.ndarray
 def on_grid(daily: pl.DataFrame, days: list[date], cols: list[str]) -> pl.DataFrame:
     """Left-join a per-day frame onto the full day grid, zeros for missing days, so draws that
     index days stay paired across strategies."""
+    if daily["day"].is_duplicated().any():
+        raise ValueError("a per-day frame has a duplicate day: draws would not stay paired")
     grid = pl.DataFrame({"day": days}, schema={"day": pl.Date})
     return grid.join(daily.select("day", *cols), on="day", how="left").with_columns(
         pl.col(c).fill_null(0.0) for c in cols
@@ -67,6 +69,8 @@ def paired(a: np.ndarray, b: np.ndarray, point: float, delta: float) -> Paired:
 
 
 def delta_from(r0: float) -> float:
+    if not math.isfinite(r0):
+        raise ValueError(f"r0 = {r0} is not finite: the pre-registered margin is undefined")
     if r0 >= 1:
         raise ValueError(
             f"full range broke even in July (r0 = {r0}): the pre-registered margin is undefined"
@@ -75,6 +79,8 @@ def delta_from(r0: float) -> float:
 
 
 def range_verdict(cells: dict[str, Paired]) -> str:
+    if not cells:
+        raise ValueError("no counted cell: the range verdict is undefined")
     if any(c.above for c in cells.values()):
         return "fails"
     return "holds" if all(c.inside for c in cells.values()) else "inconclusive"
@@ -83,6 +89,8 @@ def range_verdict(cells: dict[str, Paired]) -> str:
 def fee_verdicts(
     levels: dict[float, Paired], calibrated: bool, baseline_bp: float = BASELINE_FEE_BP
 ) -> tuple[dict[float, str], str]:
+    if not any(f > baseline_bp for f in levels):
+        raise ValueError(f"no fee level above the baseline {baseline_bp:g} bp: nothing to test")
     per: dict[float, str] = {}
     for f, p in levels.items():
         if f == baseline_bp:

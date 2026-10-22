@@ -91,3 +91,27 @@ def test_break_even():
     assert stats.break_even_share(1.0, 0.0, 2.0, 2.0) is None
     assert stats.protocol_cut(75.0, 0.0) == 100.0
     assert stats.PROTOCOL_CUTS == (0.0, 0.1, 0.25)
+
+
+def test_empty_or_baseline_only_inputs_raise():
+    with pytest.raises(ValueError, match="no counted cell"):
+        stats.range_verdict({})
+    inside = _paired(-0.02, 0.02)
+    for levels in ({}, {5.0: inside}, {1.0: inside, 5.0: inside}):
+        with pytest.raises(ValueError, match="above the baseline"):
+            stats.fee_verdicts(levels, True)
+        with pytest.raises(ValueError, match="above the baseline"):
+            stats.fee_verdicts(levels, False)
+
+
+def test_delta_needs_a_finite_r0():
+    for r0 in (float("nan"), float("inf"), float("-inf")):
+        with pytest.raises(ValueError):
+            stats.delta_from(r0)
+
+
+def test_on_grid_refuses_a_duplicate_day():
+    days = [date(2026, 8, 1), date(2026, 8, 2)]
+    daily = pl.DataFrame({"day": [date(2026, 8, 1), date(2026, 8, 1)], "fees": [1.0, 2.0]})
+    with pytest.raises(ValueError, match="duplicate day"):
+        stats.on_grid(daily, days, ["fees"])
