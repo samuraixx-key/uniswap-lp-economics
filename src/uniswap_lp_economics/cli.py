@@ -212,16 +212,41 @@ def fetch_relays() -> None:
     """D6: relay-reported proposer payments for a random sample of window blocks."""
     blocks = pl.read_parquet(config.RAW_DIR / bq_blocks.BLOCKS_FILE)["block_number"]
     relays.fetch_relay_sample(config.RAW_DIR, int(blocks.min()), int(blocks.max()))  # type: ignore[arg-type]
-    relays.retry_unchecked(config.RAW_DIR)
     if (config.RAW_DIR / builders.BUILDERS_DIR / builders.LAST_TX).exists():
-        relays.fetch_holdout(config.RAW_DIR, _block_classes())
+        classes = _block_classes()
+        relays.fetch_holdout(config.RAW_DIR, classes)
+        relays.fetch_holdout(
+            config.RAW_DIR,
+            classes,
+            seed=payouts.HOLDOUT2_SEED,
+            holdout_file=relays.HOLDOUT2_FILE,
+            round_label=relays.HOLDOUT2_ROUND,
+        )
     else:
         print("holdout waits for `ulpe fetch-builders` (last-transaction table missing)")
+    # Only the seed-45 round is retried: the published rounds never change (forwarder spec 5).
+    relays.retry_unchecked(config.RAW_DIR, rounds=(relays.HOLDOUT2_ROUND,))
 
 
 def _block_classes() -> pl.DataFrame:
     block_revenue, _, _ = builders.load_builders(config.RAW_DIR)
     return payouts.block_classes(block_revenue, builders.load_last_tx(config.RAW_DIR))
+
+
+def fetch_paths() -> None:
+    """Payment paths of the seed-45 holdout's paid and payout blocks (free RPC)."""
+    path = config.RAW_DIR / relays.HOLDOUT2_FILE
+    if not path.exists():
+        print("payment paths wait for the seed-45 holdout draw (`ulpe fetch-relays`)")
+        return
+    drawn = read_exact(path).select("block_number")
+    targets = (
+        _block_classes()
+        .join(drawn, on="block_number", how="semi")
+        .filter(pl.col("cls").is_in([payouts.PAID, payouts.PAYOUT]))
+        .select("block_number", "to_address", "last_value_wei")
+    )
+    transfers.fetch_payment_paths(_rpc(), config.RAW_DIR, targets)
 
 
 def fetch_payout_code() -> None:
@@ -291,6 +316,7 @@ ALL_STEPS = (
     "fetch-payout-code",
     "fetch-relays",
     "fetch-timing",
+    "fetch-paths",
     "lp",
     "figures",
 )
@@ -333,6 +359,8 @@ def run_step(name: str, confirm_cost: bool) -> str:
         fetch_relays()
     elif name == "fetch-timing":
         fetch_timing()
+    elif name == "fetch-paths":
+        fetch_paths()
     elif name == "lp":
         return lp_analysis_module.run_lp()
     elif name == "figures":
@@ -389,6 +417,9 @@ def main() -> None:
     )
     sub.add_parser("fetch-relays", help="relay-reported proposer payments for a block sample")
     sub.add_parser("fetch-timing", help="winning-bid times for the relay sample's blocks")
+    sub.add_parser(
+        "fetch-paths", help="payment paths of the seed-45 holdout's paid/payout blocks (RPC)"
+    )
     sub.add_parser("build", help="decode raw data into interim tables")
     sub.add_parser("validate", help="run checks C1-C6 and write data_validation/validation_report")
     sub.add_parser("analyze", help="run checks A1-A6 and write results/ (tables, summary)")
@@ -443,6 +474,8 @@ def main() -> None:
         fetch_relays()
     elif args.command == "fetch-timing":
         fetch_timing()
+    elif args.command == "fetch-paths":
+        fetch_paths()
     elif args.command == "build":
         try:
             build.build_all(config.RAW_DIR, config.INTERIM_DIR)
