@@ -6,7 +6,7 @@ import polars as pl
 
 from uniswap_lp_economics.config import DECIMALS0, DECIMALS1
 from uniswap_lp_economics.strategy.cfpool import CfRun
-from uniswap_lp_economics.strategy.params import CALIBRATION_TOL, JULY_START_US
+from uniswap_lp_economics.strategy.params import CALIBRATION_TOL, JULY_START_US, REPORT_START_US
 from uniswap_lp_economics.validate import MAX_LISTED, CheckResult
 
 S2_STEP_COLUMNS = (
@@ -181,8 +181,20 @@ def check_s3(
     """Spec 6.4: the 5 bp model's arbitrage LVR (0 s) and fees before the protocol's cut against
     the measured values on the replaced swaps; both within CALIBRATION_TOL passes. Reported.
 
-    The +1 s run (`sensitivity`) is reported alongside (`*_1s`) and does not set the verdict."""
-    keys = _key_frame(replaced)
+    The +1 s run (`sensitivity`) is reported alongside (`*_1s`) and does not set the verdict.
+    Both sides count July only: replaced swaps with t0 in [JULY_START_US, REPORT_START_US) and
+    the runs' July days, so full-window inputs give the same verdict as July-cut ones."""
+    in_july = (pl.col("t0_us") >= JULY_START_US) & (pl.col("t0_us") < REPORT_START_US)
+    keys = (
+        aligned.filter(in_july)
+        .select(*_SWAP_KEYS)
+        .join(_key_frame(replaced), on=_SWAP_KEYS, how="semi")
+    )
+    july_days = pl.col("day").is_between(
+        pl.from_epoch(pl.lit(JULY_START_US), "us").dt.date(),
+        pl.from_epoch(pl.lit(REPORT_START_US), "us").dt.date(),
+        closed="left",
+    )
     measured_lvr = float(swap_steps.join(keys, on=_SWAP_KEYS, how="semi")["lvr_0"].sum())
     usd_per_raw = (
         pl.when(pl.col("fee_token") == "USDC")
@@ -197,8 +209,9 @@ def check_s3(
     )
 
     def ratios(run: CfRun) -> tuple[float, float, float | None, float | None]:
-        lvr = float(run.daily["lvr_arb_usd"].sum())
-        fee = float(run.daily["fee_arb_total_usd"].sum())
+        july = run.daily.filter(july_days)
+        lvr = float(july["lvr_arb_usd"].sum())
+        fee = float(july["fee_arb_total_usd"].sum())
         return (
             lvr,
             fee,
@@ -225,7 +238,7 @@ def check_s3(
             "model_fee_usd": fee,
             "measured_lvr_usd": measured_lvr,
             "measured_fee_usd": measured_fee,
-            "replaced_swaps": len(replaced),
+            "replaced_swaps": keys.height,
             "tolerance": CALIBRATION_TOL,
         },
         bad,

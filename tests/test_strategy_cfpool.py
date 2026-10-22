@@ -42,6 +42,7 @@ from uniswap_lp_economics.strategy.params import (
     JULY_START_US,
     MAX_FEE_BP,
     MIN_FEE_BP,
+    REPORT_START_US,
     bp_to_pips,
 )
 from uniswap_lp_economics.tickbook import TickBook
@@ -397,13 +398,33 @@ def test_unreproduced_swap_is_skipped_and_counted() -> None:
 
 
 def _measured_frames() -> tuple[pl.DataFrame, pl.DataFrame, pl.DataFrame]:
-    keys = {"block_number": [1, 1, 2], "log_index": [0, 1, 0]}
-    aligned = pl.DataFrame({**keys, "p_cex_0": [2000.0, 2000.0, 2000.0]})
-    swap_steps = pl.DataFrame({**keys, "step": [0, 0, 0], "lvr_0": [3.0, 1.0, 100.0]})
+    """Three July swaps and one August swap (3, 0), every one with LVR and a fee."""
+    keys = {"block_number": [1, 1, 2, 3], "log_index": [0, 1, 0, 0]}
+    july = JULY_START_US + 3600 * US
+    aligned = pl.DataFrame(
+        {**keys, "p_cex_0": [2000.0] * 4, "t0_us": [july, july, july, REPORT_START_US]}
+    )
+    swap_steps = pl.DataFrame({**keys, "step": [0] * 4, "lvr_0": [3.0, 1.0, 100.0, 50.0]})
     swap_fees = pl.DataFrame(
-        {**keys, "fee_token": ["USDC", "WETH", "USDC"], "fee_raw": [2 * 10**6, 10**15, 10**9]}
+        {
+            **keys,
+            "fee_token": ["USDC", "WETH", "USDC", "USDC"],
+            "fee_raw": [2 * 10**6, 10**15, 10**9, 7 * 10**6],
+        }
     )
     return aligned, swap_steps, swap_fees
+
+
+def _s3_run(lvr: float, fee: float, august: float = 0.0) -> CfRun:
+    """Two July days sharing lvr and fee, and an August day carrying `august` of each."""
+    daily = pl.DataFrame(
+        {
+            "day": [date(2026, 7, 1), date(2026, 7, 31), date(2026, 8, 1)],
+            "lvr_arb_usd": [lvr / 2, lvr / 2, august],
+            "fee_arb_total_usd": [fee / 2, fee / 2, august],
+        }
+    )
+    return CfRun(daily=daily, counts={}, steps=None, block_end=None)
 
 
 def test_s3_pass_and_fail() -> None:
@@ -412,10 +433,7 @@ def test_s3_pass_and_fail() -> None:
     lvr, fee = 4.0, 2.0 + 2.0  # 1e15 wei at 2,000 USD = 2 USD
 
     def run(lvr_x: float, fee_x: float) -> CfRun:
-        daily = pl.DataFrame(
-            {"lvr_arb_usd": [lvr * lvr_x / 2] * 2, "fee_arb_total_usd": [fee * fee_x / 2] * 2}
-        )
-        return CfRun(daily=daily, counts={}, steps=None, block_end=None)
+        return _s3_run(lvr * lvr_x, fee * fee_x)
 
     ok = check_s3(run(1.10, 0.95), swap_steps, aligned, swap_fees, replaced, run(1.3, 1.0))
     assert ok.name == "S3 calibration (July)" and ok.passed and ok.reported
@@ -429,6 +447,19 @@ def test_s3_pass_and_fail() -> None:
     bad = check_s3(run(1.20, 1.0), swap_steps, aligned, swap_fees, replaced, run(1.0, 1.0))
     assert not bad.passed and bad.summary["lvr_ratio"] == pytest.approx(1.20)
     assert [m["measure"] for m in bad.mismatches] == ["lvr"]
+
+
+def test_s3_counts_july_only() -> None:
+    aligned, swap_steps, swap_fees = _measured_frames()
+    replaced = {(1, 0), (1, 1), (3, 0)}  # (3, 0) is an August replaced swap
+    model = _s3_run(4.0 * 1.05, 4.0, august=1000.0)  # a full-window run: August present
+    r = check_s3(model, swap_steps, aligned, swap_fees, replaced, model)
+    assert r.summary["measured_lvr_usd"] == pytest.approx(4.0)
+    assert r.summary["measured_fee_usd"] == pytest.approx(4.0)
+    assert r.summary["model_lvr_usd"] == pytest.approx(4.2)
+    assert r.summary["model_fee_usd"] == pytest.approx(4.0)
+    assert r.summary["replaced_swaps"] == 2
+    assert r.passed
 
 
 def test_sandwich_pattern() -> None:
