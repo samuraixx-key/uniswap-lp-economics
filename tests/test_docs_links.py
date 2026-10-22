@@ -35,7 +35,7 @@ def _text(path: Path) -> str:
 def _anchors(path: Path) -> frozenset[str]:
     seen: dict[str, int] = {}
     out = set()
-    for h in HEADING.findall(_text(path)):
+    for h in HEADING.findall(FENCE.sub("", path.read_text(encoding="utf-8"))):
         s = github_slug(h)
         n = seen.get(s, 0)
         seen[s] = n + 1
@@ -96,3 +96,29 @@ def test_no_validator_wording(name: str) -> None:
     path = ROOT / name
     if path.exists():
         assert "validator" not in path.read_text(encoding="utf-8").lower()
+
+
+def test_no_liquid_markers() -> None:
+    # Pages runs Liquid over every Markdown page, code spans too: a stray marker fails the build
+    bad = [
+        str(p.relative_to(ROOT))
+        for p in _markdown()
+        if "{{" in p.read_text(encoding="utf-8") or "{%" in p.read_text(encoding="utf-8")
+    ]
+    assert not bad, "\n".join(bad)
+
+
+def test_anchors_keep_inline_code(tmp_path: Path) -> None:
+    md = tmp_path / "x.md"
+    md.write_text("### 3.2 `notional_usd`\n", encoding="utf-8")
+    assert "32-notional_usd" in _anchors(md)
+
+
+def test_no_directory_links() -> None:
+    # GitHub Pages has no directory index: a link to a folder is a 404 on the site
+    bad = []
+    for src, target in _links():
+        path = target.split("#", 1)[0]
+        if _local(target) and path and (src.parent / path).is_dir():
+            bad.append(f"{src.relative_to(ROOT)} -> {target}")
+    assert not bad, "\n".join(bad)

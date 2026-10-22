@@ -1,7 +1,7 @@
 # Roadmap
 
 Where the project stands and what comes next. Each piece of work has a design spec in
-[`docs/specs/`](specs/); each spec describes what was built.
+[`docs/specs/`](https://github.com/samuraixx-key/uniswap-lp-economics/tree/main/docs/specs); each spec describes what was built.
 
 ## Done
 

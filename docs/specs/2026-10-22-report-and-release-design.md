@@ -67,11 +67,12 @@ Order, top to bottom (agreed with the user on a mockup, "layout A"):
    - *Binance sets the price.* The pool catches up one block later (correlation 0.59 at
      +1 block, 0.06 in the same block). Caveat: block resolution (12 s), so this shows when the
      pool reacts, not who discovers the price within a block.
-   - *Bots +2.86 bp, router flow −10.66 bp* per swap, notional-weighted, after the 5 bp fee.
+   - *Bots +2.86 bp, router flow −10.66 bp* per dollar traded (notional-weighted), after the 5 bp fee.
      Caveat: measured against Binance's last trade at the block time; the bots' edge is 1.80 bp
      if prices are read 2 s earlier.
    - *LP fees fall $1.06M short of adverse selection; most of the bots' edge goes to block
-     producers.* Bots keep nothing measurable at block time (−$0.20M, an upper bound). Caveat:
+     producers.* Bots keep nothing measurable at block time (−$0.20M, an upper bound): a small
+     difference of large totals, and +$0.06M at 12 s for the top four bots. Caveat:
      most of the $1.06M is the protocol's quarter of the fees; before that cut, fees fall short by
      $0.18M and the interval includes zero.
 6. **"Why you can trust it (overfitting controls)":**
@@ -251,7 +252,7 @@ Order, each step gated on the one before:
 4. Turn on Pages: source = `main`, root folder, GitHub's built-in Jekyll. `README.md` serves as
    the index; `REPORT.md`, `docs/methodology.md` and `results/*.md` render as pages; Jekyll's
    relative-links plugin rewrites `.md` links. A minimal `_config.yml` (title, a GitHub-supported
-   theme) is the only new file for Pages. No `.md` file contains Liquid markers (`{{`, `{%`);
+   theme) is the only new file for Pages. No `.md` file contains Liquid markers (Liquid's double-brace output or brace-percent tag openers);
    checked during design.
 5. Check the live site by eye: every SVG figure shows, in-page anchors (`#where-lvr-goes` style)
    work, links between pages work, the landing page reads as agreed. Fix anything GitHub's
