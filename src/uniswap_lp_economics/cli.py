@@ -211,6 +211,7 @@ def fetch_relays() -> None:
     """D6: relay-reported proposer payments for a random sample of window blocks."""
     blocks = pl.read_parquet(config.RAW_DIR / bq_blocks.BLOCKS_FILE)["block_number"]
     relays.fetch_relay_sample(config.RAW_DIR, int(blocks.min()), int(blocks.max()))  # type: ignore[arg-type]
+    relays.retry_unchecked(config.RAW_DIR)
 
 
 def fetch_timing() -> None:

@@ -196,7 +196,8 @@ def test_get_distinguishes_payloads_absent_and_failed() -> None:
 
 def test_resume_with_an_old_file_lacking_the_new_column(tmp_path: Path) -> None:
     old_block = relays.sample_blocks(1, 100, 3)[0]
-    old_schema = {k: v for k, v in relays.RELAY_SCHEMA.items() if k != "relays_unchecked"}
+    old_cols = {"relays_unchecked", "round"}
+    old_schema = {k: v for k, v in relays.RELAY_SCHEMA.items() if k not in old_cols}
     old = pl.DataFrame(
         {
             "block_number": [old_block],
@@ -223,3 +224,91 @@ def test_resume_with_an_old_file_lacking_the_new_column(tmp_path: Path) -> None:
     assert df.schema["relays_unchecked"] == pl.String
     # Old row: unknown (null). New rows: every relay answered, so also null.
     assert df.filter(pl.col("block_number") == old_block)["relays_unchecked"][0] is None
+
+
+def _row(block: int, found: bool, unchecked: str | None, rnd: str = "seen") -> dict[str, object]:
+    return {
+        "block_number": block,
+        "relay": R1 if found else None,
+        "found": found,
+        "value_wei": 3 * 10**20 if found else None,
+        "proposer_fee_recipient": "0xab" if found else None,
+        "builder_pubkey": None,
+        "relays_unchecked": unchecked,
+        "round": rnd,
+    }
+
+
+def test_an_old_file_without_round_reads_as_seen(tmp_path: Path) -> None:
+    old_schema = {k: v for k, v in relays.RELAY_SCHEMA.items() if k != "round"}
+    old = pl.DataFrame([_row(5, True, None)], schema=relays.RELAY_SCHEMA).select(list(old_schema))
+    write_exact(old, tmp_path / relays.RELAY_FILE)
+    client = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(200, json=[])))
+    path = relays.fetch_relay_sample(tmp_path, 1, 100, n=3, client=client, relay_urls=(R1,))
+    df = read_exact(path)
+    assert df.columns == list(relays.RELAY_SCHEMA) and df.schema["round"] == pl.String
+    assert set(df["round"].to_list()) == {"seen"}  # the old row and the two new ones
+
+
+def test_retry_requeries_only_unchecked_not_found_rows(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sleeps: list[float] = []
+    monkeypatch.setattr(relays.time, "sleep", sleeps.append)
+    rows = [_row(1, True, None), _row(2, False, None), _row(3, False, R1), _row(4, False, R1)]
+    write_exact(pl.DataFrame(rows, schema=relays.RELAY_SCHEMA), tmp_path / relays.RELAY_FILE)
+    big = 7 * 10**20
+    payload = [{"value": str(big), "proposer_fee_recipient": "0xCD", "builder_pubkey": "0x1"}]
+    blocks: list[int] = []
+    timeouts: list[object] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        blocks.append(int(request.url.params["block_number"]))
+        timeouts.append(request.extensions["timeout"]["read"])
+        return httpx.Response(200, json=payload)
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    n = relays.retry_unchecked(tmp_path, client, (R1,), pace_s=0.25, timeout_s=60)
+    df = read_exact(tmp_path / relays.RELAY_FILE).sort("block_number")
+    assert n == 2 and blocks == [3, 4] and timeouts == [60, 60]
+    assert sleeps == [0.25]  # between blocks only
+    assert df["block_number"].to_list() == [1, 2, 3, 4]  # replaced in place, no duplicate
+    assert df["round"].to_list() == ["seen", "seen", "retry", "retry"]
+    assert df["value_wei"].to_list() == [3 * 10**20, None, big, big]
+    assert df["relays_unchecked"].to_list() == [None] * 4
+    assert relays.retry_unchecked(tmp_path, client, (R1,), pace_s=0) == 0  # nothing left
+
+
+def test_a_retried_block_still_unfound_keeps_its_unchecked_relays(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(relays.time, "sleep", lambda s: None)
+    rows = [_row(3, False, R1 + "," + R2)]
+    write_exact(pl.DataFrame(rows, schema=relays.RELAY_SCHEMA), tmp_path / relays.RELAY_FILE)
+    client, _ = _counting({R1: httpx.Response(503), R2: httpx.Response(200, json=[])})
+    assert relays.retry_unchecked(tmp_path, client, (R1, R2), pace_s=0) == 1
+    df = read_exact(tmp_path / relays.RELAY_FILE)
+    assert df.height == 1 and not df["found"][0]
+    assert df["round"][0] == "retry" and df["relays_unchecked"][0] == R1
+    assert R1 in capsys.readouterr().out
+
+
+def test_an_error_mid_retry_keeps_every_row(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(relays.time, "sleep", lambda s: None)
+    rows = [_row(b, False, R1) for b in (1, 2, 3)]
+    write_exact(pl.DataFrame(rows, schema=relays.RELAY_SCHEMA), tmp_path / relays.RELAY_FILE)
+    calls: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        if len(calls) == 2:
+            raise RuntimeError("boom")
+        return httpx.Response(200, json=[])
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    with pytest.raises(RuntimeError):
+        relays.retry_unchecked(tmp_path, client, (R1,), pace_s=0)
+    df = read_exact(tmp_path / relays.RELAY_FILE).sort("block_number")
+    assert df["round"].to_list() == ["retry", "seen", "seen"]  # block 1 retried; 2, 3 untouched
