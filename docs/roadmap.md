@@ -19,7 +19,7 @@ without a separate spec; the chart spec was updated to match.
 
 Sub-project 4's answer: the headline holds. LP fees − LVR is −$0.92M to −$1.10M across
 references at the block timestamp, −$1.31M at the median winning-bid time (+0.98 s), and turns
-positive only if prices are read 3.3 s or more before the slot.
+positive only if prices are read more than 3 s before the slot.
 
 ## Next: who keeps the profit
 

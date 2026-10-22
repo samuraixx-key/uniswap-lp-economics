@@ -6,11 +6,12 @@ Winning-bid time = the earliest bid the delivering relay received with the deliv
 
 | metric | value |
 |---|---|
-| n_timed | 536 |
+| n_timed | 561 |
 | n_queried | 1,000 |
-| p10_ms | 779.0000 |
-| p50_ms | 976.5000 |
-| p90_ms | 2,567.5000 |
+| n_delivered_not_timed | 20 |
+| p10_ms | 798.0000 |
+| p50_ms | 979.0000 |
+| p90_ms | 2,592.0000 |
 
 ## By relay
 
@@ -18,4 +19,4 @@ Winning-bid time = the earliest bid the delivering relay received with the deliv
 |---|---|---|
 | https://aestus.live | 50 | 955.50 |
 | https://boost-relay.flashbots.net | 21 | 549.00 |
-| https://titanrelay.xyz | 465 | 984.00 |
+| https://titanrelay.xyz | 490 | 985.50 |

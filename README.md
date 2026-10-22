@@ -82,7 +82,7 @@ at the pool's price instead of Binance's)? Which LPs make money? And where does 
    theoretical value depends on sampling: 1-minute returns give $4.33M. Other references and read
    times ([Is it the reference price?](#is-it-the-reference-price)): a trade-side mid proxy gives
    −$0.92M, ETHUSDT −$1.10M, and the median winning-bid time (+1.0 s) −$1.31M; the result turns
-   positive only if prices are read 3.3 s or more before the slot.
+   positive only if prices are read more than 3 s before the slot.
 5. **No LP type reliably makes money against a rebalancing portfolio.** Against a portfolio that
    rebalances at Binance's price, after gas and direct payments to block builders, the 7,874
    positions active in the window lost **$1.10M**. Just-in-time (JIT) positions (844, minted and
@@ -545,14 +545,14 @@ below splits them differently):
 
 ## Is it the reference price?
 
-<img src="results/figures/13_reference_and_timing.svg" alt="LP fees minus LVR against the time the reference price is read, from 5 s before to 4 s after slot start, for Binance's last trade, a trade-side mid proxy and ETHUSDT: every line is negative from about 3.3 s before the slot onward, and the measured winning-bid times sit about 1 s after slot start">
+<img src="results/figures/13_reference_and_timing.svg" alt="LP fees minus LVR against the time the reference price is read, from 5 s before to 4 s after slot start, for Binance's last trade, a trade-side mid proxy and ETHUSDT: every line is negative from 3 s before the slot onward, and the measured winning-bid times sit about 1 s after slot start">
 
 Every number above reads Binance's last ETHUSDC trade at the block timestamp, the start of the
 slot. A natural objection is that the loss comes from that choice. It mostly does not: **LPs lost
-$1.06M at the block timestamp, and that is the conservative end.** Winning bids reach the relays
-about 1 s after slot start, where the loss is $1.31M. A mid-price proxy or a USDT reference moves
-it by $0.14M at most. It turns positive only if prices are read 3.3 s or more before the slot
-starts. And $0.88M (83%) of the gap is the protocol's cut of the fees, which no reference price
+$1.06M at the block timestamp, and reading the price later only deepens it.** Winning bids reach
+the relays about 1 s after slot start, where the loss is $1.31M. A mid-price proxy or a USDT
+reference moves it by $0.14M at most. It turns positive only if prices are read more than 3 s
+before the slot starts. And $0.88M (83%) of the gap is the protocol's cut of the fees, which no reference price
 changes.
 
 | reference, read at | LP fees − LVR | shift from the headline (95% paired interval) |
@@ -566,13 +566,13 @@ changes.
 
 - **When the price is read matters more than which price.** Each second near slot start moves
   the result by about $0.26M; the mid proxy moves it by $0.14M, and ETHUSDT's −$41k is within
-  day-to-day noise. The three lines cross zero at 3.9 s (last trade), 3.5 s (ETHUSDT) and 3.3 s
-  (mid proxy) before the slot.
-- **The block timestamp is the early end of when a block is sealed.** For 536 of 1,000 sampled
+  day-to-day noise. The three lines cross zero at 3.9 s (last trade), 3.3 s (mid proxy) and
+  3.0 s (ETHUSDT, whose 1 s closes only change on whole seconds) before the slot.
+- **The block timestamp is the early end of when a block is sealed.** For 561 of 1,000 sampled
   blocks, the relay that delivered the block publishes when it received the winning bid: median
-  0.98 s after slot start, 10th–90th percentile 0.78 s to 2.57 s. Searchers can update bundles
-  until that bid, so it is close to the latest price they could act on. Past about +2 s the
-  curve flattens.
+  0.98 s after slot start, 10th–90th percentile 0.80 s to 2.59 s. That time is the latest a
+  price could have been acted on in the block; searchers who sent bundles earlier read earlier
+  prices. Past about +2 s the curve flattens.
 - **The protocol fee switch turns a borderline result into a clear loss.** Before the protocol's
   quarter, total swap fees ($3.53M) nearly cover LVR ($3.70M); the protocol's $0.88M is the
   dashed line in the figure. Any reading above it means total fees beat LVR.
@@ -580,9 +580,9 @@ changes.
 *Caveats:* Binance publishes no bid/ask history for 2026, so the mid is a proxy: the average of
 the latest buyer-initiated and seller-initiated trades. One side goes stale, so the two are
 crossed at 18% of swap times (median spread 0.12 bp). The timing covers only blocks delivered
-through Titan (465), Aestus (50) and Flashbots (21). Ultrasound, the largest relay, keeps no bid
-history for this window, and its blocks could be sealed at other times. A bundle sent before the
-final bid reads an earlier price. Full tables:
+through Titan (490), Aestus (50) and Flashbots (21); 20 more Titan blocks are missing from its bid
+history. Ultrasound, the largest relay, keeps no bid history for this window, and its blocks
+could be sealed at other times. The ETHUSDT row also carries the USDT/USDC rate. Full tables:
 [`results/reference_robustness.md`](results/reference_robustness.md),
 [`results/block_timing.md`](results/block_timing.md) and
 [`results/reference_robustness_proxy.md`](results/reference_robustness_proxy.md); method in
@@ -768,7 +768,8 @@ Every definition and formula: [`docs/methodology.md`](docs/methodology.md).
   trade-side proxy is crossed at 18% of swap times. A true mid needs another venue's order book
   (OKX publishes one, 2.9 GB for ETH-USDC), which would mix venue and mid effects.
 - **Timing covers three relays.** Winning-bid times come from Titan, Aestus and Flashbots
-  (536 of 1,000 sampled blocks); ultrasound keeps no bid history for the window. The received
+  (561 of 1,000 sampled blocks; 20 Titan blocks are missing from its bid history); ultrasound
+  keeps no bid history for the window. The received
   time is when the final block reached the relay, not when each searcher read a price.
 - **The headline stays at the block timestamp.** Sub-projects 2 and 3 are not re-run at the
   measured time; the robustness table re-prices LP fees − LVR only, through the L6 identity.
