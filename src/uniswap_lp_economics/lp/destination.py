@@ -11,6 +11,13 @@ from uniswap_lp_economics.lp.pnl import tx_receipts
 LIMITATION_TEXT = (
     "The split of builder payments between builder and proposer uses each block's ratio of "
     "proposer payment to builder revenue; how a builder prices an individual transaction is not "
+    "observed. Proposer payments are identified as the block's last transaction, sent by the fee "
+    "recipient or by a payout address learned from chain data, and tested on a blind stratified "
+    "relay sample; blocks where neither applies give the proposer the whole builder revenue."
+)
+LIMITATION_TEXT_HEDGE = (
+    "The split of builder payments between builder and proposer uses each block's ratio of "
+    "proposer payment to builder revenue; how a builder prices an individual transaction is not "
     "observed. Proposer payments are identified as the block's last transaction from the fee "
     "recipient and cross-checked against relay data on a sample of blocks only."
 )
@@ -190,7 +197,12 @@ def sensitivity_self_built(
 
 
 def destination(
-    steps: pl.DataFrame, aligned: pl.DataFrame, costs: pl.DataFrame, split: pl.DataFrame
+    steps: pl.DataFrame,
+    aligned: pl.DataFrame,
+    costs: pl.DataFrame,
+    split: pl.DataFrame,
+    *,
+    sensitivity: bool,
 ) -> dict[str, Any]:
     """Pool LVR (0 s) -> LVR on searcher steps -> where it goes, in USD and as shares of the LVR
     on searcher steps. Only steps labelled "searcher" count: flash-fee records carry the label
@@ -203,7 +215,8 @@ def destination(
     say how many swaps were handled by a fallback in `searcher_costs`.
 
     The proposer/builder split is primary as `block_split` defines it (self-built blocks give
-    the proposer everything); `sensitivity_self_built` holds the alternative split."""
+    the proposer everything); `sensitivity_self_built` holds the alternative split, and is added
+    only when `sensitivity` is set (the hedge, when the holdout did not support one split)."""
     searcher = pl.col("flow_label") == "searcher"
     single = costs.filter(pl.col("scope") == SINGLE)
 
@@ -239,7 +252,7 @@ def destination(
         "share_proposer": parts["proposer_usd"],
         "share_searcher_kept": parts["searcher_kept_usd"],
     }
-    return {
+    out: dict[str, Any] = {
         "pool_lvr_0_usd": pool_lvr,
         "share_searcher_of_pool_lvr": lvr_searcher / pool_lvr if pool_lvr else 0.0,
         **parts,
@@ -251,5 +264,7 @@ def destination(
         "n_swaps_null_costs": int(
             (costs["burned_usd"].is_null() | costs["builder_paid_usd"].is_null()).sum()
         ),
-        "sensitivity_self_built": sensitivity_self_built(single, split, lvr_searcher),
     }
+    if sensitivity:
+        out["sensitivity_self_built"] = sensitivity_self_built(single, split, lvr_searcher)
+    return out

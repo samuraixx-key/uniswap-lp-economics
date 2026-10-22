@@ -10,6 +10,7 @@ from uniswap_lp_economics.lp.checks import (
 )
 from uniswap_lp_economics.lp.destination import (
     LIMITATION_TEXT,
+    LIMITATION_TEXT_HEDGE,
     block_split,
     class_table,
     destination,
@@ -119,7 +120,7 @@ def test_searcher_costs_and_destination_chain() -> None:
             "fee_usd": [1.5, 0.8, 0.2],
         }
     )
-    d = destination(steps, aligned, costs, _split(revenue()))
+    d = destination(steps, aligned, costs, _split(revenue()), sensitivity=True)
     assert d["lvr_on_searcher_swaps_usd"] == 18.0 and d["lvr_on_other_flows_usd"] == -1.0
     assert d["pool_lvr_0_usd"] == 17.0
     assert d["searcher_gross_usd"] == 15.0 and d["multi_pool_gross_usd"] == 5.0
@@ -127,7 +128,11 @@ def test_searcher_costs_and_destination_chain() -> None:
         d["gas_burned_usd"] + d["builder_margin_usd"] + d["proposer_usd"] + d["searcher_kept_usd"]
     )
     assert single == pytest.approx(d["single_pool_gross_usd"])
-    assert "last transaction from the fee recipient" in LIMITATION_TEXT
+    assert "last transaction, sent by the fee recipient" in LIMITATION_TEXT
+    assert "last transaction from the fee recipient" in LIMITATION_TEXT_HEDGE
+    assert "sensitivity_self_built" not in destination(
+        steps, aligned, costs, _split(revenue()), sensitivity=False
+    )
 
 
 def test_flash_records_are_not_searcher_swaps() -> None:
@@ -156,7 +161,7 @@ def test_flash_records_are_not_searcher_swaps() -> None:
             "fee_usd": [1.5, 7.0],
         }
     )
-    d = destination(steps, aligned, costs, _split(revenue()))
+    d = destination(steps, aligned, costs, _split(revenue()), sensitivity=True)
     assert d["fees_on_searcher_swaps_usd"] == 1.5 and d["lvr_on_other_flows_usd"] == 0.0
 
 
@@ -237,7 +242,7 @@ def test_shares_sum_to_one_when_the_identity_holds() -> None:
             "fee_usd": [2.0, 0.5, 0.3],
         }
     )
-    d = destination(steps, aligned, costs, _split(revenue()))
+    d = destination(steps, aligned, costs, _split(revenue()), sensitivity=True)
     assert d["pool_lvr_0_usd"] == 14.0 and d["lvr_on_other_flows_usd"] == 4.0
     assert d["share_searcher_of_pool_lvr"] == pytest.approx(10 / 14)
     assert d["share_fees"] == pytest.approx(0.2) and d["share_searcher_kept"] == pytest.approx(0.2)
@@ -274,7 +279,7 @@ def test_searcher_costs_counts_its_fallbacks() -> None:
     other = pl.DataFrame({"tx_hash": ["0xa", "0xc"], "other_logs": [0, 0], "logs": [1, 1]})
     costs = searcher_costs(aligned, events, blocks, direct, other, _split(revenue()))
     steps = pl.DataFrame({"flow_label": ["searcher"], "lvr_0": [3.0], "fee_usd": [0.0]})
-    d = destination(steps, aligned, costs, _split(revenue()))
+    d = destination(steps, aligned, costs, _split(revenue()), sensitivity=True)
     assert d["n_searcher_swaps"] == 3
     assert d["n_swaps_no_other_logs_row"] == 1  # 0xb: treated as multi-pool
     assert costs.filter(pl.col("tx_hash") == "0xb")["scope"].item() == "multi_pool"
@@ -534,7 +539,7 @@ def test_destination_reports_a_self_built_sensitivity() -> None:
     costs = searcher_costs(aligned, events, blocks, direct, other, split)
     assert costs.sort("tx_hash")["self_built"].to_list() == [False, True]
     steps = pl.DataFrame({"flow_label": ["searcher"], "lvr_0": [20.0], "fee_usd": [1.0]})
-    d = destination(steps, aligned, costs, split)
+    d = destination(steps, aligned, costs, split, sensitivity=True)
     paid_a = 100_000 * 2 * 10**9 / 1e18 * 2000.0  # block 1, paid: proposer share 0.8
     paid_b = 100_000 * 1 * 10**9 / 1e18 * 2000.0  # block 2, self-built: share 1 (primary)
     assert d["proposer_usd"] == pytest.approx(0.8 * paid_a + paid_b)

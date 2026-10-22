@@ -85,7 +85,7 @@ def test_lp_analysis_end_to_end(tmp_path: Path) -> None:
     assert summary["lp"]["n_excluded_carry"] == 0 == summary["lp"]["lifetime"]["n_excluded_carry"]
     assert any("L6" in name for name in summary["lp"]["checks"])
     assert "destination" in summary["lp"]
-    assert summary["lp"]["destination_limitation"] == destination.LIMITATION_TEXT
+    assert summary["lp"]["destination_limitation"] == destination.LIMITATION_TEXT_HEDGE
     checks_text = (results / "lp_checks.md").read_text(encoding="utf-8")
     assert all(f"R{i}" in checks_text for i in range(1, 6))
     rows = [line for line in checks_text.splitlines() if line.startswith("| ")]
@@ -134,6 +134,8 @@ def test_lp_analysis_end_to_end(tmp_path: Path) -> None:
     assert sens["proposer_usd"] == pytest.approx(dest["proposer_usd"])
     dest_text = (results / "lvr_destination.md").read_text(encoding="utf-8")
     assert "Sensitivity" in dest_text and "primary" in dest_text
+    assert "Block classes" in dest_text and "Payout recipients" in dest_text
+    assert "at least 50 of the fee recipient's blocks" in dest_text
     builder_paid = dest["proposer_usd"] + dest["builder_margin_usd"]
     assert builder_paid == pytest.approx(JIT_DIRECT_WEI / 1e18 * p9)
     assert dest["searcher_kept_usd"] == pytest.approx(
@@ -150,6 +152,41 @@ def test_lp_analysis_end_to_end(tmp_path: Path) -> None:
         "lp_blocks.parquet",
     ):
         assert (processed / name).exists(), name
+
+
+def _run_world(tmp_path: Path) -> tuple[dict[str, Any], str]:
+    results = tmp_path / "results"
+    results.mkdir()
+    (results / "summary.json").write_text(json.dumps({"swaps": 4}))
+    lp.lp_analysis(
+        world_inputs(), results, tmp_path / "processed", {"git_commit": "t"}, end_us=world_end_us()
+    )
+    summary = json.loads((results / "summary.json").read_text(encoding="utf-8"))
+    return summary["lp"], (results / "lvr_destination.md").read_text(encoding="utf-8")
+
+
+def test_hedge_keeps_the_sensitivity(tmp_path: Path) -> None:
+    # the world has no holdout blocks, so the decision fails and the hedge stays
+    lpd, text = _run_world(tmp_path)
+    dest = lpd["destination"]
+    assert dest["proposer_split"] == "hedge" and dest["holdout_decision"]["one_split"] is False
+    assert "sensitivity_self_built" in dest and "Sensitivity" in text
+    assert lpd["destination_limitation"] == destination.LIMITATION_TEXT_HEDGE
+    assert [r["cls"] for r in dest["block_classes"]][:2] == ["empty", "paid"]
+    assert dest["block_classes"][1]["blocks"] > 0
+    assert [r["type"] for r in dest["recipient_types"]] == ["wallet", "7702_wallet", "contract"]
+    assert dest["n_recipients_reads_differ"] == 0 and dest["n_top_up"] == 0
+
+
+def test_one_split_drops_the_sensitivity(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    passing = {"bar": 0.95, "n_found_payout": 300, "one_split": True}
+    monkeypatch.setattr(lp, "holdout_decision", lambda relays, split: passing)
+    lpd, text = _run_world(tmp_path)
+    dest = lpd["destination"]
+    assert dest["proposer_split"] == "one" and dest["holdout_decision"] == passing
+    assert "sensitivity_self_built" not in dest
+    assert "Sensitivity" not in text and "sensitivity" not in text.replace("Sensitivity", "")
+    assert lpd["destination_limitation"] == destination.LIMITATION_TEXT
 
 
 def positions_jit_rebal(results: Path) -> float:

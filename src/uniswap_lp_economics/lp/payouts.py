@@ -179,7 +179,10 @@ def recipient_types(
     pay = (
         classes.filter(pl.col("cls") == PAYOUT)
         .join(
-            pl.DataFrame({"to_address": list(types), "kind": list(types.values())}),
+            pl.DataFrame(
+                {"to_address": list(types), "kind": list(types.values())},
+                schema={"to_address": pl.String, "kind": pl.String},  # empty when no code reads
+            ),
             on="to_address",
             how="left",
         )

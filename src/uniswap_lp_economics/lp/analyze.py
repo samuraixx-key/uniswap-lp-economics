@@ -45,6 +45,7 @@ from uniswap_lp_economics.lp.checks import (
     check_r4_transferred,
     check_r5_null_12s,
     check_r6_robustness,
+    holdout_decision,
 )
 from uniswap_lp_economics.lp.engine import contexts_from_aligned, replay_window
 from uniswap_lp_economics.lp.ledger import Ledger
@@ -71,6 +72,21 @@ SENSITIVITY_NOTE = (
     "volume-weighted proposer share of the paid blocks instead. Only proposer and builder margin "
     "move; their sum, and every other figure, is the same under both."
 )
+
+
+def classes_note(table: pl.DataFrame) -> str:
+    """The payout rule and what it leaves unexplained, read from the class table."""
+    un = table.filter(pl.col("cls") == payouts.UNEXPLAINED).row(0, named=True)
+    return (
+        "A payout address is a sender other than the fee recipient that sent the last "
+        f"transaction in at least {payouts.PAYOUT_MIN_BLOCKS} of the fee recipient's blocks, with "
+        f"value > 0 in at least {payouts.PAYOUT_MIN_POSITIVE_SHARE:.0%} of them. Blocks left "
+        f"unexplained: {un['share_blocks']:.2%} of blocks and {un['share_builder_paid_usd']:.2%} "
+        f"of single-pool builder dollars (${un['builder_paid_usd']:,.2f}); they give the "
+        "proposer the whole builder revenue."
+    )
+
+
 JIT_NOTE = (
     "JIT per swap: P&L of the jit positions divided by the swaps each was active for (swaps in "
     "its block between its first liquidity add and its last removal, in log order), summed over "
@@ -127,6 +143,7 @@ class LpInputs:
     blocks: pl.DataFrame
     block_revenue: pl.DataFrame
     last_tx: pl.DataFrame
+    payout_code: pl.DataFrame
     tx_direct: pl.DataFrame
     tx_other_logs: pl.DataFrame
     relays: pl.DataFrame
@@ -170,6 +187,9 @@ def load_lp_inputs(raw: Path, interim: Path, processed: Path, lp_labels_csv: Pat
         blocks=pl.read_parquet(_need(raw / bq_blocks.BLOCKS_FILE, "fetch-blocks")),
         block_revenue=block_revenue,
         last_tx=builders.load_last_tx(raw),
+        payout_code=pl.read_parquet(
+            _need(raw / builders.BUILDERS_DIR / builders.PAYOUT_CODE, "fetch-payout-code")
+        ),
         tx_direct=tx_direct,
         tx_other_logs=tx_other_logs,
         relays=read_exact(_need(raw / relays.RELAY_FILE, "fetch-relays")),  # wei: Int128
@@ -436,11 +456,19 @@ def lp_analysis(
     }
     # Where LVR goes (spec section 7), and the reported checks R1-R5: neither gates the run.
     classes = payouts.block_classes(inp.block_revenue, inp.last_tx)
-    split = destination.block_split(inp.block_revenue, classes, payouts=False)
+    # R1 and the decision test the payout rule, so they use the payouts=True split; the published
+    # split is that one only when the blind holdout supports it (spec section 7).
+    split_rule = destination.block_split(inp.block_revenue, classes, payouts=True)
+    decision = holdout_decision(inp.relays, split_rule)
+    one = bool(decision["one_split"])
+    split = (
+        split_rule if one else destination.block_split(inp.block_revenue, classes, payouts=False)
+    )
     costs = destination.searcher_costs(
         inp.aligned, inp.events, inp.blocks, inp.tx_direct, inp.tx_other_logs, split
     )
-    dest = destination.destination(steps, inp.aligned, costs, split)
+    dest = destination.destination(steps, inp.aligned, costs, split, sensitivity=not one)
+    totals_dest = {k: v for k, v in dest.items() if k != "sensitivity_self_built"}
     robust, robust_summary, identity, reprice = reference_robustness(
         inp, daily, ref, totals, end_us
     )
@@ -454,13 +482,10 @@ def lp_analysis(
         .sum()
     )
     summary["lp"]["robustness"] = robust_summary
-    # R1 tests the payout rule, so it runs on the payouts=True split, not the published one.
-    block_usd = (
-        costs.filter(pl.col("scope") == destination.SINGLE)
-        .group_by("block_number")
-        .agg(pl.col("builder_paid_usd").sum())
-    )
-    split_rule = destination.block_split(inp.block_revenue, classes, payouts=True)
+    single = costs.filter(pl.col("scope") == destination.SINGLE)
+    block_usd = single.group_by("block_number").agg(pl.col("builder_paid_usd").sum())
+    class_tbl = destination.class_table(classes, single)
+    recipients, n_differ = payouts.recipient_types(classes, inp.payout_code, block_usd)
     reported = [
         check_r1_relays(inp.relays, split_rule, block_usd),
         check_r2_traces_vs_alchemy(inp.tx_direct, inp.bot_transfers, inp.blocks, inp.tx_other_logs),
@@ -469,9 +494,18 @@ def lp_analysis(
         check_r5_null_12s(run.null_12s_steps, steps),
         check_r6_robustness(identity, flash_fees, totals["fees_minus_lvr_usd"], reprice),
     ]
+    dest.update(
+        proposer_split="one" if one else "hedge",
+        holdout_decision=decision,
+        block_classes=class_tbl.to_dicts(),
+        recipient_types=recipients.to_dicts(),
+        n_recipients_reads_differ=n_differ,
+        n_top_up=payouts.class_counts(classes)["n_top_up"],
+    )
+    limitation = destination.LIMITATION_TEXT if one else destination.LIMITATION_TEXT_HEDGE
     summary["lp"]["destination"] = dest
     summary["lp"]["checks"].update({r.name: r.summary for r in reported})
-    summary["lp"]["destination_limitation"] = destination.LIMITATION_TEXT
+    summary["lp"]["destination_limitation"] = limitation
     blocks_theory = int_1s.group_by("block_number").agg(
         pl.col("r2").sum(), pl.col("lvr_theory").sum()
     )
@@ -527,18 +561,26 @@ def lp_analysis(
         "lvr_destination",
         "Where LVR goes",
         [
-            (
-                "Totals (primary split)",
-                report.metrics_table(
-                    {k: v for k, v in dest.items() if k != "sensitivity_self_built"}
-                ),
-            ),
-            (
-                "Sensitivity: self-built blocks at the paid-block proposer share",
-                report.metrics_table(dest["sensitivity_self_built"]),
+            ("Totals", report.metrics_table(totals_dest)),
+            ("Block classes", class_tbl),
+            ("Payout recipients", recipients),
+            *(
+                []
+                if one
+                else [
+                    (
+                        "Sensitivity: self-built blocks at the paid-block proposer share",
+                        report.metrics_table(dest["sensitivity_self_built"]),
+                    )
+                ]
             ),
         ],
-        notes=[DESTINATION_NOTE, SENSITIVITY_NOTE, destination.LIMITATION_TEXT],
+        notes=[
+            DESTINATION_NOTE,
+            classes_note(class_tbl),
+            *([] if one else [SENSITIVITY_NOTE]),
+            limitation,
+        ],
     )
     report.write_table(
         robust, out, "reference_robustness", "Reference and timing robustness", [ROBUSTNESS_NOTE]

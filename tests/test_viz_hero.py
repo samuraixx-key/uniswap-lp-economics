@@ -107,6 +107,20 @@ def test_hero_draws_the_uncertain_slice_hatched_and_touching_both_flows(tmp_path
     assert len(bands) == 1
 
 
+def test_hero_without_a_sensitivity_draws_nothing_hatched(tmp_path: Path) -> None:
+    frames = fixture_frames()
+    del frames["summary"]["lp"]["destination"]["sensitivity_self_built"]
+    r = data.load_results(write_results(tmp_path, frames))
+    with style.theme("light"):
+        fig = hero.hero(r)
+        texts = _hero_texts(fig)
+        hatched = [a for a in fig.findobj(PathPatch) if a.get_hatch()]
+        nodes = [a.get_gid() for a in fig.findobj(Rectangle) if a.get_gid()]
+    assert not hatched and f"node:{hero.UNCERTAIN}" not in nodes
+    assert "–" not in " ".join(t for k, t in texts.items() if "Proposers ·" in t)
+    assert "hatched" not in texts["source"].lower()
+
+
 def test_tiny_shares_read_under_one_percent(tmp_path: Path) -> None:
     frames = fixture_frames()
     frames["summary"]["lp"]["destination"].update(gas_burned_usd=0.3, multi_pool_gross_usd=6.7)
