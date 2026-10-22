@@ -31,6 +31,35 @@ def test_all_runs_every_step_in_order(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
+def test_all_steps_order() -> None:
+    steps = list(cli.ALL_STEPS)
+    assert steps.index("fetch-futures") < steps.index("lp")
+    assert steps.index("lp") + 1 == steps.index("strategy") == steps.index("figures") - 1
+
+
+def test_a_frozen_strategy_run_does_not_stop_all(monkeypatch: pytest.MonkeyPatch) -> None:
+    ran: list[str] = []
+
+    def step(name: str, confirm_cost: bool) -> str:
+        ran.append(name)
+        return "FROZEN" if name == "strategy" else "PASS"
+
+    monkeypatch.setattr(cli, "run_step", step)
+    monkeypatch.setattr(sys, "argv", ["ulpe", "all", "--confirm-cost"])
+    with pytest.raises(SystemExit) as e:
+        cli.main()
+    assert e.value.code == 0 and ran[-1] == "figures"
+
+
+def test_strategy_command_exit_codes(monkeypatch: pytest.MonkeyPatch) -> None:
+    for status, code in (("PASS", 0), ("FROZEN", 0), ("FAIL", 1)):
+        monkeypatch.setattr(cli.strategy_analysis_module, "run_strategy", lambda s=status: s)
+        monkeypatch.setattr(sys, "argv", ["ulpe", "strategy"])
+        with pytest.raises(SystemExit) as e:
+            cli.main()
+        assert e.value.code == code, status
+
+
 def test_all_without_the_flag_stops_at_the_paid_query(monkeypatch: pytest.MonkeyPatch) -> None:
     ran: list[str] = []
 
