@@ -204,3 +204,11 @@ def test_a_missing_code_read_names_the_address() -> None:
     usd = pl.DataFrame(schema={"block_number": pl.Int64, "builder_paid_usd": pl.Float64})
     with pytest.raises(ValueError, match=P):
         recipient_types(classes, empty, usd)
+
+
+def test_min_blocks_moves_the_pair_threshold() -> None:
+    rev, last = frames([(n, A, S_A, 10, P) for n in range(30)])  # a pair with 30 blocks
+    assert payout_pairs(rev).height == 0 and payout_pairs(rev, min_blocks=20).height == 1
+    assert class_counts(block_classes(rev, last))[PAYOUT] == 0
+    assert class_counts(block_classes(rev, last, min_blocks=20))[PAYOUT] == 30
+    assert class_counts(block_classes(rev, last, min_blocks=31))[PAYOUT] == 0

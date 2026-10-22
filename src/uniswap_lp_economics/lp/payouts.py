@@ -18,17 +18,17 @@ SIMPLE_TRANSFER_GAS = 21_000
 RECIPIENT_TYPES = ("wallet", "7702_wallet", "contract")
 
 
-def payout_pairs(block_revenue: pl.DataFrame) -> pl.DataFrame:
+def payout_pairs(block_revenue: pl.DataFrame, min_blocks: int = PAYOUT_MIN_BLOCKS) -> pl.DataFrame:
     """(miner, last_from) where a sender other than the fee recipient sent the block's last
-    transaction in at least PAYOUT_MIN_BLOCKS of the miner's blocks, with value > 0 in at least
-    PAYOUT_MIN_POSITIVE_SHARE of them. Learned from block_revenue only."""
+    transaction in at least `min_blocks` (PAYOUT_MIN_BLOCKS) of the miner's blocks, with value > 0
+    in at least PAYOUT_MIN_POSITIVE_SHARE of them. Learned from block_revenue only."""
     return (
         block_revenue.filter(pl.col("last_from").is_not_null())
         .filter(pl.col("last_from") != pl.col("miner"))
         .group_by("miner", "last_from")
         .agg(n=pl.len(), positive=(pl.col("last_value_wei") > 0).sum())
         .filter(
-            (pl.col("n") >= PAYOUT_MIN_BLOCKS)
+            (pl.col("n") >= min_blocks)
             & (pl.col("positive") >= PAYOUT_MIN_POSITIVE_SHARE * pl.col("n"))
         )
         .select("miner", "last_from")
@@ -36,12 +36,15 @@ def payout_pairs(block_revenue: pl.DataFrame) -> pl.DataFrame:
     )
 
 
-def block_classes(block_revenue: pl.DataFrame, last_tx: pl.DataFrame) -> pl.DataFrame:
+def block_classes(
+    block_revenue: pl.DataFrame, last_tx: pl.DataFrame, min_blocks: int = PAYOUT_MIN_BLOCKS
+) -> pl.DataFrame:
     """One class per block, first match wins: empty (no transactions) -> paid (last transaction
     from the fee recipient) -> payout (last transaction from the miner's payout address, value > 0,
     to someone other than the miner) -> proposer_is_fee_recipient (the miner has no paid or payout
     block anywhere, so it is taken to be the proposer) -> unexplained. `payout_pair` marks blocks
-    of a payout pair, which `class_counts` needs for top-ups."""
+    of a payout pair, which `class_counts` needs for top-ups. `min_blocks` is the pair threshold;
+    only the stability table varies it."""
     df = block_revenue.select("block_number", "miner", "last_from", "last_value_wei").join(
         last_tx.select("block_number", "to_address", "receipt_gas_used"),
         on="block_number",
@@ -51,7 +54,7 @@ def block_classes(block_revenue: pl.DataFrame, last_tx: pl.DataFrame) -> pl.Data
     if missing.height:
         first_missing = missing.sort("block_number")["block_number"][0]
         raise ValueError(f"block {first_missing} has transactions but no last_tx row")
-    pairs = payout_pairs(block_revenue).with_columns(payout_pair=pl.lit(True))
+    pairs = payout_pairs(block_revenue, min_blocks).with_columns(payout_pair=pl.lit(True))
     df = df.join(pairs, on=["miner", "last_from"], how="left").with_columns(
         pl.col("payout_pair").fill_null(False)
     )
