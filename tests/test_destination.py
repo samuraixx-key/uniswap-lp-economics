@@ -459,9 +459,109 @@ def test_r1_by_round_stratum_failures_and_unexplained_relays() -> None:
     assert s["holdout_recipient_failures"] == [
         {"block_number": 3, "to_address": PROPOSER, "proposer_fee_recipient": BOT}
     ]
-    assert s["unexplained_by_relay"] == {"r": 2, "x": 2, "y": 1}  # blocks 2 and 5 found on r
+    assert s["unexplained_by_relay"] == {  # blocks 2 and 5 found on r; 6 and 7 unanswered
+        "seen": {"delivered": {}, "unchecked": {"x": 1}},
+        "retry": {"delivered": {"r": 1}, "unchecked": {"x": 1, "y": 1}},
+        "holdout": {"delivered": {"r": 1}, "unchecked": {}},
+    }
     # top-level counts: the original sample only (seen, retry, null), never holdout rows
     assert (s["sampled"], s["found_on_a_relay"]) == (4, 2)
+
+
+def _unfound(
+    blocks: list[int], round_: str, unchecked: str | None, like: pl.DataFrame
+) -> pl.DataFrame:
+    n = len(blocks)
+    return pl.DataFrame(
+        {
+            "block_number": blocks,
+            "relay": [None] * n,
+            "found": [False] * n,
+            "value_wei": [None] * n,
+            "proposer_fee_recipient": [None] * n,
+            "relays_unchecked": [unchecked] * n,
+            "round": [round_] * n,
+        },
+        schema=like.schema,
+    )
+
+
+def test_recipient_failures_list_every_round_but_the_decision_uses_the_holdout() -> None:
+    relays, split = _world(
+        [
+            (1, "seen", PAYOUT, 10**18, 10**18, BOT, PROPOSER),  # fails R1b
+            (2, "retry", PAYOUT, 10**18, 10**18, PROPOSER, PROPOSER),  # passes
+            (3, "holdout", PAYOUT, 10**18, 10**18, BOT, PROPOSER),  # fails R1b
+            (4, "seen", PAID, 10**18, 10**18, BOT, PROPOSER),  # not class 3
+            (5, "seen", PAYOUT, 10**18, 10**18, None, PROPOSER),  # no relay recipient: fails
+        ]
+    )
+    lost = _unfound([6], "seen", None, relays)  # not found: nothing to compare
+    extra = split.head(1).with_columns(block_number=pl.Series([6]))
+    s = check_r1_relays(pl.concat([relays, lost]), pl.concat([split, extra]), NO_USD).summary
+    assert s["recipient_failures"] == [
+        {"round": "seen", "block_number": 1, "to_address": PROPOSER, "proposer_fee_recipient": BOT},
+        {
+            "round": "holdout",
+            "block_number": 3,
+            "to_address": PROPOSER,
+            "proposer_fee_recipient": BOT,
+        },
+        {
+            "round": "seen",
+            "block_number": 5,
+            "to_address": PROPOSER,
+            "proposer_fee_recipient": None,
+        },
+    ]
+    assert [r["block_number"] for r in s["holdout_recipient_failures"]] == [3]
+
+
+def test_holdout_by_stratum_counts_unanswered_blocks() -> None:
+    relays, split = _world([(1, "holdout", PAYOUT, 10**18, 10**18, PROPOSER, PROPOSER)])
+    lost = pl.concat(
+        [
+            _unfound([2, 3], "holdout", "x", relays),
+            _unfound([4], "holdout", None, relays),  # every relay answered: not unchecked
+            _unfound([5], "retry", "x", relays),  # not a holdout row
+        ]
+    )
+    rows = [(2, PAYOUT), (3, "paid"), (4, PAYOUT), (5, PAYOUT)]
+    extra = pl.concat(
+        [
+            split.head(1).with_columns(block_number=pl.lit(b, dtype=pl.Int64), cls=pl.lit(c))
+            for b, c in rows
+        ]
+    )
+    st = check_r1_relays(pl.concat([relays, lost]), pl.concat([split, extra]), NO_USD).summary[
+        "holdout_by_stratum"
+    ]
+    assert (st["payout"]["sampled"], st["payout"]["found"], st["payout"]["unchecked"]) == (3, 1, 1)
+    assert (st["rest"]["sampled"], st["rest"]["unchecked"]) == (1, 1)
+
+
+def test_unknown_relay_recipient_is_no_recipient() -> None:
+    # rows fetched before the fix stored "none" or "" for a missing recipient
+    rows = [(i, "seen", PAYOUT, 10**18, 10**18, r, PROPOSER) for i, r in enumerate(["none", ""])]
+    rows += [(9, "seen", PAID, 10**18, 10**18, "none", PROPOSER)]
+    rows += [(10, "seen", PROPOSER_IS_FEE_RECIPIENT, 10**18, 10**18, "none", MINER)]
+    relays, split = _world(rows)
+    s = check_r1_relays(relays, split, NO_USD).summary
+    assert s["by_round"]["seen"][PAYOUT]["recipient_compared"] == 0
+    assert s["by_round"]["seen"][PAID]["recipient_compared"] == 0
+    assert s["r1c_breaking_blocks"] == []  # "none" is not a recipient that differs from the miner
+    assert [r["proposer_fee_recipient"] for r in s["recipient_failures"]] == [None, None]
+
+
+def test_unfound_holdout_payout_row_does_not_decide() -> None:
+    relays, split = _world(_twenty())
+    lost = _unfound([500], "holdout", "x", relays)
+    extra = split.head(1).with_columns(
+        block_number=pl.Series([500]), payment_wei=pl.lit(0, dtype=pl.Int128)
+    )
+    d = holdout_decision(pl.concat([relays, lost]), pl.concat([split, extra]))
+    assert d == holdout_decision(relays, split)
+    assert d["n_found_payout"] == 20 and d["one_split"] is True
 
 
 def test_r1c_lists_fee_recipient_blocks_delivered_for_someone_else() -> None:

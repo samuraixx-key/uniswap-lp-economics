@@ -112,12 +112,13 @@ def query_block(
             unchecked.append(relay)
         elif payloads:
             p = payloads[0]
+            recipient = p.get("proposer_fee_recipient")
             return {
                 "block_number": block,
                 "relay": relay,
                 "found": True,
                 "value_wei": int(p["value"]),
-                "proposer_fee_recipient": str(p.get("proposer_fee_recipient", "")).lower(),
+                "proposer_fee_recipient": str(recipient).lower() if recipient else None,
                 "builder_pubkey": p.get("builder_pubkey"),
                 "relays_unchecked": None,
             }

@@ -336,13 +336,20 @@ _PAYING = [payouts.PAID, payouts.PAYOUT]
 
 def _normalize(relays: pl.DataFrame) -> pl.DataFrame:
     """Columns a relay file from before they existed lacks are added as null; a null `round`
-    counts as `seen`."""
+    counts as `seen`; a `proposer_fee_recipient` of "" or "none" (stored by an older fetch when the
+    relay named none) is null."""
     missing = [
         pl.lit(None, dtype=pl.String).alias(c)
         for c in ("relay", "proposer_fee_recipient", "relays_unchecked", "round")
         if c not in relays.columns
     ]
-    return relays.with_columns(missing).with_columns(pl.col("round").fill_null("seen"))
+    return relays.with_columns(missing).with_columns(
+        pl.col("round").fill_null("seen"),
+        pl.when(pl.col("proposer_fee_recipient").is_in(["", "none"]))
+        .then(None)
+        .otherwise(pl.col("proposer_fee_recipient"))
+        .alias("proposer_fee_recipient"),
+    )
 
 
 def _relay_rows(relays: pl.DataFrame, split: pl.DataFrame) -> pl.DataFrame:
@@ -357,7 +364,6 @@ def _recipient(rows: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFrame]:
         pl.col("found")
         & pl.col("cls").is_in(_PAYING)
         & pl.col("proposer_fee_recipient").is_not_null()
-        & (pl.col("proposer_fee_recipient") != "")
     )
     same = (
         pl.col("proposer_fee_recipient").str.to_lowercase()
@@ -389,7 +395,9 @@ def check_r1_relays(
     different recipient: listed with its single-pool builder dollars from `block_usd`). The
     top-level counts cover the original sample (seen and retry rows) and are taken before the join
     with the split; not-found blocks are split by whether some relay gave no answer
-    (`relays_unchecked`), None for a file written before that column existed. Run it on a
+    (`relays_unchecked`), None for a file written before that column existed. `recipient_failures`
+    lists the found payout blocks of every round that fail R1b (`holdout_recipient_failures`: the
+    holdout only, which is what the decision counts). Run it on a
     `payouts=True` split."""
     rows = _relay_rows(relays, split)
     base = _normalize(relays).filter(pl.col("round") != "holdout")
@@ -402,17 +410,29 @@ def check_r1_relays(
         for r in ROUNDS
     }
     holdout = rows.filter(pl.col("round") == "holdout")
-    by_stratum = {
-        "payout": _part(holdout.filter(pl.col("cls") == payouts.PAYOUT)),
-        "rest": _part(holdout.filter(pl.col("cls") != payouts.PAYOUT)),
+    strata = {
+        "payout": holdout.filter(pl.col("cls") == payouts.PAYOUT),
+        "rest": holdout.filter(pl.col("cls") != payouts.PAYOUT),
     }
-    compared, matched = _recipient(holdout.filter(pl.col("cls") == payouts.PAYOUT))
-    failures = (
-        holdout.filter((pl.col("cls") == payouts.PAYOUT) & pl.col("found"))
-        .join(matched.select("block_number"), on="block_number", how="anti")
-        .sort("block_number")
-        .select("block_number", "to_address", "proposer_fee_recipient")
-    )
+    by_stratum = {
+        name: {
+            **_part(part),
+            # not found, and some relay gave no answer
+            "unchecked": int(part.filter(~pl.col("found"))["relays_unchecked"].is_not_null().sum()),
+        }
+        for name, part in strata.items()
+    }
+
+    def failing(part: pl.DataFrame) -> pl.DataFrame:  # found class-3 rows that fail R1b
+        found = part.filter((pl.col("cls") == payouts.PAYOUT) & pl.col("found"))
+        return (
+            found.join(_recipient(found)[1].select("block_number"), on="block_number", how="anti")
+            .sort("block_number")
+            .select("round", "block_number", "to_address", "proposer_fee_recipient")
+        )
+
+    failures = failing(holdout).drop("round")
+    all_failures = failing(rows)
     usd = block_usd.group_by("block_number").agg(pl.col("builder_paid_usd").sum())
     breaking = (
         rows.filter(
@@ -430,12 +450,20 @@ def check_r1_relays(
         .select("block_number", pl.col("builder_paid_usd").fill_null(0.0))
     )
     unexplained = rows.filter(pl.col("cls") == payouts.UNEXPLAINED)
-    by_relay: dict[str, int] = {}
-    for relay in unexplained.filter(pl.col("found"))["relay"].drop_nulls().to_list():
-        by_relay[relay] = by_relay.get(relay, 0) + 1
-    for text in unexplained.filter(~pl.col("found"))["relays_unchecked"].drop_nulls().to_list():
-        for relay in text.split(","):
-            by_relay[relay] = by_relay.get(relay, 0) + 1
+    by_relay: dict[str, dict[str, dict[str, int]]] = {}
+    for r in ROUNDS:
+        part = unexplained.filter(pl.col("round") == r)
+        delivered: dict[str, int] = {}
+        for relay in part.filter(pl.col("found"))["relay"].drop_nulls().to_list():
+            delivered[relay] = delivered.get(relay, 0) + 1
+        missed: dict[str, int] = {}
+        for text in part.filter(~pl.col("found"))["relays_unchecked"].drop_nulls().to_list():
+            for relay in text.split(","):
+                missed[relay] = missed.get(relay, 0) + 1
+        by_relay[r] = {
+            "delivered": dict(sorted(delivered.items())),
+            "unchecked": dict(sorted(missed.items())),
+        }
     not_found = base.filter(~pl.col("found"))
     unchecked: int | None = None
     answered: int | None = None
@@ -454,8 +482,9 @@ def check_r1_relays(
             "by_round": by_round,
             "holdout_by_stratum": by_stratum,
             "holdout_recipient_failures": failures.to_dicts(),
+            "recipient_failures": all_failures.to_dicts(),
             "r1c_breaking_blocks": breaking.to_dicts(),
-            "unexplained_by_relay": dict(sorted(by_relay.items())),
+            "unexplained_by_relay": by_relay,
             "not_found_unchecked": unchecked,
             "not_found_all_answered": answered,
         },

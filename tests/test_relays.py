@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 
 import httpx
 import polars as pl
@@ -434,3 +435,11 @@ def test_a_holdout_file_with_another_seed_raises(tmp_path: Path) -> None:
     )
     with pytest.raises(ValueError, match="seed"):
         relays.fetch_holdout(tmp_path, _holdout_classes(10, 10), httpx.Client(), (R1,), pace_s=0)
+
+
+@pytest.mark.parametrize("recipient", [{}, {"proposer_fee_recipient": None}])
+def test_missing_recipient_is_stored_as_none(recipient: dict[str, Any]) -> None:
+    payload = [{"value": "9", "builder_pubkey": "0x1", **recipient}]
+    client = httpx.Client(transport=transport({R1: [httpx.Response(200, json=payload)]}))
+    row = relays.query_block(client, 7, (R1,), backoff_s=0)
+    assert row["found"] and row["proposer_fee_recipient"] is None
