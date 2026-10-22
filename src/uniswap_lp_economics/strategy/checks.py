@@ -6,7 +6,13 @@ import polars as pl
 
 from uniswap_lp_economics.config import DECIMALS0, DECIMALS1
 from uniswap_lp_economics.strategy.cfpool import CfRun
-from uniswap_lp_economics.strategy.params import CALIBRATION_TOL, JULY_START_US, REPORT_START_US
+from uniswap_lp_economics.strategy.params import (
+    CALIBRATION_TOL,
+    JULY_START_US,
+    REPORT_START_US,
+    S1_REL_TOL,
+)
+from uniswap_lp_economics.strategy.ranges import attribute, held_from_flows, order_key
 from uniswap_lp_economics.validate import MAX_LISTED, CheckResult
 
 S2_STEP_COLUMNS = (
@@ -100,6 +106,74 @@ def check_s2(
 
 
 _SWAP_KEYS = ["block_number", "log_index"]
+
+
+def check_s1(
+    steps: pl.DataFrame,
+    positions: pl.DataFrame,
+    position_flows: pl.DataFrame,
+    snapshot_block: int,
+) -> CheckResult:
+    """Spec 5.2: `attribute` over each window-active position's own range and liquidity
+    reproduces the engine's fee_usd and lvr_0, per position and on the window totals, within
+    S1_REL_TOL x max(1, |engine|)."""
+    held = held_from_flows(position_flows, snapshot_block).with_columns(
+        _start=order_key("start_block", "start_log"), _end=order_key("end_block", "end_log")
+    )
+    by_pos = held.partition_by("position_id", as_dict=True)
+    s = (
+        steps.filter(pl.col("accrued"))
+        .with_columns(_key=order_key("block_number", "log_index"))
+        .sort("_key", "step")
+    )
+    keys = s["_key"]
+    fees, lvrs = [], []
+    for pid, lo, hi in positions.select("position_id", "tick_lower", "tick_upper").iter_rows():
+        h = by_pos.get((pid,))
+        if h is None:
+            fees.append(0.0)
+            lvrs.append(0.0)
+            continue
+        # only the steps of the position's span go to attribute: most positions are short
+        span = h.select(pl.col("_start").min(), pl.col("_end").max()).row(0)
+        i0, i1 = (keys.search_sorted(k, "left") for k in span)
+        a = attribute(
+            s.slice(i0, i1 - i0),
+            h.with_columns(tick_lower=pl.lit(lo, pl.Int64), tick_upper=pl.lit(hi, pl.Int64)),
+        )
+        fees.append(float(a["fee_usd"].sum()))
+        lvrs.append(float(a["lvr_0"].sum()))
+    cmp = positions.select(
+        "position_id",
+        fee_got=pl.Series(fees, dtype=pl.Float64),
+        fee_engine="fee_usd",
+        lvr_got=pl.Series(lvrs, dtype=pl.Float64),
+        lvr_engine="lvr_0",
+    )
+    total = cmp.select(
+        position_id=pl.lit("window total"), **{c: pl.col(c).sum() for c in cmp.columns[1:]}
+    )
+
+    def rel(m: str) -> pl.Expr:
+        engine = pl.col(f"{m}_engine")
+        return (pl.col(f"{m}_got") - engine).abs() / pl.max_horizontal(1.0, engine.abs())
+
+    errs = pl.concat([cmp, total]).with_columns(err_fee=rel("fee"), err_lvr=rel("lvr"))
+    bad = errs.filter((pl.col("err_fee") > S1_REL_TOL) | (pl.col("err_lvr") > S1_REL_TOL))
+    per_pos = errs.head(cmp.height)
+    worst = per_pos.sort(pl.max_horizontal("err_fee", "err_lvr"))["position_id"]
+    return CheckResult(
+        "S1 range attribution vs engine",
+        bad.height == 0,
+        {
+            "positions": cmp.height,
+            "max_rel_error_fee": errs["err_fee"].max(),
+            "max_rel_error_lvr": errs["err_lvr"].max(),
+            "failures": bad.height,
+            "worst_position": worst[-1] if worst.len() else None,
+        },
+        bad.to_dicts()[:MAX_LISTED],
+    )
 
 
 def _key_frame(keys: set[tuple[int, int]]) -> pl.DataFrame:
