@@ -52,15 +52,18 @@ def time_block(
             unchecked.append(relay)
             continue
         payloads = _get(client, relay + PATH, block, backoff_s)
-        bids = _get(client, relay + BIDS_PATH, block, backoff_s) if payloads else payloads
+        bids: list[Any] | None = []
+        if payloads:
+            winner, slot = str(payloads[0]["block_hash"]), int(payloads[0]["slot"])
+            # By hash: the block-number list holds thousands of bids and can miss the winner.
+            bids = _get(client, relay + BIDS_PATH, block, backoff_s, {"block_hash": winner})
         if breaker is not None:
-            breaker.record(relay, bids is None)
-        if bids is None:
+            breaker.record(relay, payloads is None or bids is None)
+        if payloads is None or bids is None:
             unchecked.append(relay)
             continue
         if not payloads:
             continue
-        winner, slot = str(payloads[0]["block_hash"]), int(payloads[0]["slot"])
         times = [int(b["timestamp_ms"]) for b in bids if b.get("block_hash") == winner]
         if not times:  # delivered here, but the winning bid is not in the relay's history
             return _row(block, relay=relay, slot=slot, block_hash=winner)
@@ -91,6 +94,9 @@ def fetch_block_timing(
     out = raw_dir / TIMING_FILE
     raw_dir.mkdir(parents=True, exist_ok=True)
     done = read_exact(out) if out.exists() else pl.DataFrame(schema=TIMING_SCHEMA)
+    # A block a relay delivered but that was not timed is asked again (an earlier fetch asked
+    # for the bids by block number, a list that can miss the winner).
+    done = done.filter(pl.col("relay").is_null() | pl.col("found"))
     rows: list[dict[str, Any]] = []
     breaker = RelayBreaker()
     own = client is None
@@ -137,6 +143,9 @@ def timing_summary(timing: pl.DataFrame) -> dict[str, Any]:
     return {
         "n_timed": timed.height,
         "n_queried": timing.height,
+        "n_delivered_not_timed": timing.filter(
+            pl.col("relay").is_not_null() & ~pl.col("found")
+        ).height,
         "p10_ms": q(0.1),
         "p50_ms": q(0.5),
         "p90_ms": q(0.9),

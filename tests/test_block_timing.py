@@ -99,3 +99,52 @@ def test_timing_summary() -> None:
     ]
     none = block_timing.timing_summary(rows.filter(~pl.col("found")))
     assert none["n_timed"] == 0 and none["p10_ms"] is None and none["by_relay"] == []
+
+
+def test_the_winning_bid_is_asked_for_by_its_hash() -> None:
+    seen: list[dict[str, str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == block_timing.BIDS_PATH:
+            seen.append(dict(request.url.params))
+            return httpx.Response(200, json=BIDS[1:])
+        return httpx.Response(200, json=DELIVERED)
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    row = block_timing.time_block(client, 7, (R1,), backoff_s=0)
+    assert seen == [{"block_hash": "0xaa"}] and row["offset_ms"] == 944
+
+
+def test_resume_retries_blocks_delivered_but_not_timed(tmp_path: Path) -> None:
+    old = pl.DataFrame(
+        [
+            {"block_number": b, "relay": R1, "found": False}
+            for b in relays.sample_blocks(1, 1000, 3)
+        ],
+        schema_overrides={k: v for k, v in block_timing.TIMING_SCHEMA.items()},
+    )
+    old = old.select(
+        [
+            pl.col(c) if c in old.columns else pl.lit(None, dtype=t).alias(c)
+            for c, t in block_timing.TIMING_SCHEMA.items()
+        ]
+    )
+    old.write_parquet(tmp_path / block_timing.TIMING_FILE)
+    client = relay_world({R1: {relays.PATH: DELIVERED, block_timing.BIDS_PATH: BIDS}})
+    path = block_timing.fetch_block_timing(
+        tmp_path, 1, 1000, client=client, relay_urls=(R1,), n=3, min_timed=1
+    )
+    out = pl.read_parquet(path)
+    assert out.height == 3 and out["found"].all()
+
+
+def test_timing_summary_counts_delivered_but_not_timed() -> None:
+    rows = pl.DataFrame(
+        {
+            "block_number": [1, 2, 3],
+            "relay": [R1, R1, None],
+            "found": [True, False, False],
+            "offset_ms": [900, None, None],
+        }
+    )
+    assert block_timing.timing_summary(rows)["n_delivered_not_timed"] == 1
