@@ -310,6 +310,7 @@ def score(
         left_on="start_block",
         right_on="block_number",
         how="left",
+        maintain_order="left",  # shift, cum_prod and join_asof below need segment order
     )
     need = pl.col("ts_us", "sqrt_price_x96", "p_ref_0", "base_fee_wei")
     if s.select(pl.any_horizontal(need.is_null()).any()).item():
@@ -379,7 +380,7 @@ def score(
         raise ValueError(f"period blocks on days outside the day grid: {sorted(missing)}")
     daily = pl.DataFrame({"day": days}, schema={"day": pl.Date})
     for frame in (fees, paid, twv, blocks):
-        daily = daily.join(frame, on="day", how="left")
+        daily = daily.join(frame, on="day", how="left", maintain_order="left")  # `days` order
     daily = daily.fill_null(0).select(
         *DAILY_COLUMNS[:6], *(pl.col(c).cast(pl.Int64) for c in DAILY_COLUMNS[6:])
     )
