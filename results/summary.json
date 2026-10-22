@@ -5154,8 +5154,8 @@
     "destination_limitation": "The split of builder payments between builder and proposer uses each block's ratio of proposer payment to builder revenue; how a builder prices an individual transaction is not observed. Proposer payments are identified as the block's last transaction, sent by the fee recipient or by a payout address learned from chain data, and tested on a blind stratified relay sample; blocks where neither applies give the proposer the whole builder revenue."
   },
   "strategy": {
-    "generated_utc": "2026-10-22T09:34:28+00:00",
-    "git_commit": "forwarder-preregistered-30-gf565e41",
+    "generated_utc": "2026-10-22T15:59:23+00:00",
+    "git_commit": "forwarder-preregistered-38-gc5f5e90-dirty",
     "delta": 0.06768831701735356,
     "r0": 0.7292467319305858,
     "range_verdict": "inconclusive",

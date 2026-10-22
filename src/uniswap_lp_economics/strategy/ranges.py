@@ -347,10 +347,16 @@ def score(
         end_log=pl.lit(-2),
     )
     att = attribute(steps, held)
-    fees = att.group_by("day").agg(fee_usd=pl.col("fee_usd").sum(), lvr_usd=pl.col("lvr_0").sum())
+    # polars' parallel group sums differ run to run in the last bits; sorted keys sum in order
+    fees = (
+        att.sort("day", maintain_order=True)
+        .group_by("day", maintain_order=True)
+        .agg(fee_usd=pl.col("fee_usd").sum(), lvr_usd=pl.col("lvr_0").sum())
+    )
     paid = (
         s.filter(pl.col("seg") > 0)
-        .group_by("day")
+        .sort("day", maintain_order=True)
+        .group_by("day", maintain_order=True)
         .agg(pl.col("gas_usd").sum(), pl.col("trade_usd").sum(), recentres=pl.len())
     )
     ranges = s.select("ts_us", "start_block", "tick_lower", "tick_upper", "liquidity")
@@ -362,7 +368,9 @@ def score(
         .with_columns(
             pl.col("tick_lower", "tick_upper", "liquidity").fill_null(strategy="backward")
         )
-        .group_by(day=pl.from_epoch("ts_us", "us").dt.date())
+        .with_columns(day=pl.from_epoch("ts_us", "us").dt.date())
+        .sort("day", maintain_order=True)
+        .group_by("day", maintain_order=True)
         .agg(twv_usd=(ell * (u + e * pl.col("p_cex"))).mean())
     )
     first, end = s["start_block"][0], s["end_block"][-1]

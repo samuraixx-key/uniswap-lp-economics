@@ -1509,3 +1509,11 @@ fees − LVR: the benchmark is the free continuous hedge.
    and events.
 6. **The fee runs use 4 worker processes by default** (about 1.35 GB of memory each), not one per
    core.
+7. **The report files were regenerated once, after the freeze, to make re-runs byte-identical.**
+   The first report run (`54ef24c`) summed floats per day with polars' parallel `group_by`, whose
+   result changes in the last bits from run to run: a re-run differed by up to 3e-11 (on a value
+   of about $10,000) with every flag and verdict the same. The daily sums now run on rows sorted
+   by day, and every committed strategy report file comes from one run of that code; two
+   consecutive runs are byte-identical apart from `generated_utc`. Against the first run, values
+   moved by at most 2.9e-11 and no flag, verdict or frozen value changed. The freeze
+   (`f565e41`) was not touched.
