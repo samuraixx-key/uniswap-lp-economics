@@ -30,9 +30,9 @@ def on_grid(daily: pl.DataFrame, days: list[date], cols: list[str]) -> pl.DataFr
     if daily["day"].is_duplicated().any():
         raise ValueError("a per-day frame has a duplicate day: draws would not stay paired")
     grid = pl.DataFrame({"day": days}, schema={"day": pl.Date})
-    return grid.join(daily.select("day", *cols), on="day", how="left").with_columns(
-        pl.col(c).fill_null(0.0) for c in cols
-    )
+    return grid.join(
+        daily.select("day", *cols), on="day", how="left", maintain_order="left"
+    ).with_columns(pl.col(c).fill_null(0.0) for c in cols)
 
 
 def ratio_draws(num: np.ndarray, den: np.ndarray, idx: np.ndarray) -> np.ndarray:

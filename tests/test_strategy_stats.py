@@ -30,6 +30,14 @@ def test_on_grid_zero_fills():
     assert out["fees"].to_list() == [1.0, 0.0, 3.0]
 
 
+def test_on_grid_keeps_grid_order():
+    days = [date(2026, 8, d) for d in range(1, 9)]
+    daily = pl.DataFrame({"day": days[::-1], "fees": [float(d) for d in range(8, 0, -1)]})
+    out = stats.on_grid(daily, days, ["fees"])
+    assert out["day"].to_list() == days
+    assert out["fees"].to_list() == [float(d) for d in range(1, 9)]
+
+
 def test_ratio_draws_nan_where_den_not_positive():
     idx = np.array([[0, 0], [1, 1]])
     out = stats.ratio_draws(np.array([2.0, 3.0]), np.array([4.0, 0.0]), idx)

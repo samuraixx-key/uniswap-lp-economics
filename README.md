@@ -1202,8 +1202,12 @@ fails it writes `results/strategy_checks.md` and no results. With no freeze file
 only and writes the freeze; commit it (here: tagged `strategy-preregistered`) before the second
 run. The second run reads every July value from the freeze, stops if any input file it hashed
 has changed, and never rewrites it; to re-run July, delete the file by hand, which shows in git.
-`ulpe all` runs `strategy` once: with the committed freeze it runs the report period, without
-one it stops after July. The fee runs use 4 worker processes by default (about 1.35 GB of memory each).
+`ulpe all` runs `strategy` once. With the committed freeze it runs the report period. Without
+one, the first `ulpe all` writes the July freeze and then stops at `figures`, which asks for
+`ulpe strategy` (the report results do not exist yet); commit and tag the freeze, then run
+`ulpe strategy` (or `ulpe all`) again. The report run checks the freeze's input hashes; a fresh
+`ulpe analyze` and `ulpe lp` rewrite the hashed processed files byte-identically (verified
+2026-10-22), so re-running the pipeline keeps matching the committed freeze. The fee runs use 4 worker processes by default (about 1.35 GB of memory each).
 
 Figures:
 
