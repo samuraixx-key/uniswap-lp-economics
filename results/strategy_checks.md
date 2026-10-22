@@ -1,0 +1,17 @@
+# Strategy checks: **PASS**
+
+- generated_utc: `2026-10-22T09:30:17+00:00`
+- git_commit: `forwarder-preregistered-29-g07bd4db`
+
+| Check | Result | Summary |
+|---|---|---|
+| S2 identity replay | PASS | blocks_compared=659799, steps_compared=586360, swaps_compared=534377, mismatches=0, first_mismatch=None |
+| S1 range attribution vs engine | PASS | positions=7874, max_rel_error_fee=5.893329713124729e-10, max_rel_error_lvr=9.44269171535006e-10, failures=0, worst_position=direct:0x1f2f10d1c40777ae1da742455c65828ff36df387:197420:197430:11 |
+| S3 calibration (July) | reported | lvr_ratio=1.3795718316146928, fee_ratio=1.0549969155468955, lvr_ratio_1s=1.3284889006720721, fee_ratio_1s=1.0731486988993635, model_lvr_usd=1509517.5817533017, model_fee_usd=787459.3194112804, measured_lvr_usd=1094192.8119730572, measured_fee_usd=746409.1200712873, replaced_swaps=33507, tolerance=0.15 |
+| Counterfactual pool counts (July) | reported | model_0s={'mode_exact_input': 101928, 'mode_exact_output': 9925, 'mode_to_price': 988, 'no_input': 0, 'to_price_skipped': 245, 'unreproduced': 0, 'replaced': 33507, 'arb_trades': 34433, 'below_min_profit': 4337, 'no_reference_blocks': 0}, model_1s={'mode_exact_input': 101928, 'mode_exact_output': 9925, 'mode_to_price': 1073, 'no_input': 0, 'to_price_skipped': 160, 'unreproduced': 0, 'replaced': 33507, 'arb_trades': 34717, 'below_min_profit': 4245, 'no_reference_blocks': 1} |
+
+## S3 calibration (July): first mismatches
+
+```
+{'measure': 'lvr', 'ratio': 1.3795718316146928}
+```
