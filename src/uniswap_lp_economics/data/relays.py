@@ -14,8 +14,10 @@ import polars as pl
 
 from uniswap_lp_economics.config import N_RELAY_SAMPLES, RELAYS
 from uniswap_lp_economics.io import read_exact, write_exact
+from uniswap_lp_economics.lp.payouts import HOLDOUT_PER_STRATUM, HOLDOUT_SEED, draw_holdout
 
 RELAY_FILE = "relays.parquet"
+HOLDOUT_FILE = "relay_holdout.parquet"
 PATH = "/relay/v1/data/bidtraces/proposer_payload_delivered"
 RELAY_SCHEMA: dict[str, Any] = {
     "block_number": pl.Int64,
@@ -219,3 +221,55 @@ def retry_unchecked(
     for relay, n in left["relays_unchecked"].str.split(",").explode().value_counts().iter_rows():
         print(f"    {relay}: {n}")
     return len(rows)
+
+
+def fetch_holdout(
+    raw_dir: Path,
+    classes: pl.DataFrame,
+    client: httpx.Client | None = None,
+    relay_urls: tuple[str, ...] = RELAYS,
+    pace_s: float = 0.5,
+    timeout_s: float = 60,
+    n: int = HOLDOUT_PER_STRATUM,
+) -> Path:
+    """The holdout that checks the payout rule against the relay: `n` payout blocks and `n` others,
+    seed 44, the blocks already in the relay file excluded. The draw is written to disk before the
+    first relay call and never redrawn; a rerun reads it and queries only the blocks still missing
+    from the relay file (rows marked `round = "holdout"`). Returns the holdout file's path."""
+    out = raw_dir / RELAY_FILE
+    path = raw_dir / HOLDOUT_FILE
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    done = _read(out)
+    if path.exists():
+        holdout = read_exact(path)
+        if set(holdout["seed"].to_list()) != {HOLDOUT_SEED}:
+            raise ValueError(f"{path} was drawn with another seed than {HOLDOUT_SEED}")
+    else:
+        holdout = draw_holdout(classes, set(done["block_number"].to_list()), n=n)
+        write_exact(holdout, path)
+    seen = set(done["block_number"].to_list())
+    todo = [b for b in holdout["block_number"].to_list() if b not in seen]
+    breaker = RelayBreaker()
+    rows: list[dict[str, Any]] = []
+    own = client is None
+    http = client or httpx.Client(follow_redirects=True)
+
+    def save() -> None:
+        write_exact(pl.concat([done, pl.DataFrame(rows, schema=RELAY_SCHEMA)]), out)
+
+    try:
+        for i, b in enumerate(todo):
+            if i:
+                time.sleep(pace_s)
+            row = query_block(http, b, relay_urls, breaker=breaker, timeout_s=timeout_s)
+            rows.append({**row, "round": "holdout"})
+            if (i + 1) % 100 == 0:
+                save()
+                print(f"  {i + 1}/{len(todo)} holdout blocks")
+    finally:
+        if rows:
+            save()
+        if own:
+            http.close()
+    print(f"  holdout: {len(rows)} blocks queried, {holdout.height} drawn")
+    return path

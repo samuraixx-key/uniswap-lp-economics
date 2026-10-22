@@ -9,7 +9,10 @@ from uniswap_lp_economics.lp.payouts import (
     UNEXPLAINED,
     block_classes,
     class_counts,
+    draw_holdout,
     payout_pairs,
+    recipient_reads,
+    recipient_types,
 )
 
 
@@ -103,3 +106,101 @@ def test_class_counts_report_top_ups() -> None:
     assert counts["n_top_up"] == 1
     assert counts[EMPTY] == 1 and counts[PROPOSER_IS_FEE_RECIPIENT] == 1
     assert counts[PAID] == 1 and counts[PAYOUT] == 101 and counts[UNEXPLAINED] == 3
+
+
+def _classes(rows: list[tuple[int, str, str | None, int]]) -> pl.DataFrame:
+    """(block, cls, to_address, receipt_gas_used) rows, each paying 2 ETH."""
+    return pl.DataFrame(
+        {
+            "block_number": [r[0] for r in rows],
+            "cls": [r[1] for r in rows],
+            "to_address": [r[2] for r in rows],
+            "receipt_gas_used": [r[3] for r in rows],
+            "last_value_wei": [2 * 10**18] * len(rows),
+        },
+        schema={
+            "block_number": pl.Int64,
+            "cls": pl.String,
+            "to_address": pl.String,
+            "receipt_gas_used": pl.Int64,
+            "last_value_wei": pl.Int128,
+        },
+    )
+
+
+def test_holdout_is_stratified_seeded_and_excludes_the_old_sample() -> None:
+    rows = [(b, PAYOUT, P, 21000) for b in range(1, 21)]
+    rows += [(b, PAID, None, 21000) for b in range(21, 31)]
+    rows += [(b, PROPOSER_IS_FEE_RECIPIENT, None, 21000) for b in range(31, 41)]
+    rows += [(b, UNEXPLAINED, None, 21000) for b in range(41, 51)]
+    rows += [(b, EMPTY, None, 0) for b in range(51, 61)]
+    classes = _classes(rows)
+    exclude = {1, 2, 3, 21, 22, 23}
+    h = draw_holdout(classes, exclude=exclude, n=3)
+    assert h.group_by("stratum").len().sort("stratum").to_dicts() == [
+        {"stratum": "payout", "len": 3},
+        {"stratum": "rest", "len": 3},
+    ]
+    assert h.equals(draw_holdout(classes, exclude=exclude, n=3))  # deterministic
+    assert set(h["seed"]) == {44}
+    assert not set(h["block_number"]) & exclude
+    assert set(h.filter(pl.col("stratum") == "payout")["block_number"]) <= set(range(1, 21))
+    assert set(h.filter(pl.col("stratum") == "rest")["block_number"]) <= set(range(21, 51))
+
+
+def test_a_small_stratum_raises() -> None:
+    classes = _classes([(b, PAYOUT, P, 21000) for b in range(1, 6)] + [(9, PAID, None, 21000)])
+    with pytest.raises(ValueError, match="rest"):
+        draw_holdout(classes, exclude=set(), n=3)
+
+
+def test_recipient_types_prefer_7702_then_contract() -> None:
+    wallet, delegated, contract, simple = addr(10), addr(11), addr(12), addr(13)
+    classes = _classes(
+        [
+            (1, PAYOUT, wallet, 30000),
+            (2, PAYOUT, wallet, 30000),
+            (3, PAYOUT, delegated, 30000),
+            (4, PAYOUT, delegated, 30000),
+            (5, PAYOUT, contract, 30000),
+            (6, PAYOUT, contract, 30000),
+            (7, PAYOUT, simple, 21000),  # no read: a plain transfer is a wallet
+            (8, PAID, X, 21000),  # not a payout block
+        ]
+    )
+    assert recipient_reads(classes) == [
+        (wallet, 1),
+        (wallet, 2),
+        (delegated, 3),
+        (delegated, 4),
+        (contract, 5),
+        (contract, 6),
+    ]
+    deleg = "0xef0100" + "ab" * 20
+    code = pl.DataFrame(
+        {
+            "address": [wallet, wallet, delegated, delegated, contract, contract],
+            "block": [1, 2, 3, 4, 5, 6],
+            "code": ["0x", "0x", "0x", deleg, "0x6080", "0x6080"],
+        },
+        schema={"address": pl.String, "block": pl.Int64, "code": pl.String},
+    )
+    usd = pl.DataFrame(
+        {"block_number": [1, 3, 5], "builder_paid_usd": [10.0, 20.0, 40.0]},
+        schema={"block_number": pl.Int64, "builder_paid_usd": pl.Float64},
+    )
+    table, differing = recipient_types(classes, code, usd)
+    assert differing == 1
+    assert table["type"].to_list() == ["wallet", "7702_wallet", "contract"]
+    assert table["payments"].to_list() == [3, 2, 2]  # wallet: two coded as wallets, one plain
+    assert table["blocks"].to_list() == [3, 2, 2]
+    assert table["paid_eth"].to_list() == [6.0, 4.0, 4.0]
+    assert table["builder_paid_usd"].to_list() == [10.0, 20.0, 40.0]
+
+
+def test_a_missing_code_read_names_the_address() -> None:
+    classes = _classes([(1, PAYOUT, P, 30000)])
+    empty = pl.DataFrame(schema={"address": pl.String, "block": pl.Int64, "code": pl.String})
+    usd = pl.DataFrame(schema={"block_number": pl.Int64, "builder_paid_usd": pl.Float64})
+    with pytest.raises(ValueError, match=P):
+        recipient_types(classes, empty, usd)

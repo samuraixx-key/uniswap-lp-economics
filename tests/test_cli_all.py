@@ -22,6 +22,8 @@ def test_all_runs_every_step_in_order(monkeypatch: pytest.MonkeyPatch) -> None:
     assert ran == list(cli.ALL_STEPS)
     assert ran[-1] == "figures" and ran.index("lp") < ran.index("figures")
     assert ran.index("fetch-relays") + 1 == ran.index("fetch-timing") < ran.index("lp")
+    assert ran.index("fetch-builders") + 1 == ran.index("fetch-payout-code")
+    assert ran.index("fetch-payout-code") + 1 == ran.index("fetch-relays")
     assert (
         ran.index("validate") < ran.index("analyze") < ran.index("fetch-history") < ran.index("lp")
     )
@@ -270,3 +272,15 @@ def test_chain_state_skips_the_position_build_when_everything_is_on_disk(
     monkeypatch.setattr(cli, "_rpc", lambda: None)
     monkeypatch.setattr(cli, "build_positions", lambda *a: pytest.fail("built positions"))
     cli.fetch_chain_state()
+
+
+def test_the_holdout_waits_for_the_last_tx_table(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    pl.DataFrame({"block_number": [1, 2]}).write_parquet(tmp_path / bq_blocks.BLOCKS_FILE)
+    monkeypatch.setattr(config, "RAW_DIR", tmp_path)
+    monkeypatch.setattr(cli.relays, "fetch_relay_sample", lambda *a: None)
+    monkeypatch.setattr(cli.relays, "retry_unchecked", lambda *a: 0)
+    monkeypatch.setattr(cli.relays, "fetch_holdout", lambda *a: pytest.fail("drew a holdout"))
+    cli.fetch_relays()
+    assert "fetch-builders" in capsys.readouterr().out

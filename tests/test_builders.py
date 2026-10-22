@@ -247,3 +247,23 @@ def test_dry_run_reports_an_oversized_estimate_without_stopping(
     monkeypatch.setattr(builders.bigquery, "Client", lambda project: fake)
     builders.fetch_builders(tmp_path, START, END, dry_run=True)
     assert len(fake.dry) == 4 and "WARNING" in capsys.readouterr().out
+
+
+class _FakeCodeClient:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, int]] = []
+
+    def get_code(self, address: str, block: int) -> str:
+        self.calls.append((address, block))
+        return "0x6080" if address == "0xaa" else "0x"
+
+
+def test_payout_code_is_cached_by_address_and_block(tmp_path: Path) -> None:
+    client = _FakeCodeClient()
+    path = builders.fetch_payout_code(client, tmp_path, [("0xaa", 5), ("0xbb", 5)])  # type: ignore[arg-type]
+    assert path == tmp_path / builders.BUILDERS_DIR / builders.PAYOUT_CODE
+    builders.fetch_payout_code(client, tmp_path, [("0xaa", 5), ("0xaa", 9), ("0xbb", 5)])  # type: ignore[arg-type]
+    assert client.calls == [("0xaa", 5), ("0xbb", 5), ("0xaa", 9)]  # only the missing pair
+    df = pl.read_parquet(path).sort("address", "block")
+    assert df.columns == ["address", "block", "code"] and df.schema["block"] == pl.Int64
+    assert df["code"].to_list() == ["0x6080", "0x6080", "0x"]

@@ -6,6 +6,7 @@ import pytest
 
 from uniswap_lp_economics.data import relays
 from uniswap_lp_economics.io import read_exact, write_exact
+from uniswap_lp_economics.lp.payouts import PAID, PAYOUT
 
 R1, R2 = "https://relay-one.example", "https://relay-two.example"
 
@@ -326,3 +327,110 @@ def test_a_retried_holdout_row_stays_in_the_holdout(
     df = read_exact(tmp_path / relays.RELAY_FILE).sort("block_number")
     assert df["round"].to_list() == ["holdout", "retry"]
     assert df["found"].to_list() == [bool(answer)] * 2 and df["relays_unchecked"].null_count() == 2
+
+
+def _holdout_classes(n_payout: int, n_rest: int) -> pl.DataFrame:
+    blocks = list(range(1, n_payout + n_rest + 1))
+    return pl.DataFrame(
+        {
+            "block_number": blocks,
+            "cls": [PAYOUT] * n_payout + [PAID] * n_rest,
+            "to_address": [None] * len(blocks),
+            "receipt_gas_used": [21000] * len(blocks),
+        },
+        schema={
+            "block_number": pl.Int64,
+            "cls": pl.String,
+            "to_address": pl.String,
+            "receipt_gas_used": pl.Int64,
+        },
+    )
+
+
+def _holdout_setup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> tuple[httpx.Client, list[int], list[float]]:
+    sleeps: list[float] = []
+    monkeypatch.setattr(relays.time, "sleep", sleeps.append)
+    old = pl.DataFrame([_row(1, True, None), _row(11, True, None)], schema=relays.RELAY_SCHEMA)
+    write_exact(old, tmp_path / relays.RELAY_FILE)
+    seen: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert (tmp_path / relays.HOLDOUT_FILE).exists()  # written before the first relay call
+        seen.append(int(request.url.params["block_number"]))
+        return httpx.Response(200, json=[])
+
+    return httpx.Client(transport=httpx.MockTransport(handler)), seen, sleeps
+
+
+def test_holdout_file_exists_before_the_first_relay_call(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client, seen, sleeps = _holdout_setup(tmp_path, monkeypatch)
+    path = relays.fetch_holdout(
+        tmp_path, _holdout_classes(10, 10), client, (R1,), pace_s=0.25, timeout_s=60, n=3
+    )
+    h = read_exact(path)
+    assert path == tmp_path / relays.HOLDOUT_FILE and h.height == 6 and set(h["seed"]) == {44}
+    assert not set(h["block_number"]) & {1, 11}  # the base sample is excluded
+    df = read_exact(tmp_path / relays.RELAY_FILE)
+    assert sorted(seen) == sorted(h["block_number"].to_list())
+    assert df.filter(pl.col("round") == "holdout").height == 6 and df.height == 8
+    assert sleeps == [0.25] * 5  # between blocks only
+
+
+def test_rerun_reuses_the_holdout_and_never_redraws(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client, seen, _ = _holdout_setup(tmp_path, monkeypatch)
+    relays.fetch_holdout(tmp_path, _holdout_classes(10, 10), client, (R1,), pace_s=0, n=3)
+    first = read_exact(tmp_path / relays.HOLDOUT_FILE)
+    seen.clear()
+    # Other candidates now: the drawn blocks must not change.
+    relays.fetch_holdout(tmp_path, _holdout_classes(30, 30), client, (R1,), pace_s=0, n=3)
+    assert read_exact(tmp_path / relays.HOLDOUT_FILE).equals(first)
+    assert seen == []  # every holdout block is already in relays.parquet
+
+
+def test_an_interrupted_holdout_resumes_on_the_same_blocks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _holdout_setup(tmp_path, monkeypatch)
+    classes = _holdout_classes(10, 10)
+    calls: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(int(request.url.params["block_number"]))
+        if len(calls) == 3:
+            raise RuntimeError("boom")
+        return httpx.Response(200, json=[])
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    with pytest.raises(RuntimeError):
+        relays.fetch_holdout(tmp_path, classes, client, (R1,), pace_s=0, n=3)
+    assert read_exact(tmp_path / relays.RELAY_FILE).height == 4  # 2 old + 2 queried
+    more: list[int] = []
+    client2 = httpx.Client(
+        transport=httpx.MockTransport(lambda r: more.append(1) or httpx.Response(200, json=[]))
+    )
+    relays.fetch_holdout(tmp_path, classes, client2, (R1,), pace_s=0, n=3)
+    assert len(more) == 4 and read_exact(tmp_path / relays.RELAY_FILE).height == 8
+
+
+def test_a_small_stratum_raises_before_anything_is_written(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client, _, _ = _holdout_setup(tmp_path, monkeypatch)
+    with pytest.raises(ValueError, match="payout"):
+        relays.fetch_holdout(tmp_path, _holdout_classes(2, 10), client, (R1,), pace_s=0, n=3)
+    assert not (tmp_path / relays.HOLDOUT_FILE).exists()
+
+
+def test_a_holdout_file_with_another_seed_raises(tmp_path: Path) -> None:
+    write_exact(
+        pl.DataFrame({"block_number": [5], "stratum": ["payout"], "seed": [43]}),
+        tmp_path / relays.HOLDOUT_FILE,
+    )
+    with pytest.raises(ValueError, match="seed"):
+        relays.fetch_holdout(tmp_path, _holdout_classes(10, 10), httpx.Client(), (R1,), pace_s=0)

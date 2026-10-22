@@ -14,12 +14,14 @@ from uniswap_lp_economics.data.bigquery import DATASET
 from uniswap_lp_economics.data.blocks import _window
 from uniswap_lp_economics.data.history import BILLING_HELP, is_billing_error
 from uniswap_lp_economics.io import read_exact, write_exact
+from uniswap_lp_economics.rpc import RpcClient
 
 BUILDERS_DIR = "builders"
 BLOCK_REVENUE = "block_revenue.parquet"
 TX_DIRECT = "pool_tx_direct_payments.parquet"
 TX_OTHER_LOGS = "pool_tx_other_logs.parquet"
 LAST_TX = "last_tx.parquet"
+PAYOUT_CODE = "payout_recipient_code.parquet"
 MAX_GB_BILLED = 700
 
 
@@ -234,3 +236,20 @@ def load_last_tx(raw_dir: Path) -> pl.DataFrame:
     if not path.exists():
         raise FileNotFoundError(f"{path} missing; run `ulpe fetch-builders` first")
     return read_exact(path)
+
+
+def fetch_payout_code(client: RpcClient, raw_dir: Path, reads: list[tuple[str, int]]) -> Path:
+    """`eth_getCode` of each (address, block) read; cached, so reruns read only missing pairs."""
+    out = raw_dir / BUILDERS_DIR / PAYOUT_CODE
+    out.parent.mkdir(parents=True, exist_ok=True)
+    schema = {"address": pl.String, "block": pl.Int64, "code": pl.String}
+    known = pl.read_parquet(out) if out.exists() else pl.DataFrame(schema=schema)
+    done = set(zip(known["address"].to_list(), known["block"].to_list(), strict=True))
+    todo = [r for r in sorted(set(reads)) if r not in done]
+    rows = []
+    for i, (address, block) in enumerate(todo):
+        rows.append({"address": address, "block": block, "code": client.get_code(address, block)})
+        if (i + 1) % 500 == 0:
+            print(f"  {i + 1}/{len(todo)} payout recipient reads")
+    write_exact(pl.concat([known, pl.DataFrame(rows, schema=schema)]), out)
+    return out
