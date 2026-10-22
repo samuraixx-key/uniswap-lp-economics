@@ -569,7 +569,7 @@ changes.
   day-to-day noise. The three lines cross zero at 3.9 s (last trade), 3.3 s (mid proxy) and
   3.0 s (ETHUSDT, whose 1 s closes only change on whole seconds) before the slot.
 - **The block timestamp is the early end of when a block is sealed.** For 561 of 1,000 sampled
-  blocks, the relay that delivered the block publishes when it received the winning bid: median
+  blocks, a relay that delivered the block publishes when it received the winning bid: median
   0.98 s after slot start, 10th–90th percentile 0.80 s to 2.59 s. That time is the latest a
   price could have been acted on in the block; searchers who sent bundles earlier read earlier
   prices. Past about +2 s the curve flattens.
@@ -579,10 +579,13 @@ changes.
 
 *Caveats:* Binance publishes no bid/ask history for 2026, so the mid is a proxy: the average of
 the latest buyer-initiated and seller-initiated trades. One side goes stale, so the two are
-crossed at 18% of swap times (median spread 0.12 bp). The timing covers only blocks delivered
-through Titan (490), Aestus (50) and Flashbots (21); 20 more Titan blocks are missing from its bid
-history. Ultrasound, the largest relay, keeps no bid history for this window, and its blocks
-could be sealed at other times. The ETHUSDT row also carries the USDT/USDC rate. Full tables:
+crossed at 18% of swap times (median spread 0.12 bp). A block can be delivered by several
+relays, and the timing covers the sampled blocks that Titan (490), Aestus (50) or Flashbots (21)
+delivered, at least 391 of which ultrasound, the largest relay, also delivered. Missing are the
+439 blocks none of the three delivered (20 of them Titan delivered but no longer lists): blocks
+that went only through relays without bid history for the window, such as ultrasound, or were
+found on no relay. They could be sealed at other times. The ETHUSDT row also carries the
+USDT/USDC rate. Full tables:
 [`results/reference_robustness.md`](results/reference_robustness.md),
 [`results/block_timing.md`](results/block_timing.md) and
 [`results/reference_robustness_proxy.md`](results/reference_robustness_proxy.md); method in
@@ -767,9 +770,10 @@ Every definition and formula: [`docs/methodology.md`](docs/methodology.md).
 - **The mid price is a proxy.** There is no Binance bid/ask history for the window; the
   trade-side proxy is crossed at 18% of swap times. A true mid needs another venue's order book
   (OKX publishes one, 2.9 GB for ETH-USDC), which would mix venue and mid effects.
-- **Timing covers three relays.** Winning-bid times come from Titan, Aestus and Flashbots
-  (561 of 1,000 sampled blocks; 20 Titan blocks are missing from its bid history); ultrasound
-  keeps no bid history for the window. The received
+- **Timing covers the blocks three relays delivered.** Winning-bid times come from Titan,
+  Aestus and Flashbots, the relays that keep bid history for the window: 561 of 1,000 sampled
+  blocks, many also delivered through ultrasound. The 439 blocks none of the three delivered are
+  missing. The received
   time is when the final block reached the relay, not when each searcher read a price.
 - **The headline stays at the block timestamp.** Sub-projects 2 and 3 are not re-run at the
   measured time; the robustness table re-prices LP fees − LVR only, through the L6 identity.

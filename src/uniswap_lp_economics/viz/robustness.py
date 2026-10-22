@@ -71,16 +71,23 @@ def reference_and_timing(r: Results) -> Figure:
         color=p.protocol,
     )
     fade_band(ax, x, primary["ci_lo_usd"].to_list(), primary["ci_hi_usd"].to_list(), p.lvr)
+    # colour, width, dash: the primary stands out; the two others differ from each other.
+    looks = {
+        "binance_last_trade": (p.lvr, 2.4, "-"),
+        "binance_trade_side_mid": (p.muted, 1.3, (0, (5, 2))),
+        "binance_ethusdt_1s_close": (p.other, 1.5, "-"),
+    }
     for name, rows in reversed(lines.items()):  # the primary on top
-        is_primary = name == lp_robustness.REFERENCES[0]
+        color, width, dash = looks[name]
         ax.plot(
             rows["offset_s"].to_list(),
             rows["fees_minus_lvr_usd"].to_list(),
-            color=p.lvr if is_primary else p.muted,
-            lw=2.4 if is_primary else 1.3,
-            alpha=1.0 if is_primary else 0.9,
-            zorder=3 if is_primary else 2,
+            color=color,
+            lw=width,
+            ls=dash,
+            zorder=3 if name == lp_robustness.REFERENCES[0] else 2,
             drawstyle="steps-post" if name in lp_robustness.STEP_REFERENCES else "default",
+            gid=name,
         )
     zero = primary.filter(primary["offset_s"] == 0)["fees_minus_lvr_usd"][0]
     ax.scatter([0], [zero], s=36, color=p.lvr, zorder=4)
@@ -98,7 +105,7 @@ def reference_and_timing(r: Results) -> Figure:
     ax.set_xlabel("Seconds from slot start at which the reference price is read")
     ax.set_ylabel("LP fees − LVR")
 
-    # Right-end labels, top to bottom, kept apart.
+    # Right-end labels, top to bottom, kept apart, each with a leader to its line's end.
     ends = sorted(
         ((float(rows["fees_minus_lvr_usd"][-1]), name) for name, rows in lines.items()),
         reverse=True,
@@ -109,13 +116,21 @@ def reference_and_timing(r: Results) -> Figure:
         ax.annotate(
             lp_robustness.REFERENCE_LABELS[name],
             (HIGH, y),
-            xytext=(HIGH + 0.12, at),
+            xytext=(HIGH + 0.3, at),
             textcoords="data",
             va="center",
             fontsize=9.5,
             fontweight="bold" if name == lp_robustness.REFERENCES[0] else "normal",
-            color=p.lvr if name == lp_robustness.REFERENCES[0] else p.muted,
+            color=looks[name][0],
             annotation_clip=False,
+            arrowprops={
+                "arrowstyle": "-",
+                "color": looks[name][0],
+                "lw": 0.8,
+                "shrinkA": 2,
+                "shrinkB": 0,
+                "relpos": (0, 0.5),  # from the text's left edge
+            },
         )
 
     after_zero = r.robustness.filter(r.robustness["offset_s"] >= 0)
@@ -137,9 +152,10 @@ def reference_and_timing(r: Results) -> Figure:
         )
         + f". Dashed: the protocol's fee cut ({usd(-cut)}).",
         (
-            f"Winning bids: 10th–90th percentile on {timing['n_timed']:,} blocks delivered "
-            "through Titan, Flashbots and Aestus; ultrasound, the largest relay, keeps no bid "
-            "history for this window. "
+            f"Winning bids: 10th–90th percentile on the {timing['n_timed']:,} of "
+            f"{timing['n_queried']:,} sampled blocks that Titan, Flashbots or Aestus delivered "
+            "(many also through ultrasound, which keeps no bid history); the others are not "
+            "timed. "
             if has_timing
             else "No winning-bid times were available. "
         )

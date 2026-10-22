@@ -3,8 +3,10 @@ relative to slot start, from the relays that still publish July 2026 bids.
 
 Free public endpoints. Per block: the relay's delivered payload gives the winning block hash and
 the slot; the relay's received bids for that block give the time the winning block arrived.
-Ultrasound, the largest relay, keeps no bid history for the window, so the sample covers only
-blocks delivered through `config.TIMING_RELAYS`. Resumable like the relay sample.
+Only `config.TIMING_RELAYS` keep bid history for the window (ultrasound, the largest relay,
+does not). A block can be delivered by several relays, so a sampled block is timed whenever one
+of them delivered it, including many that ultrasound also delivered; blocks none of them
+delivered are missing. Resumable like the relay sample.
 """
 
 from pathlib import Path

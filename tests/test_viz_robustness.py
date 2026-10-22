@@ -35,7 +35,9 @@ def render(tmp_path: Path, frames: dict[str, Any]) -> tuple[dict[str, str], list
 def test_figure_draws_the_timing_band_and_names_its_relays(tmp_path: Path) -> None:
     framed, texts = render(tmp_path, fixture_frames())
     assert framed["title"].endswith("read more than 2.8 s before the slot")
-    assert "Titan, Flashbots and Aestus" in framed["source"].replace("\n", " ")
+    source = framed["source"].replace("\n", " ")
+    assert "Titan, Flashbots or Aestus delivered" in source and "120 of 1,000" in source
+    assert "also through ultrasound" in source  # a block can go through several relays
     assert any("winning bids" in t for t in texts)
     assert any("protocol fee cut" in t for t in texts)
     assert any(t.startswith("Binance trade-side mid") for t in texts)
@@ -59,3 +61,31 @@ def test_figure_renders_without_timing(tmp_path: Path) -> None:
 
 def test_title_says_more_than() -> None:
     assert "more than 3.0 s before the slot" in robustness.title({"a": -3.0}, 0.9, True)
+
+
+def test_reference_lines_look_different_and_labels_point_at_them(tmp_path: Path) -> None:
+    from uniswap_lp_economics.lp import robustness as lp_robustness
+
+    r = data.load_results(write_results(tmp_path, fixture_frames()))
+    with style.theme("light"):
+        fig = robustness.reference_and_timing(r)
+        ax = fig.axes[0]
+        lines = {ln.get_gid(): ln for ln in ax.get_lines() if ln.get_gid()}
+        mid = lines["binance_trade_side_mid"]
+        usdt = lines["binance_ethusdt_1s_close"]
+        assert (mid.get_color(), mid.get_linestyle()) != (usdt.get_color(), usdt.get_linestyle())
+        labels = {
+            t.get_text(): t
+            for t in ax.texts
+            if t.get_text() in lp_robustness.REFERENCE_LABELS.values()
+        }
+        assert len(labels) == 3
+        for name, label in lp_robustness.REFERENCE_LABELS.items():
+            ann = labels[label]
+            assert ann.arrow_patch is not None  # a leader from the label to its line's end
+            assert ann.arrowprops is not None and ann.arrowprops.get("relpos") == (
+                0,
+                0.5,
+            )  # from the text's left edge, not through it
+            end = lines[name].get_ydata()[-1]
+            assert ann.xy[1] == end

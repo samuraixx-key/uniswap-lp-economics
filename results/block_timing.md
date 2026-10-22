@@ -1,6 +1,6 @@
 # When blocks were sealed: winning-bid times
 
-Winning-bid time = the earliest bid the delivering relay received with the delivered block hash, minus slot start, in ms. Only Titan, Flashbots and Aestus publish July 2026 bids; ultrasound, the largest relay, keeps no bid history for this window, so its blocks (and any it timed differently) are missing.
+Winning-bid time = the earliest bid the delivering relay received with the delivered block hash, minus slot start, in ms. Only Titan, Flashbots and Aestus publish July 2026 bids (ultrasound, the largest relay, keeps none for this window). A block can be delivered by several relays, so a sampled block is timed whenever one of the three delivered it, including many that ultrasound also delivered. Missing are the blocks none of the three delivered, or that one delivered but no longer lists (n_delivered_not_timed); they could be sealed at other times.
 
 ## Pooled
 
