@@ -191,6 +191,14 @@ def test_a4_nulls_only_past_the_data_end() -> None:
     assert not check_a4(bad, 0, end, (0, 12)).passed
 
 
+def test_a4_fails_on_a_hole_in_the_binance_data() -> None:
+    # a missing stretch of trades leaves every swap in it a valid but hours-old price
+    end = 100_000 * US
+    df = pl.DataFrame({"t0_us": [10 * US], "p_cex_0": [1.0], "cex_age_s_0": [7_200.0]})
+    a4 = check_a4(df, 0, end, (0,))
+    assert not a4.passed and a4.summary["refs_older_than_600s_at_0s"] == 1
+
+
 def test_a5_reports_other_contract_share_and_top_unlabelled() -> None:
     labelled = pl.DataFrame(
         {
