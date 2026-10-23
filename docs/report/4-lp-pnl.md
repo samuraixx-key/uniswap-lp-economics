@@ -17,7 +17,9 @@ and the interval includes zero.
 </div>
 
 <figure markdown>
+
 ![Cumulative LP fees, total fees and LVR over the window, with the gap shaded and the worst day annotated](../../results/figures/06_cumulative_fees_vs_lvr.svg)
+
 </figure>
 
 ## Fees fall short; the protocol's cut is most of the gap
@@ -54,7 +56,9 @@ measured series day by day but sits below it on most days.
 <summary>The measured LVR against the formula, day by day</summary>
 
 <figure markdown>
+
 ![Daily measured LVR against the formula, before and after fees, with a 45 degree line](../../results/figures/07_measured_vs_theory.svg)
+
 </figure>
 
 With fees and discrete blocks the model expects arbitrageurs to earn $0.93M gross and pay $2.22M
@@ -77,7 +81,9 @@ With the protocol's fees added back, total swap fees beat LVR on the low and mid
 +$54k) and fall short only on the volatile third (−$264k).
 
 <figure markdown>
+
 ![Daily LVR and swap fees against daily realised volatility, log-log, with fitted slopes and the break-even volatility](../../results/figures/05_lvr_vs_volatility.svg)
+
 </figure>
 
 ## Who pays
@@ -97,7 +103,9 @@ builders, the 7,874 positions active in the window lost **$1.10M**.
   price path, not LVR.
 
 <figure markdown>
+
 ![P&L against rebalancing in USD per $10,000 per month by LP type and range width, with 95% intervals](../../results/figures/10_pnl_by_group.svg)
+
 </figure>
 
 <details class="info" markdown>
@@ -108,7 +116,9 @@ From first deposit to exit, 53.5% of the window-active positions beat holding th
 window. These shares count positions, not dollars, and depend on each position's price path.
 
 <figure markdown>
+
 ![Share of positions that beat holding over their lifetime, by how long they lived and by range width](../../results/figures/12_lifetime.svg)
+
 </figure>
 
 </details>

@@ -17,7 +17,9 @@ with builders and proposers, and searchers kept nothing measurable: **−$0.20M*
 </div>
 
 <figure markdown>
+
 ![Waterfall from available arbitrage to what the top bots kept, and each top bot's gross against kept](../../results/figures/08_bots_keep.svg)
+
 </figure>
 
 ## The top bots pay builders more than they make

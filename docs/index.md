@@ -11,7 +11,9 @@ over one quarter, marked out against Binance. A market-making question: who has 
 the pool, who pays for it, and where the money ends up.</p>
 
 <figure markdown>
+
 ![Two-stage Sankey: the LVR on searcher swaps splits into swap fees (to LPs and the protocol) and searchers' gross profit, which, topped up by searchers' own money, ends with block builders, proposers, gas and multi-pool arbitrage](../results/figures/00_hero.svg)
+
 </figure>
 
 ## Three findings

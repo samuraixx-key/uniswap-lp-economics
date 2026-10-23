@@ -5,6 +5,8 @@ swaps in the Uniswap V3 USDC/WETH 0.05% pool on Ethereum from 2026-07-01 to 2026
 
 [![CI](https://github.com/samuraixx-key/uniswap-lp-economics/actions/workflows/ci.yml/badge.svg)](https://github.com/samuraixx-key/uniswap-lp-economics/actions/workflows/ci.yml)
 
+**[Read the full report on the website →](https://samuraixx-key.github.io/uniswap-lp-economics/)**
+
 **In trading terms:** LP = passive market maker · LVR = the adverse-selection cost of quoting
 stale prices · searchers = arbitrage bots · builder/proposer payments = what bots pay to get
 their trades into the block.
@@ -50,8 +52,7 @@ No. Passive LP in this pool doesn't pay after the protocol's cut. An hourly hedg
 full-range position's daily P&L spread from $16.4k to $160 per $1M, which changes the risk, not
 the edge.
 
-[Full report](REPORT.md) · [Why these choices](docs/how/choices.md#0-why-these-choices) ·
-[Methodology](docs/how/methodology/index.md) · [Limitations](docs/how/limitations.md#22-limitations-whole-project) ·
-[Reproduce](REPORT.md#reproduce)
+[Full report](https://samuraixx-key.github.io/uniswap-lp-economics/report/) · [How I worked](https://samuraixx-key.github.io/uniswap-lp-economics/how/) · [Why these choices](https://samuraixx-key.github.io/uniswap-lp-economics/how/choices/) ·
+[Methodology](https://samuraixx-key.github.io/uniswap-lp-economics/how/methodology/) · [Limitations](https://samuraixx-key.github.io/uniswap-lp-economics/how/limitations/) · [Reproduce](https://samuraixx-key.github.io/uniswap-lp-economics/reproduce/)
 
 MIT licence. Research only; not financial advice.

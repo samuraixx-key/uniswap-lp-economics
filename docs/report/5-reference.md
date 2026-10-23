@@ -17,7 +17,9 @@ most; it turns positive only if prices are read more than 3 s before the slot st
 </div>
 
 <figure markdown>
+
 ![LP fees minus LVR against the time the reference price is read, from 5 s before to 4 s after slot start, for Binance's last trade, a trade-side mid proxy and ETHUSDT: every line is negative from 3 s before the slot onward, and the measured winning-bid times sit about 1 s after slot start](../../results/figures/13_reference_and_timing.svg)
+
 </figure>
 
 ## The objection, tested

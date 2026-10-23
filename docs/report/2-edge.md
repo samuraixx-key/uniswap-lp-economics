@@ -18,7 +18,9 @@ flow.
 </div>
 
 <figure markdown>
+
 ![Trader markout against Binance from 0 s to 1 h, one panel per flow label, with fading 95% day-bootstrap bands and all swaps dashed](../../results/figures/04_markouts.svg)
+
 </figure>
 
 ## Markouts by flow

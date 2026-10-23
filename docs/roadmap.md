@@ -51,11 +51,14 @@ states one split; the first decision stays on file as the record of the first te
   on another machine. The tolerance was pre-registered, so it stays as it is; note this if a re-run
   elsewhere fails S1.
 
+- The website rounds numbers for reading (`$551k`, `$1.06M`); the exact values stay in
+  `results/`. If `results/` ever changes, re-check every number on the site against it.
+
 ## Later
 
-- **Phase 6, report:** `REPORT.md` plus a GitHub Pages version (question → data → method →
-  results → limitations), a tagged `v1.0` release. When the README becomes `REPORT.md`, trim the
-  "Can an LP do better?" chapter (259 lines).
+- **Phase 6, report:** the project website on GitHub Pages (home, a six-chapter report, How I
+  worked with the full methodology, Reproduce), built from `docs/` by `mkdocs.yml`, and a tagged
+  `v1.0` release.
 - **Project 2:** a funding-rate basis backtester (Hyperliquid, dYdX, Binance), in its own repo.
 
 ## Manual steps

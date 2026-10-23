@@ -24,7 +24,9 @@ Binance, and the LP, the passive market maker, is on the losing side of that tra
 LVR: the adverse-selection cost of quoting stale prices.
 
 <figure markdown>
+
 ![Schematic in four steps: Binance moves, the pool is stale, an arbitrageur trades, the LP pays the gap](../../results/figures/01_what_is_lvr.svg)
+
 </figure>
 
 A real episode, picked by a fixed rule (the 20 blocks with the largest Binance move on the day with
@@ -32,7 +34,9 @@ the most LVR; [methodology, Figures](../how/methodology/lp.md#16a-figures)), als
 [animated block by block](../../results/figures/02_stale_pool_episode.gif):
 
 <figure markdown>
+
 ![Binance trades against the pool price per block over 32 blocks, with the gap shaded and each block's arbitrage marked by its LVR](../../results/figures/02_stale_pool_episode.svg)
+
 </figure>
 
 ## Binance leads; the pool follows in the next block
@@ -43,7 +47,9 @@ correlation stays between −0.01 and 0.02. The pool's move in a block tracks Bi
 12 s before it.
 
 <figure markdown>
+
 ![Three panels: the pool-Binance basis distribution with the fee band, how long gaps last, and the lead-lag correlation of returns](../../results/figures/03_pool_follows_binance.svg)
+
 </figure>
 
 ## Gaps are small and closed fast

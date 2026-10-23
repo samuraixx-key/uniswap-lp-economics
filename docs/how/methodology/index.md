@@ -35,3 +35,10 @@ Then: [18 Reference and timing](robustness.md#18-reference-and-timing-robustness
 [20 Recipient check](destination.md#20-recipient-check-through-forwarders) ·
 [21 Strategy experiment](strategy.md#21-strategy-experiment-phase-5) ·
 [22 Limitations](../limitations.md#22-limitations-whole-project)
+
+## Further reading
+
+- Milionis, Moallemi, Roughgarden, Zhang (2022), *Automated Market Making and Loss-Versus-Rebalancing*.
+- Milionis, Moallemi, Roughgarden (2023), *Automated Market Making and Arbitrage Profits in the
+  Presence of Fees*, arXiv:2305.14604 (the `P_trade` adjustment).
+- Adams et al. (2021), *Uniswap v3 Core* whitepaper.

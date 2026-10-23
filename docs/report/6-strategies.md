@@ -60,7 +60,9 @@ aggregate results were known when the hypothesis was written.
 ## Range width and re-centring: inconclusive
 
 <figure markdown>
+
 ![Change in fees ÷ LVR against the full-range position for each re-centring rule and range width from ±10 to ±5,000 bp, with 95% paired intervals and the ±0.068 margin: daily re-centred narrow ranges sit above zero with intervals reaching past +0.068, the other rules sit at or a little below zero, and every cell narrower than ±5,000 bp is flagged as too large to be a price-taker](../../results/figures/14_range_test.svg)
+
 </figure>
 
 Each strategy is a $1M position that takes its share of every recorded swap step without changing
@@ -101,7 +103,9 @@ flagged (peak share of active liquidity above 5%). Full return table:
 ## Fee level: model-only (the model failed calibration)
 
 <figure markdown>
+
 ![Model-only fee curves: arbitrage-side fees ÷ LVR rising with the fee from about 0.12 at 1 bp to 0.66 at 100 bp, with the dynamic rules at their average fee and the real pool's 0.43 at 5 bp; and whole-pool fees ÷ LVR at constant volume crossing 1 at about 8.6 bp, with the share of other volume the pool could lose before LPs are no better off than at 5 bp](../../results/figures/15_fee_curves.svg)
+
 </figure>
 
 The fee results come from a second pool carried forward block by block at the counterfactual fee,
@@ -124,7 +128,9 @@ direction, not level.
 ## Hedge: changes the risk, not the edge
 
 <figure markdown>
+
 ![Two panels, full range and the ±5,000 bp band position: mean daily P&L per $1M (symmetric-log axis, linear between −$200 and +$200) against the spread (standard deviation) of daily P&L per $1M (log axis), for unhedged, hedged daily, hourly and at 10% drift, and the rebalancing benchmark: the unhedged points sit far right with a spread of about $14k to $16k and a mean near +$3k from the price path; the hedged points sit between $160 and $2.4k of spread with means between −$182 and +$46, the hourly hedge nearest the benchmark](../../results/figures/16_hedge.svg)
+
 </figure>
 
 The benchmark is the LP hedged continuously and for free at Binance's price, so fees − LVR is

@@ -95,11 +95,24 @@ def _site_pages() -> list[str]:
     return [p for p in pages if not p.startswith("docs/specs/") and p != "docs/roadmap.md"]
 
 
-@pytest.mark.parametrize("name", ["README.md", "REPORT.md", *_site_pages()])
+@pytest.mark.parametrize("name", ["README.md", *_site_pages()])
 def test_no_validator_wording(name: str) -> None:
     path = ROOT / name
     if path.exists():
         assert "validator" not in path.read_text(encoding="utf-8").lower()
+
+
+def test_html_blocks_end_before_markdown() -> None:
+    # github.com renders Markdown inside an HTML block only after a blank line
+    bad = [
+        f"{p}: {m.group(0)!r}"
+        for p in _site_pages()
+        for m in re.finditer(
+            r"<(figure|div|details)\b[^>]*\bmarkdown\b[^>]*>\n(?![\n<])[^\n]*",
+            (ROOT / p).read_text(encoding="utf-8"),
+        )
+    ]
+    assert not bad, "\n".join(bad)
 
 
 def test_github_figure_paths() -> None:
