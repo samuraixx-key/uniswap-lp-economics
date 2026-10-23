@@ -14,7 +14,6 @@ exclude_docs: |
   specs/
   roadmap.md
   README.md
-  methodology.md
 
 hooks:
   - scripts/mkdocs_hooks.py
@@ -69,3 +68,16 @@ markdown_extensions:
 
 nav:
   - Home: index.md
+  - How I worked:
+      - how/index.md
+      - Why these choices: how/choices.md
+      - Data and validation: how/data.md
+      - Limitations: how/limitations.md
+      - Full methodology:
+          - how/methodology/index.md
+          - Prices and markouts: how/methodology/markouts.md
+          - Costs, price discovery and arbitrage: how/methodology/discovery.md
+          - LP positions, fees and LVR: how/methodology/lp.md
+          - Where LVR goes: how/methodology/destination.md
+          - Reference and timing: how/methodology/robustness.md
+          - Strategy experiment: how/methodology/strategy.md
