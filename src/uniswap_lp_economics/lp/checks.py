@@ -8,7 +8,12 @@ from typing import TYPE_CHECKING, Any
 import polars as pl
 
 from uniswap_lp_economics.arbprofit import coinbase_payments
-from uniswap_lp_economics.data.relays import HOLDOUT2_FILE, HOLDOUT2_ROUND, HOLDOUT_FILE
+from uniswap_lp_economics.data.relays import (
+    HOLDOUT2_FILE,
+    HOLDOUT2_RETRIED,
+    HOLDOUT2_ROUND,
+    HOLDOUT_FILE,
+)
 from uniswap_lp_economics.io import hex_u256, ordered_group_by, read_exact, write_text_atomic
 from uniswap_lp_economics.lp import payouts
 from uniswap_lp_economics.lp.payouts import CLASSES
@@ -612,6 +617,12 @@ def paths_complete(raw_dir: Path, split: pl.DataFrame, paths: pl.DataFrame) -> b
         return False
     need = split.join(drawn, on="block_number", how="semi").filter(pl.col("cls").is_in(_PAYING))
     return need.join(paths, on="block_number", how="anti").height == 0
+
+
+def holdout2_ready(raw_dir: Path, split: pl.DataFrame, paths: pl.DataFrame) -> bool:
+    """The seed-45 stopping rule is met: its one retry pass is done and every payment path is
+    fetched (forwarder spec section 6: "fetched, then retried once", then the paths)."""
+    return (raw_dir / HOLDOUT2_RETRIED).exists() and paths_complete(raw_dir, split, paths)
 
 
 def settle_decision(

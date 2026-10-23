@@ -603,13 +603,15 @@ SECOND_FAIL = {**FAILING, "round": "holdout2", "recipient_check": "R1d"}
 
 def _holdout2_world(raw: Path, paths_for: list[int]) -> LpInputs:
     """The world with the seed-44 decision frozen as a hedge on disk, and a complete 2-block
-    seed-45 holdout (blocks 7 and 8, both with relay rows) whose paths exist for `paths_for`."""
+    seed-45 holdout (blocks 7 and 8, both with relay rows, retry pass done) whose paths exist
+    for `paths_for`."""
     inp = _holdout_world(raw, [7, 8])
     (raw / HOLDOUT_DECISION_FILE).write_text(
         json.dumps({"decision": FAILING}) + "\n", encoding="utf-8"
     )
     drawn = pl.DataFrame({"block_number": [7, 8], "stratum": ["payout", "rest"], "seed": [45, 45]})
     write_exact(drawn, raw / relays.HOLDOUT2_FILE)
+    (raw / relays.HOLDOUT2_RETRIED).write_text("", encoding="utf-8")
     held2 = inp.relays.with_columns(round=pl.lit(relays.HOLDOUT2_ROUND))
     paths = pl.DataFrame(
         {

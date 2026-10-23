@@ -46,8 +46,8 @@ from uniswap_lp_economics.lp.checks import (
     check_r4_transferred,
     check_r5_null_12s,
     check_r6_robustness,
+    holdout2_ready,
     holdout_decision,
-    paths_complete,
     settle_decision,
 )
 from uniswap_lp_economics.lp.engine import contexts_from_aligned, replay_window
@@ -502,7 +502,7 @@ def lp_analysis(
             decision_file=HOLDOUT2_DECISION_FILE,
             holdout_file=relays.HOLDOUT2_FILE,
             round_label=relays.HOLDOUT2_ROUND,
-            ready=paths_complete(raw_dir, split_rule, inp.payment_paths),
+            ready=holdout2_ready(raw_dir, split_rule, inp.payment_paths),
         )
         if raw_dir
         else (fresh2, False, None)

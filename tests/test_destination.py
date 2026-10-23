@@ -4,7 +4,7 @@ from pathlib import Path
 import polars as pl
 import pytest
 
-from uniswap_lp_economics.data.relays import HOLDOUT2_FILE, HOLDOUT2_ROUND
+from uniswap_lp_economics.data.relays import HOLDOUT2_FILE, HOLDOUT2_RETRIED, HOLDOUT2_ROUND
 from uniswap_lp_economics.data.transfers import PATH_SCHEMA
 from uniswap_lp_economics.io import write_exact
 from uniswap_lp_economics.lp.checks import (
@@ -14,6 +14,7 @@ from uniswap_lp_economics.lp.checks import (
     check_r1_relays,
     check_r2_traces_vs_alchemy,
     check_r3_lp_types,
+    holdout2_ready,
     holdout_decision,
     paths_complete,
     settle_decision,
@@ -829,6 +830,16 @@ def test_holdout2_does_not_freeze_without_every_path(tmp_path: Path) -> None:
     kw = {"decision_file": HOLDOUT2_DECISION_FILE, "holdout_file": HOLDOUT2_FILE}
     got = settle_decision(tmp_path, relays, fresh, **kw, round_label=HOLDOUT2_ROUND, ready=False)
     assert got == (fresh, False, None) and not (tmp_path / HOLDOUT2_DECISION_FILE).exists()
+
+
+def test_holdout2_is_not_ready_before_its_retry_pass(tmp_path: Path) -> None:
+    # stopping rule: "fetched, then retried once" — no freeze on data that was never retried
+    _, split, paths = _forwarded(n=3)
+    _holdout2_on_disk(tmp_path, [1000, 1001, 1002])
+    assert holdout2_ready(tmp_path, split, paths) is False
+    (tmp_path / HOLDOUT2_RETRIED).write_text("", encoding="utf-8")
+    assert holdout2_ready(tmp_path, split, paths) is True
+    assert holdout2_ready(tmp_path, split, paths.head(2)) is False
 
 
 def test_a_complete_holdout2_freezes_in_its_own_file(tmp_path: Path) -> None:
