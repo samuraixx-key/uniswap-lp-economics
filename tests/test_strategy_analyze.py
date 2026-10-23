@@ -302,6 +302,26 @@ def test_frozen_values_win(world: World, tmp_path: Path, monkeypatch: pytest.Mon
     assert set(hedge["strategy"]) == {"full_range", best}
 
 
+def test_fee_runs_spawns_workers(world: World, monkeypatch: pytest.MonkeyPatch) -> None:
+    # fork after polars has started its thread pool deadlocks (Linux CI hung 6 h); spawn is safe
+    seen: dict[str, Any] = {}
+
+    class Recorder:
+        def __init__(self, *args: Any, mp_context: Any = None, **kwargs: Any) -> None:
+            seen["start"] = mp_context.get_start_method() if mp_context else None
+
+        def __enter__(self) -> "Recorder":
+            raise RuntimeError("stop")
+
+        def __exit__(self, *exc: Any) -> None:
+            pass
+
+    monkeypatch.setattr(analyze, "ProcessPoolExecutor", Recorder)
+    with pytest.raises(RuntimeError, match="stop"):
+        analyze.fee_runs(world[0], 0, workers=2)  # type: ignore[arg-type]
+    assert seen["start"] == "spawn"
+
+
 def test_fee_runs_in_worker_processes_match_in_process(world: World) -> None:
     inp = world[0]
     ci = prepare_inputs(
