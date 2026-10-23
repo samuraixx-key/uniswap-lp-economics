@@ -105,3 +105,11 @@ def test_hedge_figure_uses_five_bp_rows_never_and_the_benchmark(tmp_path: Path) 
     assert points(fig, "hedge") == 10
     labels = texts(fig)
     assert any("unhedged" in t for t in labels) and any("benchmark" in t for t in labels)
+
+
+def test_fee_figure_places_rules_at_the_fee_they_charged_the_arbitrage(tmp_path: Path) -> None:
+    # a dynamic rule charges most in the blocks that trade: its block-average fee understates it
+    fig = draw(tmp_path, "fee_curves")
+    vol = next(c for c in fig.axes[0].collections if c.get_label() == "Volatility-linked fee")
+    assert vol.get_offsets()[:, 0].tolist() == [6.0]
+    assert any("100 bp cap" in t for t in texts(fig))

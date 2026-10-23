@@ -193,7 +193,7 @@ def fee_curves(r: Results) -> Figure:
     ):
         d = dyn.filter(pl.col("rule").str.starts_with(prefix))
         a.scatter(
-            d["avg_fee_bp"].to_list(),
+            d["arb_fee_bp"].to_list(),
             d["arb_ratio"].to_list(),
             s=34,
             marker=marker,
@@ -203,10 +203,10 @@ def fee_curves(r: Results) -> Figure:
         )
     oracle = rows.filter(pl.col("rule") == "oracle")
     if oracle.height:
-        ox, oy = float(oracle["avg_fee_bp"][0]), float(oracle["arb_ratio"][0])
+        ox, oy = float(oracle["arb_fee_bp"][0]), float(oracle["arb_ratio"][0])
         a.scatter([ox], [oy], s=90, marker="*", color=p.protocol, zorder=4)
         a.annotate(
-            "oracle fee (upper bound)",
+            "oracle fee: arbitrage pays\nits 100 bp cap",
             (ox, oy),
             xytext=(-6, -14),
             textcoords="offset points",
@@ -228,13 +228,13 @@ def fee_curves(r: Results) -> Figure:
         )
     a.legend(loc="lower right", frameon=False, fontsize=8.5)
     _log_axis(a, FEE_TICKS)
-    a.set_xlabel("Fee level (dynamic rules at their average fee), bp")
+    a.set_xlabel("Fee charged to the arbitrage, bp")
     a.set_ylabel("Arbitrage-side fees ÷ LVR")
     panel_header(
         a,
         1,
         "Fees ÷ LVR on arbitrage flow",
-        "Line: fixed fee levels. Markers: dynamic rules at their average fee.",
+        "Line: fixed fee levels. Markers: dynamic rules at the fee they charged arbitrage.",
     )
 
     # Panel 2: break-even volume loss (left axis) and whole-pool fees / LVR (right axis).

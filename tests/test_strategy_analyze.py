@@ -190,6 +190,7 @@ def test_second_run_writes_every_file(world: World, tmp_path: Path) -> None:
     assert {
         "rule",
         "avg_fee_bp",
+        "arb_fee_bp",
         "arb_ratio",
         "d_arb",
         "d_arb_lo",

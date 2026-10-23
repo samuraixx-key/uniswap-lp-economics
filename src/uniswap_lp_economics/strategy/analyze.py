@@ -561,7 +561,7 @@ def _verdict_label(rule: str, offset: float) -> str:
     if offset != 0:
         return "sensitivity (+1 s)"
     if rule == OracleFee().name:
-        return "upper bound (not tested)"
+        return "oracle (not tested): arbitrage pays the 100 bp cap"
     if rule.startswith(("vol_", "move_")):
         return "reported in full (not tested)"
     return "baseline"
@@ -630,7 +630,7 @@ def _report(
     arb = (["fee_arb_pl"], ["lvr_arb_pl"])
 
     def sums(daily: pl.DataFrame) -> dict[str, float]:
-        cols = [*_PL, "fee_pips_sum", "n_blocks"]
+        cols = [*_PL, "fee_pips_sum", "n_blocks", "fee_arb_total_usd", "arb_in_usd"]
         return {
             c: float(v)
             for c, v in stats.on_grid(daily, p.days, cols)
@@ -660,6 +660,11 @@ def _report(
                 "rule": rule,
                 "avg_fee_bp": s["fee_pips_sum"] / s["n_blocks"] / 100
                 if s["n_blocks"]
+                else math.nan,
+                # what the arbitrage was charged per dollar it traded: dynamic rules charge
+                # most in the blocks that trade, so this sits above the block average
+                "arb_fee_bp": s["fee_arb_total_usd"] / s["arb_in_usd"] * 1e4
+                if s["arb_in_usd"]
                 else math.nan,
                 "arb_ratio": _ratio(s["fee_arb_pl"], s["lvr_arb_pl"]),
                 "d_arb": pr.point,
@@ -718,6 +723,7 @@ def _report(
     fee_cols = [
         "rule",
         "avg_fee_bp",
+        "arb_fee_bp",
         "arb_ratio",
         "d_arb",
         "d_arb_lo",

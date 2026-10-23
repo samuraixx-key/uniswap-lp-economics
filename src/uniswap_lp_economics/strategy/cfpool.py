@@ -90,7 +90,8 @@ COUNT_KEYS = (
     "no_reference_blocks",
 )
 # Per day: *_pl = sums of fee_usd / liquidity and lvr_0 / liquidity over accrued steps (flash in
-# "kept"); fee_arb_total_usd is before the protocol's cut.
+# "kept"); fee_arb_total_usd is before the protocol's cut; arb_in_usd is what the arbitrage put
+# in, fee included, so fee_arb_total_usd / arb_in_usd is the fee it was charged.
 DAILY_SCHEMA: dict[str, Any] = {
     "day": pl.Date,
     **dict.fromkeys(
@@ -104,13 +105,15 @@ DAILY_SCHEMA: dict[str, Any] = {
             "lvr_arb_usd",
             "fee_kept_usd",
             "lvr_kept_usd",
+            "arb_in_usd",
         ),
         pl.Float64,
     ),
     **dict.fromkeys(("fee_pips_sum", "n_blocks", "n_arb"), pl.Int64),
 }
-_N_FLOAT = 9
-_FEE_PIPS_SUM, _N_BLOCKS, _N_ARB = 9, 10, 11
+_N_FLOAT = 10
+_ARB_IN = 9
+_FEE_PIPS_SUM, _N_BLOCKS, _N_ARB = 10, 11, 12
 _REF_INDEX = {0.0: 0, 1.0: 1}
 
 
@@ -190,7 +193,9 @@ class MoveFee:
 
 @dataclass
 class OracleFee:
-    """max(5 bp, |basis to the reference at block start|): uses Binance, an upper bound only."""
+    """max(5 bp, |basis to the reference at block start|), clamped to 100 bp. Set to the gap the
+    arbitrage would close, it leaves the arbitrage no profit below the clamp, so the arbitrage
+    trades only at 100 bp: on the arbitrage side the rule is the fixed 100 bp fee."""
 
     name: str = field(default="oracle", init=False)
 
@@ -389,6 +394,7 @@ def run_pool(
                 acc[4] += fee_usd
                 acc[5] += s.fee * usd_per_raw_in
                 acc[6] += lvr0
+                acc[_ARB_IN] += (s.amount_in + s.fee) * usd_per_raw_in
             else:
                 acc[7] += fee_usd
                 acc[8] += lvr0
