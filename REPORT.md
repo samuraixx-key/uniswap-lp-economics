@@ -17,8 +17,8 @@ Contents: [1 Where is the price set?](#1-where-is-the-price-set) ·
 [Further reading](#further-reading)
 
 Why each main choice was made (reference price, t0, weighting, bootstrap, benchmark, thresholds):
-[methodology section 0](docs/methodology.md#0-why-these-choices). Every limitation:
-[methodology section 22](docs/methodology.md#22-limitations-whole-project).
+[methodology section 0](docs/how/choices.md#0-why-these-choices). Every limitation:
+[methodology section 22](docs/how/limitations.md#22-limitations-whole-project).
 
 ## 1. Where is the price set?
 
@@ -30,7 +30,7 @@ LVR: the adverse-selection cost of quoting stale prices.
 <img src="results/figures/01_what_is_lvr.svg" alt="Schematic in four steps: Binance moves, the pool is stale, an arbitrageur trades, the LP pays the gap">
 
 A real episode, picked by a fixed rule (the 20 blocks with the largest Binance move on the day with
-the most LVR; [methodology, Figures](docs/methodology.md#16a-figures)); animated block by block in
+the most LVR; [methodology, Figures](docs/how/methodology/lp.md#16a-figures)); animated block by block in
 [`02_stale_pool_episode.gif`](results/figures/02_stale_pool_episode.gif):
 
 <img src="results/figures/02_stale_pool_episode.svg" alt="Binance trades against the pool price per block over 32 blocks, with the gap shaded and each block's arbitrage marked by its LVR">
@@ -71,7 +71,7 @@ Mean trader markout against Binance in bp of notional (notional-weighted, after 
 fee), with the 95% day-bootstrap interval, from [`results/markouts.md`](results/markouts.md).
 Flow labels: *searcher* = a contract that calls the pool directly from a transaction sent to it,
 typically an arbitrage bot; the others are Uniswap's routers, aggregators, intent settlement and
-other contracts ([methodology section 4](docs/methodology.md#4-flow-labels)).
+other contracts ([methodology section 4](docs/how/methodology/markouts.md#4-flow-labels)).
 
 | Flow label | Swaps | Notional share | 0 s | 12 s | 60 s | 300 s | 3,600 s |
 |---|---|---|---|---|---|---|---|
@@ -156,7 +156,7 @@ kept **−4.9%** (−$201,569.88). Kept is negative because the builder and prop
 
 **How the proposer/builder split was tested.** A block's last transaction is its payment to the
 proposer, sent by the fee recipient or by a payout address learned from chain data
-([methodology section 19](docs/methodology.md#19-proposer-payment-detection)). The rule was
+([methodology section 19](docs/how/methodology/destination.md#19-proposer-payment-detection)). The rule was
 tested twice on blind relay holdouts, each with its bar fixed before the holdout was drawn: 95% of
 the found payout-class blocks must match the relay's payment within 1 wei and pass a check that
 the relay's proposer was the one paid.
@@ -173,7 +173,7 @@ The first recipient check failed on one contract: 615 of its 616 failures were p
 blocks would have been fishing. Instead a check that follows the payment through the transaction
 was written down and tagged (`forwarder-preregistered`) before a fresh holdout was drawn; it passed
 290 of 290. The first decision stays on file as the record of the first test
-([methodology section 20](docs/methodology.md#20-recipient-check-through-forwarders)). Blocks left
+([methodology section 20](docs/how/methodology/destination.md#20-recipient-check-through-forwarders)). Blocks left
 unexplained hold $630.11 (0.044%) of builder dollars.
 
 *Caveat:* this does not mean the bots lose money. "Kept" is a small difference of large totals and
@@ -244,7 +244,7 @@ interval below zero; wallet-held NFT positions, which earned $2.57M of the $2.64
 −1.35 bp/day and −$1.08M. Against simply holding the deposited tokens the window total is
 −$18.2M, which is mostly the window's price path, not LVR. Full table:
 [`results/lp_groups.md`](results/lp_groups.md); the JIT detail, including the JIT operators' own
-swaps, is in [methodology section 13](docs/methodology.md#13-pl-in-the-window).
+swaps, is in [methodology section 13](docs/how/methodology/lp.md#13-pl-in-the-window).
 
 <img src="results/figures/10_pnl_by_group.svg" alt="P&L against rebalancing in USD per $10,000 per month by LP type and range width, with 95% intervals">
 
@@ -313,7 +313,7 @@ USDT/USDC rate. Full tables:
 [`results/reference_robustness.md`](results/reference_robustness.md),
 [`results/block_timing.md`](results/block_timing.md) and
 [`results/reference_robustness_proxy.md`](results/reference_robustness_proxy.md); method in
-[`docs/methodology.md`](docs/methodology.md) section 18.
+[`docs/methodology.md`](docs/how/methodology/index.md) section 18.
 
 ## 6. Can an LP do better?
 
@@ -434,7 +434,7 @@ changes the risk, not the edge.
 
 *Limitation:* strategies are price-takers (24 of 27 cells hold more than 5% of active liquidity at
 their peak, up to 84%); there is no routing model for flow at a higher fee; the hedge has no depth,
-slippage or margin cost. Detail: [methodology section 21](docs/methodology.md#21-strategy-experiment-phase-5).
+slippage or margin cost. Detail: [methodology section 21](docs/how/methodology/strategy.md#21-strategy-experiment-phase-5).
 
 ## Data
 
@@ -510,7 +510,7 @@ What this proves and what it does not:
 - C5 reports a longest gap of 169.371924 s between consecutive Binance ETHUSDC trades. That is a
   property of the data, not a defect, but the CEX price at a swap can be that stale in quiet periods.
 
-Method summary: every definition and formula is in [`docs/methodology.md`](docs/methodology.md).
+Method summary: every definition and formula is in [`docs/methodology.md`](docs/how/methodology/index.md).
 
 ## Reproduce
 

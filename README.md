@@ -50,8 +50,8 @@ No. Passive LP in this pool doesn't pay after the protocol's cut. An hourly hedg
 full-range position's daily P&L spread from $16.4k to $160 per $1M, which changes the risk, not
 the edge.
 
-[Full report](REPORT.md) · [Why these choices](docs/methodology.md#0-why-these-choices) ·
-[Methodology](docs/methodology.md) · [Limitations](docs/methodology.md#22-limitations-whole-project) ·
+[Full report](REPORT.md) · [Why these choices](docs/how/choices.md#0-why-these-choices) ·
+[Methodology](docs/how/methodology/index.md) · [Limitations](docs/how/limitations.md#22-limitations-whole-project) ·
 [Reproduce](REPORT.md#reproduce)
 
 MIT licence. Research only; not financial advice.
