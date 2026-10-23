@@ -218,3 +218,20 @@ def test_carry_downstream_without_a_readable_file_adds_nothing(tmp_path: Path) -
     assert analysis.carry_downstream(_own(), p) == _own()
     p.write_text("{not json", encoding="utf-8")
     assert analysis.carry_downstream(_own(), p) == _own()
+
+
+def test_label_hash_does_not_depend_on_the_checkout_line_endings(tmp_path: Path) -> None:
+    raw, interim = tmp_path / "raw", tmp_path / "interim"
+    raw.mkdir()
+    interim.mkdir()
+    for name in ("tickbook_snapshot.parquet", "snapshot_meta.json", "blocks.parquet"):
+        (raw / name).write_bytes(b"")
+    (raw / "bot_tx_other_logs.parquet").write_bytes(b"")
+    lf, crlf = tmp_path / "lf" / "addresses.csv", tmp_path / "crlf" / "addresses.csv"
+    lf.parent.mkdir()
+    crlf.parent.mkdir()
+    lf.write_bytes(b"address\n0xab\n")
+    crlf.write_bytes(b"address\r\n0xab\r\n")
+    assert analysis.analysis_input_hashes(raw, interim, lf) == analysis.analysis_input_hashes(
+        raw, interim, crlf
+    )
