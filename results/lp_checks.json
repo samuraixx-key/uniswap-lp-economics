@@ -1,7 +1,7 @@
 {
   "status": "PASS",
-  "generated_utc": "2026-10-23T07:12:38+00:00",
-  "git_commit": "forwarder-preregistered-55-g10f9b4a",
+  "generated_utc": "2026-10-23T22:14:35+00:00",
+  "git_commit": "forwarder-preregistered-76-g46e4e3e",
   "checks": [
     {
       "name": "L1 every swap reproduced bit-exactly",
@@ -3318,7 +3318,7 @@
           }
         },
         "not_found_unchecked": 188,
-        "not_found_all_answered": 41
+        "not_found_none_unchecked": 41
       },
       "mismatches": []
     },
