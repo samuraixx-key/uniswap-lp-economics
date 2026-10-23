@@ -89,3 +89,10 @@ def test_reference_lines_look_different_and_labels_point_at_them(tmp_path: Path)
             )  # from the text's left edge, not through it
             end = lines[name].get_ydata()[-1]
             assert ann.xy[1] == end
+
+
+def test_subtitle_names_the_protocol_line_by_its_colour(tmp_path: Path) -> None:
+    # two lines are dashed (the protocol cut and the trade-side mid): "Dashed:" was ambiguous
+    framed, _ = render(tmp_path, fixture_frames())
+    subtitle = " ".join(framed["subtitle"].split())
+    assert "Dashed:" not in subtitle and "Purple line: the protocol's fee cut" in subtitle

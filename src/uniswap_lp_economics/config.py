@@ -25,7 +25,7 @@ US = 1_000_000  # microseconds per second
 HOUR_US = 3600 * US
 DAY_S = 86_400
 
-GCP_PROJECT = os.getenv("GCP_PROJECT", "uniswap-lp-economics")
+GCP_PROJECT = os.getenv("GCP_PROJECT", "your-gcp-project")  # set yours in .env
 ETH_RPC_URL = os.getenv("ETH_RPC_URL")
 
 ROOT = Path(__file__).resolve().parents[2]

@@ -146,7 +146,8 @@ window; the formula assumes geometric Brownian motion and Poisson blocks, while 
 <summary>Checks L1–L7 passed before these numbers were written</summary>
 
 `ulpe lp` writes these results only after checks L1–L7 pass: every swap is reproduced bit-exactly
-step by step, and the fee accumulators and every open position's stored state equal the chain's.
+step by step, the fee accumulators equal the chain's at 500 sampled blocks, and every position's
+stored state equals the chain's at both ends of the window.
 
 </details>
 

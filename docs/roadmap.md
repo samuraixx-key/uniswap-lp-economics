@@ -66,8 +66,35 @@ states one split; the first decision stays on file as the record of the first te
   `v1.0` release.
 - **Project 2:** a funding-rate basis backtester (Hyperliquid, dYdX, Binance), in its own repo.
 
+## Backlog (after v1.0)
+
+From the pre-public review (2026-10-23); none changes a published number or claim.
+
+- **Speed:** gate S1 takes about 3 minutes, mostly copying step columns `attribute` never reads;
+  fee runs re-derive each step's tick and build S2-only tables; `ulpe strategy` loads every LP
+  input but uses 9; A1 re-simulates every swap a second time; worker inputs are pickled per
+  worker; the viz tests render each figure about five times.
+- **Duplication:** the day bootstrap and `N_BOOT`/`SEED` in several modules; the LP and flow
+  label loaders; the position-value formula in `pnl` and `ranges`; pool constants and the price
+  formula re-declared; `fee_protocol_share` feeding an unread column; two CLI dispatch ladders.
+- **Dead or stale code:** unused `CAPITALS_USD`/`REF_OFFSETS_S` (their values are typed out),
+  `FLOW_LABELS`, `FLOAT_NAMES`, test-only cost wrappers, the one-mode theme machinery, an unused
+  `processed_dir` parameter, and A2's `blocks_cover_last_event`, which the replay pre-empts.
+- **Determinism hardening:** route every float `group_by` sum through one ordered helper
+  (`regime_by_group` varies in the last bits, hidden at 2 decimals); use `align.reference_table`'s
+  tie-break in C6 and the episode figure.
+- **Latent guards:** the relay-file guard is skipped if `relays.parquet` is missing; a 4xx relay
+  answer counts as "not delivered"; `require_validated` does not check the raw snapshot; config
+  directories bound at import in two places; the null-volatility guard sits in the caller.
+- **Site and tests:** the hook's raw-HTML `src=` rewrite is wrong (no page uses it); the docs-link
+  tests need a git checkout; the hourly grid skips each period's first hour (immaterial); the
+  remaining doc minors from the site review.
+
 ## Manual steps
 
+- Pages: after making the repository public and before the next push to `main`, set Settings →
+  Pages → Source to "GitHub Actions", then run the Pages workflow by hand (`workflow_dispatch`).
+  Until then every site link 404s.
 - Social preview: upload `results/figures/00_hero.png` under Settings → General → Social preview
   (offered once the repository is public).
 

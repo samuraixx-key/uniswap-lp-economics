@@ -48,9 +48,10 @@ timed), Titan, Flashbots and Aestus are asked in that order for the delivered pa
 (`builder_blocks_received`). The winning-bid time is the earliest received bid with the delivered
 hash, minus slot start (`1,606,824,023 + 12 × slot` seconds). Only these three relays publish
 July 2026 bids; ultrasound, the largest relay, keeps none for the window. A block can be delivered
-by several relays, so a sampled block is timed whenever one of the three delivered it, including
-many blocks ultrasound also delivered. What is missing is the blocks none of the three delivered
-(or that one delivered but no longer lists, counted as `n_delivered_not_timed`): blocks that went
+by several relays: a sampled block is timed by the first of Titan, Flashbots and Aestus (in that
+order) that delivered it, including many blocks ultrasound also delivered. What is missing is the
+blocks none of the three delivered (or whose first delivering relay no longer lists the winning
+bid, counted as `n_delivered_not_timed`; the other relays are not asked): blocks that went
 only through relays without bid history, or were found on no relay. They could be sealed at
 different times. Quantiles are in
 `results/block_timing.md`; the 10th–90th percentile band is drawn on figure 13. The headline

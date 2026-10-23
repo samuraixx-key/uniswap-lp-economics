@@ -6,7 +6,9 @@ USDC/WETH 0.05% pool (`0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640`) against Bina
 [`docs/specs/2026-10-13-price-discovery-markouts-design.md`](https://github.com/samuraixx-key/uniswap-lp-economics/blob/main/docs/specs/2026-10-13-price-discovery-markouts-design.md));
 sections 9–17 cover sub-project 3, LP P&L and where LVR goes (design spec
 [`docs/specs/2026-10-14-lp-pnl-lvr-design.md`](https://github.com/samuraixx-key/uniswap-lp-economics/blob/main/docs/specs/2026-10-14-lp-pnl-lvr-design.md)).
-Where an implementation plan amended a spec, the ruling is cited ("Ruling n"); the sub-project 3
+Where an implementation plan amended a spec, the ruling is cited ("Ruling n"; the plans were
+removed before publication and stay in the git history before commit `4123faf`, each numbering
+its own rulings); the sub-project 3
 rulings that changed a definition or a number are listed in
 [Changes in sub-project 3](lp.md#changes-in-sub-project-3). Sections 18–21 cover reference and timing
 robustness, proposer payments, the recipient check through forwarders and the strategy
