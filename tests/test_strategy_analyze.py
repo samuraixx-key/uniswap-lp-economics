@@ -352,3 +352,12 @@ def test_run_strategy_refuses_after_a_failed_lp(
     (tmp_path / "lp_checks.json").write_text('{"status": "FAIL"}', encoding="utf-8")
     with pytest.raises(RuntimeError, match="lp_checks.json status is FAIL"):
         analyze.run_strategy()
+
+
+def test_a_new_july_freeze_drops_the_old_report_results(world: World, tmp_path: Path) -> None:
+    results = tmp_path / "results"
+    results.mkdir()
+    summary = json.loads(world[2].read_text(encoding="utf-8"))
+    (results / "summary.json").write_text(json.dumps({**summary, "strategy": {"old": 1}}))
+    assert _run(world, tmp_path) == "FROZEN"
+    assert "strategy" not in json.loads((results / "summary.json").read_text(encoding="utf-8"))

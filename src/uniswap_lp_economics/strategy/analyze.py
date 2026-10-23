@@ -353,6 +353,14 @@ def strategy_analysis(
             gates + results, results_dir, meta, stem="strategy_checks", title="Strategy checks"
         )
         write_freeze(freeze_path, {**payload, **meta, "input_hashes": hashes})
+        # Report results from an earlier freeze no longer match this one: drop them, so
+        # `ulpe figures` refuses until the report run rebuilds them.
+        summary_path = results_dir / "summary.json"
+        summary = (
+            json.loads(summary_path.read_text(encoding="utf-8")) if summary_path.exists() else {}
+        )
+        if summary.pop("strategy", None) is not None:
+            report.write_summary(summary, results_dir)
         print(
             f"July frozen: commit results/{FREEZE_FILE}, tag it {PREREG_TAG}, "
             "then run ulpe strategy again"

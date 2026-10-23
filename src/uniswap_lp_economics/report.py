@@ -101,6 +101,17 @@ def write_summary(summary: dict[str, Any], out_dir: Path) -> None:
     write_text_atomic(out_dir / "summary.json", json.dumps(clean(summary), indent=2) + "\n")
 
 
+def same_results(old: Any, new: dict[str, Any]) -> bool:
+    """`old` (read back from summary.json) equals `new` as written, run provenance aside."""
+    if not isinstance(old, dict):
+        return False
+    fresh = json.loads(json.dumps(clean(new)))
+    skip = ("generated_utc", "git_commit")
+    return {k: v for k, v in old.items() if k not in skip} == {
+        k: v for k, v in fresh.items() if k not in skip
+    }
+
+
 def require_passed(results_dir: Path, checks: str, step: str) -> None:
     """Refuse unless `results_dir/<checks>.json` says PASS. A step whose gated checks fail
     returns before rewriting its outputs, so the previous run's files stay on disk: the next

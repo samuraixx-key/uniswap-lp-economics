@@ -469,6 +469,7 @@ def lp_analysis(
     # a missing or unreadable summary stops the run before anything is written.
     summary_path = _need(results_dir / "summary.json", "analyze")
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    old_lp = summary.get("lp")
     summary["lp"] = {
         **provenance,
         **totals,
@@ -696,6 +697,8 @@ def lp_analysis(
     write_text_atomic(fig_data / "episode_blocks.csv", episode_blocks.write_csv())
     write_text_atomic(fig_data / "episode_cex.csv", episode_cex.write_csv())
     write_text_atomic(fig_data / "jit_block.csv", jit_block.write_csv())
+    if not report.same_results(old_lp, summary["lp"]):
+        summary.pop("strategy", None)  # built on the old LP outputs; `ulpe strategy` rebuilds it
     report.write_summary(summary, out)
     return status
 

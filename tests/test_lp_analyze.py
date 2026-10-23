@@ -691,3 +691,18 @@ def test_run_lp_refuses_after_a_failed_analyze(
     (tmp_path / "analysis_checks.json").write_text('{"status": "FAIL"}', encoding="utf-8")
     with pytest.raises(RuntimeError, match="analysis_checks.json status is FAIL"):
         lp.run_lp()
+
+
+def test_lp_drops_strategy_results_only_when_its_own_results_change(tmp_path: Path) -> None:
+    inp, end = world_inputs(), world_end_us()
+    results, processed = tmp_path / "results", tmp_path / "processed"
+    results.mkdir()
+    summary_path = results / "summary.json"
+    summary_path.write_text(json.dumps({"swaps": 4, "lp": {"stale": 1}, "strategy": {"old": 1}}))
+    lp.lp_analysis(inp, results, processed, {"git_commit": "a"}, end_us=end)
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert "strategy" not in summary  # built on the old LP outputs, so it is dropped
+    summary["strategy"] = {"old": 1}
+    summary_path.write_text(json.dumps(summary))
+    lp.lp_analysis(inp, results, processed, {"git_commit": "b"}, end_us=end)
+    assert json.loads(summary_path.read_text(encoding="utf-8"))["strategy"] == {"old": 1}
