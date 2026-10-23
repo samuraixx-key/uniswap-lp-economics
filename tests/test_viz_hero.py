@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 from typing import Any
 
@@ -222,3 +223,12 @@ def test_side_panel_has_two_stats_and_no_lp_total(tmp_path: Path) -> None:
     assert "LP fees minus LVR" not in texts
     assert "of the arbitrage went to block" in texts
     assert "kept by searchers at block" in texts
+
+
+def test_subtitle_splits_the_fees_between_lps_and_the_protocol(tmp_path: Path) -> None:
+    # the protocol's quarter is not "back to the pool": the LPs' share is stated on its own
+    r = data.load_results(write_results(tmp_path, fixture_frames()))
+    with style.theme("light"):
+        sub = " ".join(_hero_texts(hero.hero(r))["subtitle"].split())
+    assert re.search(r"\d+% went to LPs as fees and \d+% to the protocol", sub), sub
+    assert "came back to the pool" not in sub
