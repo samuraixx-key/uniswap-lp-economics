@@ -752,9 +752,10 @@ def _hedge(
 
 
 def run_strategy() -> str:
-    """Refuses unless validation passed, `ulpe lp` wrote summary.json["lp"] and the processed LP
-    files exist."""
+    """Refuses unless validation passed, the latest `ulpe lp` passed its checks and wrote
+    summary.json["lp"], and the processed LP files exist."""
     validate.require_validated()
+    report.require_passed(config.RESULTS_DIR, "lp_checks", "lp")
     summary = config.RESULTS_DIR / "summary.json"
     if not summary.exists() or "lp" not in json.loads(summary.read_text(encoding="utf-8")):
         raise RuntimeError(f'{summary} has no "lp" results; run `ulpe lp` first')

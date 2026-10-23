@@ -702,6 +702,7 @@ def lp_analysis(
 
 def run_lp() -> str:
     validate.require_validated()
+    report.require_passed(config.RESULTS_DIR, "analysis_checks", "analyze")
     _need(config.RESULTS_DIR / "summary.json", "analyze")  # fail before the long replay
     inp = load_lp_inputs(
         config.RAW_DIR, config.INTERIM_DIR, config.PROCESSED_DIR, config.LP_LABELS_CSV

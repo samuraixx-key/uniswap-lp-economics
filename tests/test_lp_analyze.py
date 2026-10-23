@@ -680,3 +680,14 @@ def test_a_frozen_failing_seed45_decision_keeps_the_hedge(
     dest = _run_world(tmp_path, monkeypatch, inp, raw)[0]["destination"]
     assert dest["published_decision"] == "holdout2" and dest["proposer_split"] == "hedge"
     assert "rule_split" in dest and "sensitivity_self_built" in dest
+
+
+def test_run_lp_refuses_after_a_failed_analyze(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(lp.validate, "require_validated", lambda: None)
+    monkeypatch.setattr(lp.config, "RESULTS_DIR", tmp_path)
+    (tmp_path / "summary.json").write_text("{}", encoding="utf-8")
+    (tmp_path / "analysis_checks.json").write_text('{"status": "FAIL"}', encoding="utf-8")
+    with pytest.raises(RuntimeError, match="analysis_checks.json status is FAIL"):
+        lp.run_lp()

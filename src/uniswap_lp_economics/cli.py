@@ -390,7 +390,7 @@ def run_step(name: str, confirm_cost: bool) -> str:
     elif name == "figures":
         try:
             return viz_render.run_figures()
-        except FileNotFoundError as e:
+        except (FileNotFoundError, RuntimeError) as e:
             raise SystemExit(str(e)) from None
     else:
         raise ValueError(f"unknown pipeline step {name!r}")

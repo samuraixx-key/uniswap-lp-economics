@@ -341,3 +341,14 @@ def test_fee_runs_in_worker_processes_match_in_process(world: World) -> None:
     assert one.keys() == two.keys() and len(one) == 24 + len(FEE_LEVELS_BP)
     for k, (daily, counts) in one.items():
         assert daily.equals(two[k][0]) and counts == two[k][1], k
+
+
+def test_run_strategy_refuses_after_a_failed_lp(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(analyze.validate, "require_validated", lambda: None)
+    monkeypatch.setattr(analyze.config, "RESULTS_DIR", tmp_path)
+    (tmp_path / "summary.json").write_text('{"lp": {}}', encoding="utf-8")
+    (tmp_path / "lp_checks.json").write_text('{"status": "FAIL"}', encoding="utf-8")
+    with pytest.raises(RuntimeError, match="lp_checks.json status is FAIL"):
+        analyze.run_strategy()

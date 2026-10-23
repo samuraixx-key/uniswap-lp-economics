@@ -99,3 +99,15 @@ def clean(obj: Any) -> Any:
 def write_summary(summary: dict[str, Any], out_dir: Path) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     write_text_atomic(out_dir / "summary.json", json.dumps(clean(summary), indent=2) + "\n")
+
+
+def require_passed(results_dir: Path, checks: str, step: str) -> None:
+    """Refuse unless `results_dir/<checks>.json` says PASS. A step whose gated checks fail
+    returns before rewriting its outputs, so the previous run's files stay on disk: the next
+    step must not consume them."""
+    path = results_dir / f"{checks}.json"
+    status = json.loads(path.read_text(encoding="utf-8"))["status"] if path.exists() else "missing"
+    if status != "PASS":
+        raise RuntimeError(
+            f"{path.name} status is {status}; run `ulpe {step}` until its checks pass"
+        )
