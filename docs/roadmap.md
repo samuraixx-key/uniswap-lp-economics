@@ -62,3 +62,9 @@ states one split; the first decision stays on file as the record of the first te
 
 - Social preview: upload `results/figures/00_hero.png` under Settings → General → Social preview
   (offered once the repository is public).
+
+## Release checks
+
+- Secret scan before going public (2026-10-23): gitleaks 8.30.1 over all refs (`--log-opts=--all`),
+  234 commits up to `10f9b4a`, no leaks found; searches of all history for RPC keys, private keys
+  and `.env` or credentials files found none.
