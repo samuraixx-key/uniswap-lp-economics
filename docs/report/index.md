@@ -3,6 +3,10 @@
 <p class="lead">Six questions a market maker would ask about this pool, each answered on its own
 page: the answer first, then the evidence, then the caveats.</p>
 
+**In trading terms:** LP = passive market maker · LVR (loss-versus-rebalancing) = the
+adverse-selection cost of quoting stale prices · searchers = arbitrage bots · builder/proposer
+payments = what bots pay to get their trades into the block.
+
 <div class="grid cards" markdown>
 
 -   **1. Where is the price set?**
@@ -31,13 +35,13 @@ page: the answer first, then the evidence, then the caveats.</p>
 
 -   **5. Is it the reference price?**
 
-    Mostly not: a later read deepens the loss, and it turns positive only 3 s before the slot.
+    Mostly not: a later read deepens the loss; it turns positive only if read more than 3 s before the slot.
 
     [Chapter 5 →](5-reference.md)
 
 -   **6. Can an LP do better?**
 
-    Not by range or hedge (pre-registered); the fee is the lever, but untested.
+    Range: inconclusive; a hedge changes the risk, not the edge; the fee is the lever, but untested.
 
     [Chapter 6 →](6-strategies.md)
 

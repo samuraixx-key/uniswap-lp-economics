@@ -69,8 +69,8 @@ the edge. [The strategy test →](report/6-strategies.md)
 
 -   :material-tag-outline: **Frozen before it was run**
 
-    Each test and its pass/fail rule was tagged in git before it was run: the strategy tests
-    before any August–September result existed, the proposer-split checks before each blind
+    The strategy tests and the proposer-split checks, with their pass/fail rules, were tagged in
+    git before they were run: before any August–September result existed, and before each blind
     holdout was drawn.
 
 -   :material-close-circle-outline: **A failed check, reported as failed**

@@ -3,8 +3,8 @@
 <div class="admonition abstract" markdown>
 <p class="admonition-title">The answer</p>
 
-**Not by choosing a range or hedging.** In a pre-registered test, rules fixed on July and scored
-on August–September, the range test was **inconclusive**, re-centring costs made narrow ranges
+**Not shown.** In a pre-registered test, rules fixed on July and scored on August–September, the
+range test was **inconclusive**, re-centring costs made narrow ranges
 worse, and a hedge changed the risk, not the edge. The fee is the lever that touches LVR, but the
 model built to test it failed its calibration, so that stays **untested**.
 
@@ -14,7 +14,7 @@ model built to test it failed its calibration, so that stays **untested**.
 <div class="stat"><span class="v">0.729</span><span class="l">full range's fees ÷ LVR in July, fixed before the test</span></div>
 <div class="stat"><span class="v">±0.068</span><span class="l">the pre-registered margin δ</span></div>
 <div class="stat"><span class="v">~8.6 bp</span><span class="l">model-only break-even fee at constant volume</span></div>
-<div class="stat pos"><span class="v">100×</span><span class="l">smaller daily P&L spread with an hourly hedge</span></div>
+<div class="stat"><span class="v">100×</span><span class="l">smaller daily P&L spread with an hourly hedge</span></div>
 </div>
 
 A pre-registered test of counterfactual LP strategies: rules fixed on July 2026, results reported

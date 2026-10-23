@@ -50,7 +50,7 @@ Uniswap's routers, aggregators, intent settlement and other contracts
   full fee, the pool's counterparties roughly break even.
 
 <details class="info" markdown>
-<summary>Is it the reference price? Every label keeps its sign</summary>
+<summary>Is it the reference price? Every label keeps its sign up to 5 minutes</summary>
 
 Mean bp at 0 s under each variant:
 

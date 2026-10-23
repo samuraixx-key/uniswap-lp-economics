@@ -12,7 +12,7 @@ with builders and proposers, and searchers kept nothing measurable: **−$0.20M*
 <div class="stats" markdown>
 <div class="stat"><span class="v">$1.82M</span><span class="l">available at block starts (no Binance fee)</span></div>
 <div class="stat"><span class="v">$1.51M</span><span class="l">captured: all searchers' markouts at the block time</span></div>
-<div class="stat"><span class="v">115%</span><span class="l">builder payments as a share of the top bots' gross</span></div>
+<div class="stat"><span class="v">115%</span><span class="l">builder payments as a share of the top bots' gross at 0 s (95% at 12 s)</span></div>
 <div class="stat neg"><span class="v">−$0.20M</span><span class="l">kept by searchers (upper bound)</span></div>
 </div>
 

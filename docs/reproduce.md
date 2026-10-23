@@ -1,7 +1,8 @@
 # Reproduce
 
-<p class="lead">Three commands rebuild every number on this site. Re-runs reproduce every result
-file byte for byte (only run timestamps and commit ids differ).</p>
+<p class="lead">Three commands: install, test, and run the whole pipeline (paid BigQuery queries
+and an archive RPC). Re-runs reproduce every result file byte for byte (only run timestamps and
+commit ids differ).</p>
 
 ```bash
 uv sync
@@ -66,9 +67,6 @@ already on disk.
     uv run ulpe validate                                         # checks C1-C6, writes data_validation/validation_report.{md,json}
     ```
 
-    `validate` (and `all`) exit non-zero if any check fails. Downloaded and built data goes under
-    `DATA_DIR` (default `./data`) and is git-ignored.
-
 === "Markouts"
 
     ```bash
@@ -76,13 +74,6 @@ already on disk.
     uv run ulpe fetch-transfers   # Alchemy: internal ETH transfers sent by the top bot contracts
     uv run ulpe analyze           # checks A1-A6, then results/: tables, figure data, summary.json
     ```
-
-    `fetch-logs` and `fetch-blocks` run billable queries only with `--confirm-cost`; `--dry-run`
-    reports bytes scanned for free. `fetch-transfers` calls `alchemy_getAssetTransfers`, so for that
-    step `ETH_RPC_URL` must be an Alchemy endpoint; it caches one file per bot contract and skips
-    contracts already fetched. `analyze` refuses to run unless validation passed on exactly the
-    interim files now on disk; if a gated check (A1–A4) fails it exits non-zero and writes no
-    results. Its per-swap and per-block working tables go to `DATA_DIR/processed` (git-ignored).
 
 === "LP P&L"
 
@@ -102,17 +93,6 @@ already on disk.
     uv run ulpe lp                                 # checks L1-L7, then results/: tables, figure data, summary.json["lp"]
     ```
 
-    `fetch-chain-state` runs twice because its position part needs the history. `fetch-builders`
-    refuses to query without `--confirm-cost` and stops before querying if a dry run exceeds its
-    700 GB cap. `fetch-relays` is resumable and skips a relay after three consecutive failed blocks.
-    Once `fetch-builders` has run it draws each holdout and writes it to disk before any of its relay
-    calls (a copy of the relay file is kept first); a run that finds the seed-45 draw already on disk
-    retries its blocks a relay never answered. Rows of the earlier rounds are never re-queried or
-    changed: a write that would change them is refused. The first `lp` after every seed-45 block has
-    a relay row and a payment path freezes the proposer-split decision. `lp` refuses to run unless
-    validation passed on the interim files on disk and the `analyze` outputs exist; if a check L1–L7
-    fails it writes the checks file and no results.
-
 === "Strategy"
 
     ```bash
@@ -121,32 +101,11 @@ already on disk.
     uv run ulpe strategy        # second run: August-September from the freeze -> results/strategy_*, summary.json["strategy"]
     ```
 
-    `strategy` refuses to run unless `lp` has written its results. Checks S1 and S2 run first; if one
-    fails it writes `results/strategy_checks.md` and no results. With no freeze file it computes July
-    only and writes the freeze; commit it (here: tagged `strategy-preregistered`) before the second
-    run. The second run reads every July value from the freeze, stops if any input file it hashed
-    has changed, and never rewrites it; to re-run July, delete the file by hand, which shows in git.
-
-    `ulpe all` runs `strategy` once. With the committed freeze it runs the report period. Without
-    one, the first `ulpe all` writes the July freeze and then stops at `figures`, which asks for
-    `ulpe strategy` (the report results do not exist yet); commit and tag the freeze, then run
-    `ulpe strategy` (or `ulpe all`) again. The report run checks the freeze's input hashes; a fresh
-    `ulpe analyze` and `ulpe lp` rewrite the hashed processed files byte-identically (verified
-    2026-10-22), so re-running the pipeline keeps matching the committed freeze. `ulpe analyze`
-    keeps `summary.json`'s `lp` and `strategy` results only when its own results are unchanged (run
-    timestamps aside); otherwise it drops them, so `ulpe strategy` and `ulpe figures` refuse to run
-    until `ulpe lp` and `ulpe strategy` run again. The fee runs use 4 worker processes by default
-    (about 1.35 GB of memory each).
-
 === "Figures"
 
     ```bash
     uv run ulpe figures   # results/ -> results/figures: every figure in light SVG, the GIF and the social card
     ```
-
-    `figures` reads only `results/` (it needs no data download) and takes seconds.
-    `results/figures/00_hero.png` is the repository's social preview image, set by hand under
-    Settings → General → Social preview.
 
 === "This website"
 
@@ -156,8 +115,80 @@ already on disk.
     uv run mkdocs build --strict # what CI runs
     ```
 
-    The pages are the Markdown under `docs/`; figures and fonts are served from `results/figures/`
-    and `assets/fonts/` by `scripts/mkdocs_hooks.py`.
+<details class="note" markdown>
+<summary>Notes: data foundation</summary>
+
+`validate` (and `all`) exit non-zero if any check fails. Downloaded and built data goes under
+`DATA_DIR` (default `./data`) and is git-ignored.
+
+</details>
+
+<details class="note" markdown>
+<summary>Notes: markouts</summary>
+
+`fetch-logs` and `fetch-blocks` run billable queries only with `--confirm-cost`; `--dry-run`
+reports bytes scanned for free. `fetch-transfers` calls `alchemy_getAssetTransfers`, so for that
+step `ETH_RPC_URL` must be an Alchemy endpoint; it caches one file per bot contract and skips
+contracts already fetched. `analyze` refuses to run unless validation passed on exactly the
+interim files now on disk; if a gated check (A1–A4) fails it exits non-zero and writes no
+results. Its per-swap and per-block working tables go to `DATA_DIR/processed` (git-ignored).
+
+</details>
+
+<details class="note" markdown>
+<summary>Notes: LP P&L</summary>
+
+`fetch-chain-state` runs twice because its position part needs the history. `fetch-builders`
+refuses to query without `--confirm-cost` and stops before querying if a dry run exceeds its
+700 GB cap. `fetch-relays` is resumable and skips a relay after three consecutive failed blocks.
+Once `fetch-builders` has run it draws each holdout and writes it to disk before any of its relay
+calls (a copy of the relay file is kept first); a run that finds the seed-45 draw already on disk
+retries its blocks a relay never answered. Rows of the earlier rounds are never re-queried or
+changed: a write that would change them is refused. The first `lp` after every seed-45 block has
+a relay row and a payment path freezes the proposer-split decision. `lp` refuses to run unless
+validation passed on the interim files on disk and the `analyze` outputs exist; if a check L1–L7
+fails it writes the checks file and no results.
+
+</details>
+
+<details class="note" markdown>
+<summary>Notes: strategy</summary>
+
+`strategy` refuses to run unless `lp` has written its results. Checks S1 and S2 run first; if one
+fails it writes `results/strategy_checks.md` and no results. With no freeze file it computes July
+only and writes the freeze; commit it (here: tagged `strategy-preregistered`) before the second
+run. The second run reads every July value from the freeze, stops if any input file it hashed
+has changed, and never rewrites it; to re-run July, delete the file by hand, which shows in git.
+
+`ulpe all` runs `strategy` once. With the committed freeze it runs the report period. Without
+one, the first `ulpe all` writes the July freeze and then stops at `figures`, which asks for
+`ulpe strategy` (the report results do not exist yet); commit and tag the freeze, then run
+`ulpe strategy` (or `ulpe all`) again. The report run checks the freeze's input hashes; a fresh
+`ulpe analyze` and `ulpe lp` rewrite the hashed processed files byte-identically (verified
+2026-10-22), so re-running the pipeline keeps matching the committed freeze. `ulpe analyze`
+keeps `summary.json`'s `lp` and `strategy` results only when its own results are unchanged (run
+timestamps aside); otherwise it drops them, so `ulpe strategy` and `ulpe figures` refuse to run
+until `ulpe lp` and `ulpe strategy` run again. The fee runs use 4 worker processes by default
+(about 1.35 GB of memory each).
+
+</details>
+
+<details class="note" markdown>
+<summary>Notes: figures</summary>
+
+`figures` reads only `results/` (it needs no data download) and takes seconds.
+`results/figures/00_hero.png` is the repository's social preview image, set by hand under
+Settings → General → Social preview.
+
+</details>
+
+<details class="note" markdown>
+<summary>Notes: this website</summary>
+
+The pages are the Markdown under `docs/`; figures and fonts are served from `results/figures/`
+and `assets/fonts/` by `scripts/mkdocs_hooks.py`.
+
+</details>
 
 <details class="note" markdown>
 <summary>Repo map</summary>

@@ -81,8 +81,8 @@ the only reference venue. [All limitations →](../how/limitations.md#price-disc
 <details class="success" markdown>
 <summary>Checks A1–A6 passed before these numbers were written</summary>
 
-`ulpe analyze` writes these results only after checks A1–A6 pass: every swap is re-simulated
-within tolerance, the block series is complete, and trader + LP + protocol markouts sum to zero on
+`ulpe analyze` writes these results only after the gated checks A1–A4 pass (A5–A6 are reported;
+all six passed): every swap is re-simulated within tolerance, the block series is complete, and trader + LP + protocol markouts sum to zero on
 every swap.
 
 </details>

@@ -3,17 +3,17 @@
 <p class="lead">The easiest way to fool yourself in a study like this is to keep adjusting the
 test until it agrees with you. Most of the process exists to stop that.</p>
 
-## Tests were frozen before they were scored
+## Tests were frozen before they were run
 
 Each pre-registered test was written down, committed and tagged in git before it was run: before
 its blind holdout was drawn, or before any August–September strategy result existed. The tags
-can't move, so anyone can read the rule as it stood.
+are never moved, so anyone can read each rule as it stood at its commit.
 
 | Tag | What was frozen | What happened |
 |---|---|---|
 | [`holdout-preregistered`](https://github.com/samuraixx-key/uniswap-lp-economics/blob/holdout-preregistered/docs/superpowers/specs/2026-10-21-proposer-payments-design.md) | The proposer-split rule and its pass bar, before a blind relay holdout | **Failed** the recipient check (45.7%). Reported as failed; the two-sided split was kept |
 | [`forwarder-preregistered`](https://github.com/samuraixx-key/uniswap-lp-economics/blob/forwarder-preregistered/docs/superpowers/specs/2026-10-21-forwarder-recipient-check-design.md) | A new recipient check that follows payments through forwarders, before a fresh holdout | **Passed** 290 of 290, so one proposer/builder split |
-| [`strategy-preregistered`](https://github.com/samuraixx-key/uniswap-lp-economics/blob/strategy-preregistered/results/strategy_freeze.json) | Strategy tests, margins and every July value, in a freeze file | Range test **inconclusive**; fee test **not run** (the model failed its calibration) |
+| [`strategy-preregistered`](https://github.com/samuraixx-key/uniswap-lp-economics/blob/strategy-preregistered/results/strategy_freeze.json) | Strategy tests, margins and every July value, in a freeze file | Range test **inconclusive**; fee test **not tested** (the model failed its July calibration; fee numbers are model-only) |
 
 ## A check that failed stays failed
 
@@ -31,7 +31,7 @@ question.
 ## Checks gate the results
 
 Nothing is written unless the checks before it pass: data checks C1–C6 (every swap's liquidity
-and tick against the chain), analysis checks A1–A6, LP checks L1–L7 (every swap reproduced
+and tick against the chain), analysis checks A1–A4 (A5–A6 are reported), LP checks L1–L7 (every swap reproduced
 bit-exactly) and strategy gates S1–S2. A re-run reproduces every result file byte for byte; only
 run timestamps and commit ids differ.
 
