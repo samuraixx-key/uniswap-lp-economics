@@ -1,0 +1,59 @@
+/* Inter, self-hosted: the figures' font (assets/fonts/, served by scripts/mkdocs_hooks.py) */
+@font-face { font-family: "Inter"; font-weight: 400; font-display: swap; src: url("fonts/Inter-Regular.ttf") format("truetype"); }
+@font-face { font-family: "Inter"; font-weight: 600; font-display: swap; src: url("fonts/Inter-SemiBold.ttf") format("truetype"); }
+@font-face { font-family: "Inter"; font-weight: 700; font-display: swap; src: url("fonts/Inter-Bold.ttf") format("truetype"); }
+
+/* Colours from the figures' house style (src/uniswap_lp_economics/viz/style.py) */
+:root {
+  --md-text-font: "Inter";
+  --ink: #1f2933;
+  --muted: #5f6b76;
+  --grid: #e7eaee;
+  --fees: #2a7f9e;
+  --lvr: #c2553a;
+  --md-primary-fg-color: #1f2933;
+  --md-primary-fg-color--light: #3a4652;
+  --md-primary-fg-color--dark: #121a21;
+  --md-accent-fg-color: #2a7f9e;
+  --md-typeset-a-color: #2a7f9e;
+}
+
+.md-typeset { font-size: 0.8rem; line-height: 1.7; color: var(--ink); }
+.md-typeset h1 { font-weight: 700; color: var(--ink); letter-spacing: -0.015em; margin-bottom: 0.6em; }
+.md-typeset h2 { font-weight: 600; letter-spacing: -0.01em; margin-top: 2.2em; }
+.md-typeset .lead { font-size: 1.05rem; line-height: 1.6; color: var(--muted); margin-top: 0; }
+.md-typeset .kicker { text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.65rem; font-weight: 600; color: var(--fees); margin: 0; }
+
+/* Figures sit on white cards so the light SVGs read as part of the page */
+.md-typeset figure { margin: 1.6em 0; }
+.md-typeset figure img { border: 1px solid var(--grid); border-radius: 6px; background: #fff; }
+.md-typeset figcaption { color: var(--muted); font-size: 0.7rem; max-width: 46rem; }
+
+.md-typeset .admonition, .md-typeset details { font-size: 0.76rem; }
+.md-typeset .admonition.question, .md-typeset details.question { border-color: var(--ink); }
+.md-typeset .question > .admonition-title { background-color: rgba(31, 41, 51, 0.06); }
+.md-typeset .question > .admonition-title::before { background-color: var(--ink); }
+
+/* "The answer" box */
+.md-typeset .admonition.abstract, .md-typeset details.abstract { border-color: var(--fees); font-size: 0.82rem; }
+.md-typeset .abstract > .admonition-title, .md-typeset .abstract > summary { background-color: rgba(42, 127, 158, 0.08); }
+.md-typeset .abstract > .admonition-title::before, .md-typeset .abstract > summary::before { background-color: var(--fees); }
+
+/* Stat tiles */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: 0.6rem; margin: 1.4em 0; }
+.stat { border: 1px solid var(--grid); border-radius: 6px; padding: 0.7rem 0.8rem; background: #fff; }
+.stat .v { display: block; font-size: 1.35rem; font-weight: 700; letter-spacing: -0.02em; color: var(--ink); font-variant-numeric: tabular-nums; }
+.stat .l { display: block; font-size: 0.65rem; line-height: 1.4; color: var(--muted); margin-top: 0.15rem; }
+.stat.neg .v { color: var(--lvr); }
+.stat.pos .v { color: var(--fees); }
+
+/* Finding cards on the home page */
+.md-typeset .grid.cards > ul > li { border-radius: 8px; padding: 1rem 1.1rem; }
+.md-typeset .grid.cards .big { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; display: block; margin: 0.3rem 0; }
+.md-typeset .grid.cards .neg { color: var(--lvr); }
+.md-typeset .grid.cards .pos { color: var(--fees); }
+.md-typeset .caveat { display: block; font-size: 0.68rem; color: var(--muted); line-height: 1.5; border-top: 1px dashed var(--grid); padding-top: 0.5rem; margin-top: 0.6rem; }
+
+.md-typeset table:not([class]) { font-size: 0.72rem; font-variant-numeric: tabular-nums; }
+.md-typeset table:not([class]) th { background: #f6f7f9; }
+.md-typeset .sources { font-size: 0.68rem; color: var(--muted); }

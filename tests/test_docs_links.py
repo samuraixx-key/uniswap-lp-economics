@@ -90,19 +90,24 @@ def test_no_tree_tag_links() -> None:
     assert not bad, "\n".join(bad)
 
 
-@pytest.mark.parametrize("name", ["README.md", "REPORT.md", "docs/methodology.md"])
+def _site_pages() -> list[str]:
+    pages = sorted(p.relative_to(ROOT).as_posix() for p in (ROOT / "docs").rglob("*.md"))
+    return [p for p in pages if not p.startswith("docs/specs/") and p != "docs/roadmap.md"]
+
+
+@pytest.mark.parametrize("name", ["README.md", "REPORT.md", *_site_pages()])
 def test_no_validator_wording(name: str) -> None:
     path = ROOT / name
     if path.exists():
         assert "validator" not in path.read_text(encoding="utf-8").lower()
 
 
-def test_no_liquid_markers() -> None:
-    # Pages runs Liquid over every Markdown page, code spans too: a stray marker fails the build
+def test_github_figure_paths() -> None:
+    # site pages use repo-relative figure paths so github.com shows them; the hook strips one ../
     bad = [
-        str(p.relative_to(ROOT))
-        for p in _markdown()
-        if "{{" in p.read_text(encoding="utf-8") or "{%" in p.read_text(encoding="utf-8")
+        f"{s.relative_to(ROOT)} -> {t}"
+        for s, t in _links()
+        if "results/figures/" in t and _local(t) and not (s.parent / t).resolve().exists()
     ]
     assert not bad, "\n".join(bad)
 

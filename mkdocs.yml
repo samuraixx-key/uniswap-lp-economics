@@ -1,0 +1,71 @@
+# The project website (GitHub Pages). Pages are the Markdown under docs/; figures and fonts are
+# served from results/figures/ and assets/fonts/ by scripts/mkdocs_hooks.py.
+site_name: Who makes money on Uniswap V3?
+site_description: A trade-by-trade study of who has edge against a Uniswap pool, who pays for it, and where the money ends up.
+site_url: https://samuraixx-key.github.io/uniswap-lp-economics/
+site_author: Enrico Nagata
+repo_url: https://github.com/samuraixx-key/uniswap-lp-economics
+repo_name: uniswap-lp-economics
+edit_uri: ""
+copyright: Enrico Nagata · MIT licence · Research only; not financial advice.
+
+docs_dir: docs
+exclude_docs: |
+  specs/
+  roadmap.md
+  README.md
+  methodology.md
+
+hooks:
+  - scripts/mkdocs_hooks.py
+
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn
+
+theme:
+  name: material
+  font: false
+  palette:
+    scheme: default
+    primary: custom
+    accent: custom
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - navigation.footer
+    - toc.follow
+    - content.tooltips
+    - content.code.copy
+    - search.highlight
+
+extra_css:
+  - assets/extra.css
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.snippets:
+      auto_append: [docs/.snippets/glossary.md]
+      check_paths: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+nav:
+  - Home: index.md
