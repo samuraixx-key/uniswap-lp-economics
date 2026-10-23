@@ -1,21 +1,24 @@
-# Methodology: price discovery, markouts and LP P&L (sub-projects 2 and 3)
+# Methodology: who makes money on Uniswap V3
 
 This file defines every quantity in `results/` and gives its formula. Scope: the Uniswap V3
 USDC/WETH 0.05% pool (`0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640`) against Binance, window
 `[2026-07-01, 2026-10-01)` UTC. Sections 1–8 cover sub-project 2 (design spec
-[`docs/superpowers/specs/2026-10-13-price-discovery-markouts-design.md`](superpowers/specs/2026-10-13-price-discovery-markouts-design.md));
+[`docs/specs/2026-10-13-price-discovery-markouts-design.md`](specs/2026-10-13-price-discovery-markouts-design.md));
 sections 9–17 cover sub-project 3, LP P&L and where LVR goes (design spec
-[`docs/superpowers/specs/2026-10-14-lp-pnl-lvr-design.md`](superpowers/specs/2026-10-14-lp-pnl-lvr-design.md)).
+[`docs/specs/2026-10-14-lp-pnl-lvr-design.md`](specs/2026-10-14-lp-pnl-lvr-design.md)).
 Where an implementation plan amended a spec, the ruling is cited ("Ruling n"); the sub-project 3
 rulings that changed a definition or a number are listed in
-[Changes in sub-project 3](#changes-in-sub-project-3). Numbers quoted here come from `results/`,
-except where a sentence names another source.
+[Changes in sub-project 3](#changes-in-sub-project-3). Sections 18–21 cover reference and timing
+robustness, proposer payments, the recipient check through forwarders and the strategy
+experiment, each with its own spec. Section 0 says why the main choices were made; section 22
+lists every limitation. Numbers quoted here come from `results/`, except where a sentence names
+another source.
 
 Notation: `f` = pool swap fee = 500 pips = 0.0005; `c` = Binance trading fee assumed for the
 arbitrage (0 or 1 bp); `P_cex(t)` = reference price at time `t` (section 2); pool prices are in
 USDC per WETH; 1 bp = 10⁻⁴.
 
-Contents: [1 Data](#1-data-and-validation) · [2 Reference price](#2-reference-price-and-time-zero) ·
+Contents: [0 Why these choices](#0-why-these-choices) · [1 Data](#1-data-and-validation) · [2 Reference price](#2-reference-price-and-time-zero) ·
 [3 Markouts](#3-markouts) · [4 Flow labels](#4-flow-labels) ·
 [5 Costs](#5-costs-and-builder-payments) · [6 Price discovery](#6-price-discovery) ·
 [7 Available arbitrage](#7-available-arbitrage) · [8 Checks](#8-checks-a1a6)
@@ -24,8 +27,61 @@ Sub-project 3: [9 Positions](#9-positions) ·
 [10 Accumulators](#10-fee-and-lvr-accumulators) · [11 Measured LVR](#11-measured-lvr) ·
 [12 Theoretical LVR](#12-theoretical-lvr) · [13 P&L](#13-pl-in-the-window) ·
 [14 Lifetime](#14-lifetime-pl-against-holding) · [15 Where LVR goes](#15-where-lvr-goes) ·
-[16 Checks](#16-checks-l1l7-and-r1r5) · [17 Limitations](#17-limitations-of-sub-project-3) ·
+[16 Checks](#16-checks-l1l7-and-r1r6) · [17 Limitations](#17-limitations-of-sub-project-3) ·
 [Changes in sub-project 3](#changes-in-sub-project-3)
+
+Then: [18 Reference and timing](#18-reference-and-timing-robustness-sub-project-4) ·
+[19 Proposer payments](#19-proposer-payment-detection) ·
+[20 Recipient check](#20-recipient-check-through-forwarders) ·
+[21 Strategy experiment](#21-strategy-experiment-phase-5) ·
+[22 Limitations](#22-limitations-whole-project)
+
+## 0. Why these choices
+
+My short answers to "why did you…?"; each links to the section with the detail.
+
+- **Why Binance's last ETHUSDC trade as the price?** Binance leads this pool by a block
+  ([section 6](#6-price-discovery)), so it is the price an arbitrageur acts on, and ETHUSDC is the
+  same pair, with no USDT/USDC rate mixed in. There is no Binance bid/ask history for 2026, so the
+  last trade stands in for the mid; a trade-side mid proxy and ETHUSDT move the LP result by
+  $0.14M at most ([section 2](#2-reference-price-and-time-zero),
+  [section 18](#18-reference-and-timing-robustness-sub-project-4)).
+- **Why read it at the block timestamp?** It is the start of the slot, the early end of when a
+  block is sealed, and the bots' own decision and hedge times are not observed. So t0 is a
+  convention, and I measure how much it matters: read 2 s earlier, the bots' edge is 1.80 bp instead
+  of 2.86 bp, and LP fees − LVR turns positive only if prices are read more than 3 s before the
+  slot ([section 3.4](#34-robustness-variants), [section 18](#18-reference-and-timing-robustness-sub-project-4)).
+- **Why notional-weighted markouts?** The question is how much money changes hands: the
+  weighted mean is total markout over total notional, so it adds up to the dollar totals. The
+  unweighted median is reported beside it; for searchers it has the opposite sign (−0.57 bp
+  against +2.86 bp) because their edge sits in the larger swaps
+  ([section 3.3](#33-aggregation-and-the-day-bootstrap)).
+- **Why bootstrap over days?** Resampling whole days keeps the dependence within a day
+  (volatility clusters, bot activity) inside each draw. It treats days as independent of each
+  other, and that is the assumption to challenge
+  ([section 3.3](#33-aggregation-and-the-day-bootstrap)).
+- **Why measure LPs against a rebalancing portfolio, not against holding?** LVR is the loss
+  against a portfolio that rebalances at Binance's price, which isolates the adverse-selection cost
+  of quoting a stale price. P&L against holding mostly measures the window's price path (−$18.2M in
+  the window, most of it not LVR), so I report it but do not use it as the benchmark
+  ([section 11](#11-measured-lvr), [section 13](#13-pl-in-the-window)).
+- **Why 5% of active liquidity as the price-taker line?** The strategy test assumes a strategy
+  takes its share of the recorded swaps without changing them. I check that assumption instead of
+  modelling a large LP. There's no standard threshold: 5% is a judgement call I fixed before any
+  result, above which a cell is flagged as outside the assumption. What protects the test is that
+  it was fixed in advance, and the verdict says when it depends on flagged cells
+  ([section 21.3](#213-range-strategies), [section 21.7](#217-paired-bootstrap-and-decisions)).
+- **Why a margin of ±0.068 on fees ÷ LVR?** δ = (1 − r₀) / 4, a quarter of the full-range LP's
+  July distance to break-even (r₀ = 0.7292). A quarter is also a judgement call: a difference
+  smaller than a quarter of the distance to break-even wouldn't change whether the LP pays, and it
+  was fixed by formula before August–September was computed ([section 21.1](#211-periods-and-the-freeze)).
+- **Why a second pre-registered check for the proposer split?** The first test's recipient check
+  failed: about half of all payments pass through one forwarding contract, which the check could
+  not see through, although every payment matched the relay to the wei. Changing the check after
+  seeing it fail and keeping the result would have been redefining a check until it passes, so I
+  wrote the new check down, tagged it, and only then drew a fresh holdout. The first decision stays
+  on file ([section 19.5](#195-why-the-recipient-check-failed-a-forwarding-contract),
+  [section 20](#20-recipient-check-through-forwarders)).
 
 ## 1. Data and validation
 
@@ -239,7 +295,7 @@ The net ratio reported (`kept_over_top_bot_gross` in
 transactions. The spec's `kept / captured` would divide the top bots' single-pool result by all
 searchers' 0 s markouts, mixing two populations, so it is not reported.
 
-Required limitation text (also in the README, `results/arbitrage.md` and `results/bot_profit.md`):
+Required limitation text (also in [REPORT.md](../REPORT.md), `results/arbitrage.md` and `results/bot_profit.md`):
 
 > Builder payments are detected only as direct ETH transfers from the bot contract to the block's fee recipient within the same transaction. Payments routed elsewhere (another contract, a separate transaction in the bundle, off-chain agreements) are missed, so the reported net profit is an **upper bound** on what the bots keep. Binance-side trading fees, inventory and hedging costs are not observed.
 
@@ -824,7 +880,7 @@ split (proposer 594,782.47, 0.1435; builder margin 848,648.09, 0.2048), which li
 pair: most of these blocks paid their proposer from a payout address, and paid less than either
 method assumed.
 
-Required limitation text (also in the README and `results/lvr_destination.md`):
+Required limitation text (also in [REPORT.md](../REPORT.md) and `results/lvr_destination.md`):
 
 > The split of builder payments between builder and proposer uses each block's ratio of proposer payment to builder revenue; how a builder prices an individual transaction is not observed. Proposer payments are identified as the block's last transaction, sent by the fee recipient or by a payout address learned from chain data, and tested on a blind stratified relay sample; blocks where neither applies give the proposer the whole builder revenue.
 
@@ -904,7 +960,11 @@ ties); within it, the 20-block stretch with the largest absolute Binance log mov
 **JIT block selection (figure 11).** Among JIT positions whose own transactions (mint and burn) also
 hold a pool swap before the first liquidity add and one after the last removal, the one with the
 largest P&L vs rebalancing (then the lowest block, then the id). Without such a position, the most
-profitable JIT position, and the figure says so.
+profitable JIT position, and the figure says so. In the block shown, the operator's first swap
+moves the pool from $1,794.90 to $1,759.93; its liquidity then buys the next trader's ETH at that
+low price, a "negative LVR" of $2,093.08. The position made $1,125.36 against rebalancing, but the
+operator's own two swaps lost $1,088.90 against Binance at 0 s: all in, the operator came out
+$36.47 ahead ([`results/figure_data/jit_block.csv`](../results/figure_data/jit_block.csv)).
 
 **"$10k" framing (figure 10).** P&L per $10,000 of time-weighted position value per 30 days =
 `bp_per_day × 30`, since `bp_per_day` is P&L per 10⁴ of value per day.
@@ -914,37 +974,7 @@ volatility, over days with positive LVR and fees; the break-even is where the tw
 
 ## 17. Limitations of sub-project 3
 
-- **Reference = last Binance ETHUSDC trade**, as in sub-project 2; measured LVR, fees in USD and
-  every P&L move with it. Sub-project 4 tests a mid price and OKX.
-- **Theory** assumes geometric Brownian motion and Poisson blocks, while Ethereum slots are a
-  fixed 12 s. The 1-minute version is about a third higher than the 1 s one: stale stretches of
-  the last trade dominate the 1 s realised variance, not order-flow noise (section 12).
-- **LP hedging and other holdings are not observed.** P&L against rebalancing is what an LP who
-  rebalanced at Binance's price would have made; a hedged LP's real result also depends on the
-  hedge's own costs.
-- **LP gas and direct builder payments** are counted only for window transactions, in the window
-  and lifetime results alike; costs before the window are not observed. In JIT transactions that
-  also swap, a direct payment may be for the swap (section 13).
-- **Lifetime values before the window** use ETHUSDT 1-minute closes (USDT, not USDC).
-- **Who the LP is.** An NFT position's LP is its owner at close (570 window-active positions changed
-  owner while open), and a vault stands for many depositors. Only four vault addresses are labelled;
-  other managers stay `nft_contract` or `direct_other`.
-- **Collected amounts of NFT positions** keep the NPM's requested amounts, which overstate what the
-  pool paid by at most 48 raw USDC units and 44 wei per collect (2,622 collects in the history).
-- **Direct keys with carried owed tokens** shift principal and fees between two positions of the
-  same key; flagged positions are excluded from lifetime statistics (none among the window-active
-  positions in this run), but a carry of fees only (principal fully collected) is not flagged.
-- **Where LVR goes:** the limitation text of section 15; `kept` is an upper bound. The
-  proposer/builder split (proposer 0.1435, builder margin 0.2048 of searcher LVR) comes from
-  measured payments that passed a pre-registered relay test on the second attempt (sections 19
-  and 20); unexplained blocks ($630.11, 0.044% of single-pool builder dollars) give the proposer
-  the whole builder revenue. Their sum does not depend on the split.
-- **Path dependence.** P&L against holding, in the window and over a lifetime (53.5% of positions
-  beat holding; 78% of those with a life of 180 days or more), depends on the price path over each
-  position's life, and so on when it opened and closed.
-- **Fees net of the protocol.** "Fees do not cover LVR" holds for LP fees; total swap fees fall
-  short of LVR by much less (section 11).
-- **Scope:** one pool and one quarter.
+Merged into [section 22](#22-limitations-whole-project), with every other sub-project's limitations.
 
 ## Changes in sub-project 3
 
@@ -1067,7 +1097,7 @@ both within the L6 relative tolerance.
 
 ## 19. Proposer-payment detection
 
-Design: [`docs/superpowers/specs/2026-10-21-proposer-payments-design.md`](superpowers/specs/2026-10-21-proposer-payments-design.md).
+Design: [`docs/specs/2026-10-21-proposer-payments-design.md`](specs/2026-10-21-proposer-payments-design.md).
 Its pre-registered parts (the rule, the holdout, the bar and the stopping rule) were committed
 before any holdout relay call; the commit is tagged `holdout-preregistered`.
 
@@ -1211,7 +1241,7 @@ rule, $633.49 (0.044%) of single-pool builder dollars is unexplained, too little
 
 ## 20. Recipient check through forwarders
 
-Design: [`docs/superpowers/specs/2026-10-21-forwarder-recipient-check-design.md`](superpowers/specs/2026-10-21-forwarder-recipient-check-design.md).
+Design: [`docs/specs/2026-10-21-forwarder-recipient-check-design.md`](specs/2026-10-21-forwarder-recipient-check-design.md).
 Sections 3 to 6 of it (the class fix, the check, the holdout, the bar and the stopping rule) were
 committed and tagged `forwarder-preregistered` before the seed-45 holdout was drawn; the code was
 reviewed against them before the draw. No new check was computed on the seed-44 holdout.
@@ -1285,8 +1315,7 @@ So `ulpe lp` publishes one split (`proposer_split: "one"`, `published_decision: 
 
 ## 21. Strategy experiment (Phase 5)
 
-Design: [`docs/superpowers/specs/2026-10-21-strategy-experiment-design.md`](superpowers/specs/2026-10-21-strategy-experiment-design.md);
-plan: [`docs/superpowers/plans/2026-10-22-strategy-experiment.md`](superpowers/plans/2026-10-22-strategy-experiment.md).
+Design: [`docs/specs/2026-10-21-strategy-experiment-design.md`](specs/2026-10-21-strategy-experiment-design.md).
 Code: `strategy/` (every pre-registered value in `strategy/params.py`), `data/futures.py`.
 Results: `results/strategy_{checks,ranges,fees,hedge,test}.md` (CSVs alongside),
 `summary.json["strategy"]`, `results/strategy_freeze.json`. Every number is a counterfactual
@@ -1455,7 +1484,10 @@ defined draws.
   cell is inside, **fails** if any is above, **inconclusive** otherwise. The verdict is recomputed
   on the unflagged cells alone; if it differs, it "depends on flagged cells". Result:
   inconclusive, and it depends on the 24 flagged cells (the three unflagged, ±5,000 bp, are
-  inside; no cell is above).
+  inside; no cell is above). The point estimates above +δ are daily re-centred ranges of ±10 to
+  ±50 bp (+0.088 to +0.111). Such a range is out of range most of the time (±10 bp re-centred
+  daily is in range at 18% of block starts), so it misses in-range LVR when the price trends away
+  during the day; that reading is an interpretation, not tested.
 - **Fee part**, per fixed level f > 5 bp on the arbitrage side: holds if the lower bound > +δ,
   fails if the upper bound < +δ, inconclusive otherwise; the summary is the lowest level where it
   holds, or "fails". Levels below 5 bp are not tested, and with calibration failed no level is:
@@ -1521,3 +1553,127 @@ fees − LVR: the benchmark is the free continuous hedge.
    between runs: label coverage, check R3, the markout day bootstrap and `lp_blocks.parquet`'s row
    order. Their results moved by at most 2e-15 relative, and every freeze-hashed input stayed
    byte-identical.
+
+## 22. Limitations (whole project)
+
+### Price discovery and markouts (sub-project 2)
+
+> Builder payments are detected only as direct ETH transfers from the bot contract to the block's fee recipient within the same transaction. Payments routed elsewhere (another contract, a separate transaction in the bundle, off-chain agreements) are missed, so the reported net profit is an **upper bound** on what the bots keep. Binance-side trading fees, inventory and hedging costs are not observed.
+
+- **Reference = last Binance trade.** There is no order-book data for the window, so no mid price,
+  and Binance is the only reference venue. 73,139 swaps have a 0 s reference older than 5 s; the
+  robustness variant without them changes little.
+- **t0 = block timestamp** (whole seconds, the start of the 12-second slot), while Binance trades
+  carry sub-second timestamps and the bots' decision and hedge times are not observed. Short-horizon
+  markouts depend on this choice (the searchers' 0 s edge is 1.80 bp with t0 − 2 s). For LP fees
+  − LVR, [section 18](#18-reference-and-timing-robustness-sub-project-4) measures how far this goes.
+- **Available arbitrage ignores gas, Binance fees beyond the 1 bp sensitivity, and Binance depth.**
+  It assumes the arbitrage is the first trade at the block-start state, and a gap that stays open is
+  counted again at each block start, so it is not what one arbitrageur could have taken.
+- **Labels are a curated list plus heuristics.** `searcher` is a structural pattern (the pool's
+  caller is the transaction's target), not a verified identity, and 0.11 of notional stays
+  `other_contract`; the two largest unlabelled addresses are unverified contracts with no public
+  name tag.
+- **Failed bot transactions are not counted.** A reverted transaction, or one that exits without
+  trading, emits no Swap log in the pool, so its gas never enters the cost side. This is a further
+  reason the bots' net profit is an upper bound.
+- **Multi-pool bot transactions get no cost breakdown:** their costs also pay for trades in other
+  pools, so they are reported gross only.
+- **Builder income** is income of the block's fee recipient, usually the builder; what the builder
+  passes on to the proposer is not measured here (sub-project 3 splits it for searcher swaps, see
+  [section 15](#15-where-lvr-goes)).
+- **Statistics:** the bootstrap resamples UTC days and treats them as independent; for a thin group
+  the interval is conditional on at least one active day and can be narrow.
+- **Scope:** one pool and one quarter; nothing here is tested on other pools or periods.
+
+### LP P&L and where LVR goes (sub-project 3)
+
+> The split of builder payments between builder and proposer uses each block's ratio of proposer payment to builder revenue; how a builder prices an individual transaction is not observed. Proposer payments are identified as the block's last transaction, sent by the fee recipient or by a payout address learned from chain data, and tested on a blind stratified relay sample; blocks where neither applies give the proposer the whole builder revenue.
+
+- **Reference price.** Measured LVR, fees in USD and every P&L use Binance's last ETHUSDC trade, as
+  above. [section 18](#18-reference-and-timing-robustness-sub-project-4) re-measures it against a
+  trade-side mid proxy, ETHUSDT and other read times.
+- **Theory** assumes geometric Brownian motion and blocks arriving as a Poisson process, while
+  Ethereum slots are a fixed 12 s. The 1-minute version gives about a third more LVR than the
+  1-second one. Order-flow noise in last trades would push 1-second realised variance above the
+  1-minute one; it comes out below, so at 1 s stale stretches of the last trade (the price
+  catching up over several seconds) dominate, and noise does not.
+- **LP hedging and other holdings are not observed.** P&L against rebalancing is what an LP who
+  could rebalance for free at Binance's last trade would have made; a hedged LP's real result also
+  depends on the hedge's own costs.
+- **LP gas and builder payments** are counted only for window transactions, in the window and
+  the lifetime results alike; costs before the window are not observed. A JIT transaction that also
+  swaps may pay the builder for the swap, and the rebalancing benchmark takes the LP's own swaps as
+  free.
+- **Lifetime values before the window** use ETHUSDT 1-minute closes (quoted in USDT).
+- **Who the LP is.** An NFT position's LP is its owner at close (570 window-active positions
+  changed owner while open), and a vault stands for many depositors. Only four vault addresses are
+  labelled (those Etherscan names as vaults); other managers stay `nft_contract` or
+  `direct_other`. EIP-7702 delegated wallets count as wallets.
+- **Small accounting edges, reported:** NFT collects keep the amounts the position manager
+  requested, which can exceed what the pool paid by up to 48 raw USDC units or 44 wei (2,622
+  collects in the pool's history); a direct position re-minted before its owed tokens were collected
+  hands them to the next position, and such positions are left out of the lifetime statistics (none
+  among the window-active positions), but a carry of fees only (principal fully collected) is not
+  flagged.
+- **Where LVR goes:** "kept" is an upper bound (builder payments outside the transaction and
+  failed transactions are missed). A transaction that both swaps and moves JIT liquidity has its
+  gas and builder payments counted twice, as the searcher's cost here and as the LP's cost in the
+  P&L tables: at most $19,017 in this window (the 265 such transactions).
+  The two analyses are never added together. The proposer/builder split (proposers 14.4%, builders 20.5% of searcher LVR) comes
+  from measured payments that passed a pre-registered relay test on the second attempt; the
+  first attempt's failed recipient check stays published beside it (sections 19 and
+  20). Blocks left unexplained ($630.11 of builder dollars, 0.044%) give the proposer the whole
+  builder revenue. The sum (34.8%) does not depend on the split. The relay sample found 771 of
+  1,000 blocks; bloXroute's max-profit relay, down throughout, left 188 of them and 75 and 78
+  blocks of the two holdouts without an answer.
+- **Path dependence.** P&L against holding, in the window and over a lifetime (53.5% of positions
+  beat holding; 78% of those with a life of 180 days or more), depends on the price path over each
+  position's life, and so on when it opened and closed.
+- **Fees net of the protocol.** "Fees do not cover LVR" holds for LP fees; total swap fees fall
+  short of LVR by much less ([section 11](#11-measured-lvr)).
+- **Statistics:** the P&L intervals bootstrap positions and treat them as independent, though many
+  positions share an LP.
+
+### Reference and timing robustness (sub-project 4)
+
+- **The mid price is a proxy.** There is no Binance bid/ask history for the window; the
+  trade-side proxy is crossed at 18% of swap times. A true mid needs another venue's order book
+  (OKX publishes one, 2.9 GB for ETH-USDC), which would mix venue and mid effects.
+- **Timing covers the blocks three relays delivered.** Winning-bid times come from Titan,
+  Aestus and Flashbots, the relays that keep bid history for the window: 561 of 1,000 sampled
+  blocks, many also delivered through ultrasound. The 439 blocks none of the three delivered are
+  missing. The received
+  time is when the final block reached the relay, not when each searcher read a price.
+- **The headline stays at the block timestamp.** Sub-projects 2 and 3 are not re-run at the
+  measured time; the robustness table re-prices LP fees − LVR only, through the L6 identity.
+
+### Strategy experiment (Phase 5)
+
+- **Out of sample for the parameters, not for the analyst.** Every parameter was fixed on July and
+  frozen before August–September was computed, but the window's aggregate results
+  (sub-projects 2–4) were known when the hypothesis was written.
+- **Price-takers.** A strategy position takes its share of the recorded swaps without changing
+  them. 24 of the 27 tested cells are flagged because at their peak they hold more than 5% of the
+  active liquidity (up to 84%); a position that large would change the swaps it trades against.
+  The flag is in the table, and the verdict depends on the flagged cells; at $100k, where only
+  12 are flagged, it is still inconclusive.
+- **No routing model; fixed volume.** Where flow would go at a higher fee (the 0.3% pool, other
+  venues) is not modelled. Kept flow is re-executed at its logged size at every fee; the
+  break-even share assumes removed flow takes its fees and LVR with it in proportion and leaves
+  the price path unchanged.
+- **The fee model failed calibration**, so every fee number is model-only ([section 21.6](#216-check-s3-calibration-july-reported)). The
+  simulated arbitrage always trades first in the block and closes the whole gap to the fee band;
+  real arbitrage sometimes trades after other swaps, and takes less.
+- **Swap modes.** Kept swaps are re-executed in the mode check L1 found first (exact input, then
+  exact output, then to price). A swap that was really exact output but reproduces as exact input
+  at 5 bp is re-executed as exact input; at 5 bp the two cannot be told apart.
+- **What is replaced.** "Searcher" is a contract that receives the transaction and calls the
+  pool, not proven CEX-DEX arbitrage. 135 of the replaced swaps look like sandwich legs (0.34% of
+  the replaced notional, −$712 gross at 0 s). Multi-pool searcher swaps are kept, though some of
+  them are CEX-DEX arbitrage routed through other pools.
+- **Hedge.** The ETHUSDC perpetual's 1-minute closes and funding files, with a 5 bp taker fee
+  (1 and 10 bp as sensitivities); no depth, slippage or margin cost. Entry and exit of a strategy
+  are free; only re-centrings pay gas and the taker fee, the same for every strategy.
+- **Statistics:** 61 days, bootstrapped as independent days; with 27 cells, requiring every one
+  inside ±δ is conservative, the right direction for a claim that something does not matter.

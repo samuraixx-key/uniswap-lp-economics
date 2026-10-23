@@ -1,21 +1,20 @@
 # Roadmap
 
-Where the project stands and what comes next. Each piece of work has a design spec and an
-implementation plan in [`docs/superpowers/`](superpowers/); the plans are kept as execution records
-and are not updated after they ship, while each spec describes what was built.
+Where the project stands and what comes next. Each piece of work has a design spec in
+[`docs/specs/`](https://github.com/samuraixx-key/uniswap-lp-economics/tree/main/docs/specs); each spec describes what was built.
 
 ## Done
 
-| Work | What it delivered | Spec | Plan |
-|---|---|---|---|
-| Sub-project 1: data foundation | Pool events, Binance prices, exact pool-state replay, checks C1–C6 | [spec](superpowers/specs/2026-10-13-data-foundation-design.md) | [plan](superpowers/plans/2026-10-13-data-foundation.md) |
-| Sub-project 2: price discovery and markouts | Basis, gap episodes, lead-lag, markouts by flow, bot profit, checks A1–A6 | [spec](superpowers/specs/2026-10-13-price-discovery-markouts-design.md) | [plan](superpowers/plans/2026-10-13-price-discovery-markouts.md) |
-| Sub-project 3: LP P&L and where LVR goes | Exact LP fees, LVR, P&L per position and LP type, lifetime vs holding, LVR destination, checks L1–L7 | [spec](superpowers/specs/2026-10-14-lp-pnl-lvr-design.md) | [plan](superpowers/plans/2026-10-14-lp-pnl-lvr.md) |
-| Chart redesign | `ulpe figures`: 12 figures plus the hero in one house style, README as a story | [spec](superpowers/specs/2026-10-15-chart-redesign-design.md) | [plan](superpowers/plans/2026-10-15-chart-redesign.md) |
-| Sub-project 4: reference and timing robustness | LP fees − LVR by reference and t0 offset with paired intervals, winning-bid times, figure 13, check R6, carried-over check fixes | [spec](superpowers/specs/2026-10-21-reference-robustness-design.md) | [plan](superpowers/plans/2026-10-21-reference-robustness.md) |
-| Proposer-payment detection | Five chain-only block classes with payout addresses, a 15.2 GB last-transaction table, payout recipients typed (EIP-7702 wallets as wallets), relay retries and a blind seed-44 holdout, a pre-registered and frozen split decision (result: two-sided split kept; measured split reported, not adopted), methodology section 19 | [spec](superpowers/specs/2026-10-21-proposer-payments-design.md) | [plan](superpowers/plans/2026-10-21-proposer-payments.md) |
-| Recipient check through forwarders | A pre-registered (tag `forwarder-preregistered`) recipient check that follows payments through forwarding contracts over free RPC, the class-4 fix, a blind seed-45 holdout that cannot rewrite the published rounds; result: 290 of 290 within 1 wei and through to the relay's recipient, so one proposer/builder split (proposers 14.4%, builders 20.5% of searcher LVR); methodology section 20 | [spec](superpowers/specs/2026-10-21-forwarder-recipient-check-design.md) | [plan](superpowers/plans/2026-10-22-forwarder-recipient-check.md) |
-| Phase 5 (strategy experiment), the fifth sub-project | `ulpe strategy` and `ulpe fetch-futures`: price-taker range strategies with re-centring rules and costs, a carried-forward counterfactual pool with fixed, dynamic and oracle fees, a perpetual delta hedge, gated checks S1–S2, calibration S3, a July freeze tagged `strategy-preregistered` and an August–September report, figures 14–16, methodology section 21 | [spec](superpowers/specs/2026-10-21-strategy-experiment-design.md) | [plan](superpowers/plans/2026-10-22-strategy-experiment.md) |
+| Work | What it delivered | Spec |
+|---|---|---|
+| Sub-project 1: data foundation | Pool events, Binance prices, exact pool-state replay, checks C1–C6 | [spec](specs/2026-10-13-data-foundation-design.md) |
+| Sub-project 2: price discovery and markouts | Basis, gap episodes, lead-lag, markouts by flow, bot profit, checks A1–A6 | [spec](specs/2026-10-13-price-discovery-markouts-design.md) |
+| Sub-project 3: LP P&L and where LVR goes | Exact LP fees, LVR, P&L per position and LP type, lifetime vs holding, LVR destination, checks L1–L7 | [spec](specs/2026-10-14-lp-pnl-lvr-design.md) |
+| Chart redesign | `ulpe figures`: 12 figures plus the hero in one house style, README as a story | [spec](specs/2026-10-15-chart-redesign-design.md) |
+| Sub-project 4: reference and timing robustness | LP fees − LVR by reference and t0 offset with paired intervals, winning-bid times, figure 13, check R6, carried-over check fixes | [spec](specs/2026-10-21-reference-robustness-design.md) |
+| Proposer-payment detection | Five chain-only block classes with payout addresses, a 15.2 GB last-transaction table, payout recipients typed (EIP-7702 wallets as wallets), relay retries and a blind seed-44 holdout, a pre-registered and frozen split decision (result: two-sided split kept; measured split reported, not adopted), methodology section 19 | [spec](specs/2026-10-21-proposer-payments-design.md) |
+| Recipient check through forwarders | A pre-registered (tag `forwarder-preregistered`) recipient check that follows payments through forwarding contracts over free RPC, the class-4 fix, a blind seed-45 holdout that cannot rewrite the published rounds; result: 290 of 290 within 1 wei and through to the relay's recipient, so one proposer/builder split (proposers 14.4%, builders 20.5% of searcher LVR); methodology section 20 | [spec](specs/2026-10-21-forwarder-recipient-check-design.md) |
+| Phase 5 (strategy experiment), the fifth sub-project | `ulpe strategy` and `ulpe fetch-futures`: price-taker range strategies with re-centring rules and costs, a carried-forward counterfactual pool with fixed, dynamic and oracle fees, a perpetual delta hedge, gated checks S1–S2, calibration S3, a July freeze tagged `strategy-preregistered` and an August–September report, figures 14–16, methodology section 21 | [spec](specs/2026-10-21-strategy-experiment-design.md) |
 
 Later chart polish (light theme only, numbered panel headers, the two-stage hero) was merged
 without a separate spec; the chart spec was updated to match.

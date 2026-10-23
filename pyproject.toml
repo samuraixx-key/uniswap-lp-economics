@@ -1,6 +1,7 @@
 [project]
 name = "uniswap-lp-economics"
-version = "0.1.0"
+version = "1.0.0"
+authors = [{ name = "Enrico Nagata" }]
 description = "Who makes money on Uniswap V3? Price discovery, flow markouts and arbitrage profit on USDC/WETH 0.05% vs Binance."
 readme = "README.md"
 requires-python = ">=3.13"

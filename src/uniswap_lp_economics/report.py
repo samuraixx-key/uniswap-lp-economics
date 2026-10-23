@@ -84,13 +84,13 @@ def write_table(
     write_markdown(out_dir, stem, title, [("", df)], notes, digits)
 
 
-def _clean(obj: Any) -> Any:
+def clean(obj: Any) -> Any:
     if isinstance(obj, float):
         return obj if math.isfinite(obj) else None
     if isinstance(obj, dict):
-        return {str(k): _clean(v) for k, v in obj.items()}
+        return {str(k): clean(v) for k, v in obj.items()}
     if isinstance(obj, list | tuple):
-        return [_clean(v) for v in obj]
+        return [clean(v) for v in obj]
     if isinstance(obj, date):  # datetime is a date too
         return obj.isoformat()
     return obj
@@ -98,4 +98,4 @@ def _clean(obj: Any) -> Any:
 
 def write_summary(summary: dict[str, Any], out_dir: Path) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
-    write_text_atomic(out_dir / "summary.json", json.dumps(_clean(summary), indent=2) + "\n")
+    write_text_atomic(out_dir / "summary.json", json.dumps(clean(summary), indent=2) + "\n")

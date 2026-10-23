@@ -1,6 +1,7 @@
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 import polars as pl
 import pytest
@@ -181,3 +182,39 @@ def test_cli_analyze_turns_value_error_into_clean_exit(monkeypatch: pytest.Monke
     monkeypatch.setattr(sys, "argv", ["ulpe", "analyze"])
     with pytest.raises(SystemExit, match="bad address in row 3"):
         cli.main()
+
+
+def _own(**extra: Any) -> dict[str, Any]:
+    return {"generated_utc": "t1", "git_commit": "c1", "swaps": 3, "basis": {"x": 1.5}, **extra}
+
+
+def test_carry_downstream_keeps_lp_and_strategy_when_own_output_unchanged(tmp_path: Path) -> None:
+    p = tmp_path / "summary.json"
+    p.write_text(json.dumps({**_own(), "lp": {"a": 1}, "strategy": {"b": 2}}), encoding="utf-8")
+    new = {**_own(), "generated_utc": "t2", "git_commit": "c2"}
+    out = analysis.carry_downstream(new, p)
+    assert out["lp"] == {"a": 1} and out["strategy"] == {"b": 2}
+    assert out["generated_utc"] == "t2" and out["git_commit"] == "c2"
+
+
+def test_carry_downstream_drops_them_when_own_output_changed(tmp_path: Path) -> None:
+    p = tmp_path / "summary.json"
+    p.write_text(json.dumps({**_own(), "lp": {"a": 1}, "strategy": {"b": 2}}), encoding="utf-8")
+    out = analysis.carry_downstream({**_own(), "swaps": 4}, p)
+    assert "lp" not in out and "strategy" not in out
+
+
+def test_carry_downstream_compares_as_written(tmp_path: Path) -> None:
+    # NaN is written as null and tuples as lists: an unchanged run must still carry the keys
+    p = tmp_path / "summary.json"
+    old = {**_own(), "v": None, "t": [1, 2], "lp": {"a": 1}}
+    p.write_text(json.dumps(old), encoding="utf-8")
+    out = analysis.carry_downstream({**_own(), "v": float("nan"), "t": (1, 2)}, p)
+    assert out["lp"] == {"a": 1}
+
+
+def test_carry_downstream_without_a_readable_file_adds_nothing(tmp_path: Path) -> None:
+    p = tmp_path / "summary.json"
+    assert analysis.carry_downstream(_own(), p) == _own()
+    p.write_text("{not json", encoding="utf-8")
+    assert analysis.carry_downstream(_own(), p) == _own()
