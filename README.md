@@ -20,8 +20,9 @@ their trades into the block.
   *Caveat:* measured against Binance's last trade at the block time; the bots' edge is 1.80 bp if
   prices are read 2 s earlier.
 - **LP fees fall $1.06M short of adverse selection; most of the bots' edge goes to block
-  producers.** Bots keep nothing measurable at block time (−$0.20M, an upper bound): a small
-  difference of large totals, and +$0.06M at 12 s for the top four bots. *Caveat:*
+  producers.** Bots keep nothing measurable at block time (−$0.20M across searcher swaps, an
+  upper bound). It's a small difference of large totals whose sign flips with the horizon: for the
+  top four bots, −$0.19M at 0 s and +$0.06M at 12 s. *Caveat:*
   most of the $1.06M is the protocol's quarter of the fees; before that cut, fees fall short by
   $0.18M and the interval includes zero.
 

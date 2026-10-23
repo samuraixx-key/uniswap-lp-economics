@@ -67,12 +67,14 @@ My short answers to "why did you…?"; each links to the section with the detail
   ([section 11](#11-measured-lvr), [section 13](#13-pl-in-the-window)).
 - **Why 5% of active liquidity as the price-taker line?** The strategy test assumes a strategy
   takes its share of the recorded swaps without changing them. I check that assumption instead of
-  modelling a large LP: 5% is the line I fixed before any result, above which a cell is flagged as
-  outside it. Flagged cells are still reported, and the verdict says when it depends on them
+  modelling a large LP. There's no standard threshold: 5% is a judgement call I fixed before any
+  result, above which a cell is flagged as outside the assumption. What protects the test is that
+  it was fixed in advance, and the verdict says when it depends on flagged cells
   ([section 21.3](#213-range-strategies), [section 21.7](#217-paired-bootstrap-and-decisions)).
 - **Why a margin of ±0.068 on fees ÷ LVR?** δ = (1 − r₀) / 4, a quarter of the full-range LP's
-  July distance to break-even (r₀ = 0.7292), set by formula and frozen before August–September was
-  computed ([section 21.1](#211-periods-and-the-freeze)).
+  July distance to break-even (r₀ = 0.7292). A quarter is also a judgement call: a difference
+  smaller than a quarter of the distance to break-even wouldn't change whether the LP pays, and it
+  was fixed by formula before August–September was computed ([section 21.1](#211-periods-and-the-freeze)).
 - **Why a second pre-registered check for the proposer split?** The first test's recipient check
   failed: about half of all payments pass through one forwarding contract, which the check could
   not see through, although every payment matched the relay to the wei. Changing the check after
