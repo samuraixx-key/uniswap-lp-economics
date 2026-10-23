@@ -1,6 +1,6 @@
 {
-  "generated_utc": "2026-10-22T16:51:30+00:00",
-  "git_commit": "forwarder-preregistered-39-g225f999-dirty",
+  "generated_utc": "2026-10-23T07:11:43+00:00",
+  "git_commit": "forwarder-preregistered-54-g10e2398",
   "input_sha256_16": {
     "interim/cex_ethusdc.parquet": "2bb21f2bb6ca55b8",
     "interim/cex_ethusdt_1s.parquet": "02a5ea793a51eea0",

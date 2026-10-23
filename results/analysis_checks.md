@@ -1,7 +1,7 @@
 # Analysis checks: **PASS**
 
-- generated_utc: `2026-10-22T16:51:30+00:00`
-- git_commit: `forwarder-preregistered-39-g225f999-dirty`
+- generated_utc: `2026-10-23T07:11:43+00:00`
+- git_commit: `forwarder-preregistered-54-g10e2398`
 - input_sha256_16: `{'interim/cex_ethusdc.parquet': '2bb21f2bb6ca55b8', 'interim/cex_ethusdt_1s.parquet': '02a5ea793a51eea0', 'interim/events.parquet': 'fcb1cfcb7c07a6e7', 'interim/swaps.parquet': 'b5a3ddae03e7f7d2', 'raw/tickbook_snapshot.parquet': 'ccaa9baa98726baf', 'raw/snapshot_meta.json': '3b93b79ce12ca7b0', 'raw/blocks.parquet': '0026aebc769e72fd', 'raw/bot_tx_other_logs.parquet': 'f24f64f92d41ff77', 'raw/bot_transfers/0x149d330c8b9352573d17bc184b7a426ea020b38e.parquet': '6ec48b3108d16d0d', 'raw/bot_transfers/0x51c72848c68a965f66fa7a88855f9f7784502a7f.parquet': '4709759d4749f96e', 'raw/bot_transfers/0xbdb3ba9ffe392549e1f8658dd2630c141fdf47b6.parquet': 'f64808538b447479', 'raw/bot_transfers/0xeff6cb8b614999d130e537751ee99724d01aa167.parquet': '44e8dce9e7b7a224', 'labels/addresses.csv': '90715e75b8d28b72'}`
 
 | Check | Result | Summary |
