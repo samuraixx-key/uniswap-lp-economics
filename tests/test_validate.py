@@ -12,9 +12,11 @@ from uniswap_lp_economics.validate import (
     check_c3,
     check_c4,
     check_c6,
+    file_hash,
     input_hashes,
     replay,
     require_validated,
+    text_hash,
     write_report,
 )
 
@@ -333,3 +335,11 @@ def test_report_shows_reported_checks_as_reported_and_does_not_gate_on_them(
     assert [c["reported"] for c in body["checks"]] == [False, True]
     only_reported = write_report([CheckResult("R1", True, {}, reported=True)], tmp_path / "r", {})
     assert only_reported == "FAIL"  # nothing gated: no PASS from reported checks alone
+
+
+def test_text_hash_is_the_same_for_every_line_ending(tmp_path: Path) -> None:
+    # a Windows checkout (core.autocrlf) has CRLF where git and every other checkout has LF
+    lf, crlf = tmp_path / "lf.csv", tmp_path / "crlf.csv"
+    lf.write_bytes(b"address,name\n0xab,bot\n")
+    crlf.write_bytes(b"address,name\r\n0xab,bot\r\n")
+    assert text_hash(crlf) == text_hash(lf) == file_hash(lf)

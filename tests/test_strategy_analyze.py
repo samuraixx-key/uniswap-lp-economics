@@ -190,6 +190,7 @@ def test_second_run_writes_every_file(world: World, tmp_path: Path) -> None:
     assert {
         "rule",
         "avg_fee_bp",
+        "arb_fee_bp",
         "arb_ratio",
         "d_arb",
         "d_arb_lo",
@@ -341,3 +342,23 @@ def test_fee_runs_in_worker_processes_match_in_process(world: World) -> None:
     assert one.keys() == two.keys() and len(one) == 24 + len(FEE_LEVELS_BP)
     for k, (daily, counts) in one.items():
         assert daily.equals(two[k][0]) and counts == two[k][1], k
+
+
+def test_run_strategy_refuses_after_a_failed_lp(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(analyze.validate, "require_validated", lambda: None)
+    monkeypatch.setattr(analyze.config, "RESULTS_DIR", tmp_path)
+    (tmp_path / "summary.json").write_text('{"lp": {}}', encoding="utf-8")
+    (tmp_path / "lp_checks.json").write_text('{"status": "FAIL"}', encoding="utf-8")
+    with pytest.raises(RuntimeError, match="lp_checks.json status is FAIL"):
+        analyze.run_strategy()
+
+
+def test_a_new_july_freeze_drops_the_old_report_results(world: World, tmp_path: Path) -> None:
+    results = tmp_path / "results"
+    results.mkdir()
+    summary = json.loads(world[2].read_text(encoding="utf-8"))
+    (results / "summary.json").write_text(json.dumps({**summary, "strategy": {"old": 1}}))
+    assert _run(world, tmp_path) == "FROZEN"
+    assert "strategy" not in json.loads((results / "summary.json").read_text(encoding="utf-8"))

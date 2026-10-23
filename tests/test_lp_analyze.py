@@ -603,13 +603,15 @@ SECOND_FAIL = {**FAILING, "round": "holdout2", "recipient_check": "R1d"}
 
 def _holdout2_world(raw: Path, paths_for: list[int]) -> LpInputs:
     """The world with the seed-44 decision frozen as a hedge on disk, and a complete 2-block
-    seed-45 holdout (blocks 7 and 8, both with relay rows) whose paths exist for `paths_for`."""
+    seed-45 holdout (blocks 7 and 8, both with relay rows, retry pass done) whose paths exist
+    for `paths_for`."""
     inp = _holdout_world(raw, [7, 8])
     (raw / HOLDOUT_DECISION_FILE).write_text(
         json.dumps({"decision": FAILING}) + "\n", encoding="utf-8"
     )
     drawn = pl.DataFrame({"block_number": [7, 8], "stratum": ["payout", "rest"], "seed": [45, 45]})
     write_exact(drawn, raw / relays.HOLDOUT2_FILE)
+    (raw / relays.HOLDOUT2_RETRIED).write_text("", encoding="utf-8")
     held2 = inp.relays.with_columns(round=pl.lit(relays.HOLDOUT2_ROUND))
     paths = pl.DataFrame(
         {
@@ -678,3 +680,29 @@ def test_a_frozen_failing_seed45_decision_keeps_the_hedge(
     dest = _run_world(tmp_path, monkeypatch, inp, raw)[0]["destination"]
     assert dest["published_decision"] == "holdout2" and dest["proposer_split"] == "hedge"
     assert "rule_split" in dest and "sensitivity_self_built" in dest
+
+
+def test_run_lp_refuses_after_a_failed_analyze(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(lp.validate, "require_validated", lambda: None)
+    monkeypatch.setattr(lp.config, "RESULTS_DIR", tmp_path)
+    (tmp_path / "summary.json").write_text("{}", encoding="utf-8")
+    (tmp_path / "analysis_checks.json").write_text('{"status": "FAIL"}', encoding="utf-8")
+    with pytest.raises(RuntimeError, match="analysis_checks.json status is FAIL"):
+        lp.run_lp()
+
+
+def test_lp_drops_strategy_results_only_when_its_own_results_change(tmp_path: Path) -> None:
+    inp, end = world_inputs(), world_end_us()
+    results, processed = tmp_path / "results", tmp_path / "processed"
+    results.mkdir()
+    summary_path = results / "summary.json"
+    summary_path.write_text(json.dumps({"swaps": 4, "lp": {"stale": 1}, "strategy": {"old": 1}}))
+    lp.lp_analysis(inp, results, processed, {"git_commit": "a"}, end_us=end)
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert "strategy" not in summary  # built on the old LP outputs, so it is dropped
+    summary["strategy"] = {"old": 1}
+    summary_path.write_text(json.dumps(summary))
+    lp.lp_analysis(inp, results, processed, {"git_commit": "b"}, end_us=end)
+    assert json.loads(summary_path.read_text(encoding="utf-8"))["strategy"] == {"old": 1}

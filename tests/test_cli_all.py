@@ -10,6 +10,7 @@ import pytest
 from uniswap_lp_economics import cli, config
 from uniswap_lp_economics.data import bigquery, builders, history, relays
 from uniswap_lp_economics.data import blocks as bq_blocks
+from uniswap_lp_economics.lp.checks import HOLDOUT2_DECISION_FILE
 
 
 def test_all_runs_every_step_in_order(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -21,7 +22,9 @@ def test_all_runs_every_step_in_order(monkeypatch: pytest.MonkeyPatch) -> None:
     assert e.value.code == 0
     assert ran == list(cli.ALL_STEPS)
     assert ran[-1] == "figures" and ran.index("lp") < ran.index("figures")
-    assert ran.index("fetch-relays") + 1 == ran.index("fetch-timing") < ran.index("lp")
+    # fetch-relays twice in a row: the seed-45 draw, then its one retry pass (stopping rule)
+    assert ran.count("fetch-relays") == 2
+    assert ran.index("fetch-relays") + 2 == ran.index("fetch-timing") < ran.index("lp")
     assert ran.index("fetch-timing") + 1 == ran.index("fetch-paths") < ran.index("lp")
     assert ran.index("fetch-builders") + 1 == ran.index("fetch-payout-code")
     assert ran.index("fetch-payout-code") + 1 == ran.index("fetch-relays")
@@ -349,6 +352,21 @@ def test_fetch_relays_retries_only_holdout2(
     (tmp_path / relays.HOLDOUT2_FILE).write_bytes(b"")  # the draw now exists
     cli.fetch_relays()  # second run: the one retry, of the seed-45 round only
     assert retried == [{"rounds": ("holdout2",)}]
+    assert (tmp_path / relays.HOLDOUT2_RETRIED).exists()
+    cli.fetch_relays()  # later runs: the stopping rule retries once, never again
+    assert retried == [{"rounds": ("holdout2",)}]
+
+
+def test_fetch_relays_does_not_retry_after_the_decision_froze(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    pl.DataFrame({"block_number": [1, 2]}).write_parquet(tmp_path / bq_blocks.BLOCKS_FILE)
+    (tmp_path / relays.HOLDOUT2_FILE).write_bytes(b"")
+    (tmp_path / HOLDOUT2_DECISION_FILE).write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(config, "RAW_DIR", tmp_path)
+    monkeypatch.setattr(cli.relays, "fetch_relay_sample", lambda *a: None)
+    monkeypatch.setattr(cli.relays, "retry_unchecked", lambda *a, **kw: pytest.fail("retried"))
+    cli.fetch_relays()
 
 
 def test_fetch_paths_targets_paid_and_payout_holdout2_blocks(

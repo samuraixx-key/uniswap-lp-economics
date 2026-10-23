@@ -36,7 +36,8 @@ follows the forwarder, written down before a fresh seed-45 holdout, passed 290 o
 states one split; the first decision stays on file as the record of the first test.
 
 - **bloXroute max-profit** did not answer for 341 sampled blocks (188 of the original sample, 75
-  and 78 of the two holdouts); whether the unexplained blocks are bloXroute-built stays open.
+  and 78 of the two holdouts), and 41 more of the sample were fetched before relay failures were
+  recorded; whether the unexplained blocks are bloXroute-built stays open.
 - **OKX order book** (ETH-USDC full L2, 2.9 GB) as a true mid, if the trade-side proxy is
   questioned.
 - The end-to-end synthetic world lacks a transferred NFT (Phase 5 added exact-output and to-price
@@ -50,6 +51,10 @@ states one split; the first decision stays on file as the record of the first te
 - S1 passes on the real data with a thin margin (9.4e-10 against `S1_REL_TOL = 1e-9`). It may fail
   on another machine. The tolerance was pre-registered, so it stays as it is; note this if a re-run
   elsewhere fails S1.
+- Stay on polars 2.0.0 (pinned in `uv.lock`). The strategy freeze checks the exact bytes of its
+  input files, and polars stamps its version into every parquet file it writes, so an upgrade
+  makes `ulpe strategy` refuse even on identical data. Checking contents instead of bytes would
+  need a second, post-tag fingerprint file; not worth it unless an upgrade is needed.
 
 - The website rounds numbers for reading (`$551k`, `$1.06M`); the exact values stay in
   `results/`. If `results/` ever changes, re-check every number on the site against it.

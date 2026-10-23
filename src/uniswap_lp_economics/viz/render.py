@@ -8,7 +8,7 @@ from pathlib import Path
 
 from matplotlib.figure import Figure
 
-from uniswap_lp_economics import config
+from uniswap_lp_economics import config, report
 from uniswap_lp_economics.viz import bots, fees_vs_lvr, hero, what_is_lvr, who_pays
 from uniswap_lp_economics.viz import discovery as viz_discovery
 from uniswap_lp_economics.viz import jit_block as viz_jit_block
@@ -68,6 +68,12 @@ def render_all(results_dir: Path, out_dir: Path, preview_dir: Path | None = None
 
 
 def run_figures() -> str:
+    for checks, step in (
+        ("analysis_checks", "analyze"),
+        ("lp_checks", "lp"),
+        ("strategy_checks", "strategy"),
+    ):
+        report.require_passed(config.RESULTS_DIR, checks, step)
     written = render_all(config.RESULTS_DIR, config.RESULTS_DIR / "figures")
     print(f"wrote {len(written)} figure files to {config.RESULTS_DIR / 'figures'}")
     return "OK"

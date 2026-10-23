@@ -61,7 +61,8 @@ are kept as the record of what was published before; `summary.json` no longer ca
 
 These blocks carry 297,357.38 USD (0.2060) of the 1,443,430.55 USD of single-pool builder
 payments (11,432 swaps), and 0.3767 of the primary proposer total. The sensitivity
-(`sensitivity_self_built` in `summary.json`, second table of `results/lvr_destination.md`) gives
+(`sensitivity_self_built` in [`summary.json` at tag `forwarder-preregistered`](https://raw.githubusercontent.com/samuraixx-key/uniswap-lp-economics/forwarder-preregistered/results/summary.json),
+before the class fix of section 20.1; the current results no longer compute it) gives
 them the paid blocks' proposer share instead of 1:
 
 ```
@@ -123,6 +124,10 @@ Each window block gets one class, in this order, from chain data only:
    `Q_b = R_b`.
 5. **unexplained**: everything else. `Q_b = R_b`.
 
+Counts in this section are from before the class fix of section 20.1 (the results in
+[`summary.json` at tag `forwarder-preregistered`](https://raw.githubusercontent.com/samuraixx-key/uniswap-lp-economics/forwarder-preregistered/results/summary.json)); section 20.1 gives the
+current ones.
+
 | Class | Blocks | Share of blocks | Single-pool builder USD | Share |
 |---|---|---|---|---|
 | empty | 175 | 0.03% | 0.00 | 0% |
@@ -132,7 +137,7 @@ Each window block gets one class, in this order, from chain data only:
 | unexplained | 21,754 | 3.30% | 633.49 | 0.044% |
 
 At thresholds of 20 and 100 blocks instead of 50 the payout class has 44,640 and 44,233 blocks
-(`class_counts_by_n` in `summary.json`). No payment from a payout address goes back to its fee
+(`class_counts_by_n` at that tag; 44,115 and 44,073 after the class fix). No payment from a payout address goes back to its fee
 recipient (0 top-ups). Payout recipients by type, from the code reads (a payment of exactly
 21,000 gas is a plain wallet without a read; code `0xef0100…` is an EIP-7702 delegated wallet,
 counted as a wallet, not a contract; no recipient's two reads differ):
@@ -185,7 +190,7 @@ relay delivered for a proposer other than the fee recipient.
 | holdout | payout | 289 | 289 | 132 |
 | holdout | unexplained | 4 | 0 | – |
 
-No class-4 block in any round was found on a relay (15 seen, 52 retry, 16 holdout sampled), so R1c
+No class-4 block in any round was found on a relay (15 seen, 52 retry, 16 holdout sampled; 22, 80 and 26 after the class fix), so R1c
 lists nothing: consistent with locally built blocks, as class 4 assumes.
 
 **Pre-registered decision.** One split only if, among found holdout blocks in class 3, at least
@@ -223,8 +228,9 @@ found holdout block of the rule matches the relay's value exactly.
 
 The payout rule's split was fixed with the rule before the run, so it is reported beside the
 published pair, labelled as measured payments that were not adopted because the pre-registered
-recipient check failed (`rule_split` in `summary.json`; last section of
-`results/lvr_destination.md`):
+recipient check failed (`rule_split` in [`summary.json` at tag
+`forwarder-preregistered`](https://raw.githubusercontent.com/samuraixx-key/uniswap-lp-economics/forwarder-preregistered/results/summary.json); the current results publish this split, so they
+no longer compute it separately):
 
 | | primary | sensitivity | measured payments; not adopted |
 |---|---|---|---|

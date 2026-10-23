@@ -8,7 +8,12 @@ from typing import TYPE_CHECKING, Any
 import polars as pl
 
 from uniswap_lp_economics.arbprofit import coinbase_payments
-from uniswap_lp_economics.data.relays import HOLDOUT2_FILE, HOLDOUT2_ROUND, HOLDOUT_FILE
+from uniswap_lp_economics.data.relays import (
+    HOLDOUT2_FILE,
+    HOLDOUT2_RETRIED,
+    HOLDOUT2_ROUND,
+    HOLDOUT_FILE,
+)
 from uniswap_lp_economics.io import hex_u256, ordered_group_by, read_exact, write_text_atomic
 from uniswap_lp_economics.lp import payouts
 from uniswap_lp_economics.lp.payouts import CLASSES
@@ -522,10 +527,12 @@ def check_r1_relays(
         }
     not_found = base.filter(~pl.col("found"))
     unchecked: int | None = None
-    answered: int | None = None
+    none_unchecked: int | None = None
     if "relays_unchecked" in relays.columns:
         unchecked = int(not_found["relays_unchecked"].is_not_null().sum())
-        answered = not_found.height - unchecked
+        # No relay recorded as unanswered. Not "every relay answered": rows fetched before
+        # failures were tracked carry a null too (the first 200 rows of the seed-42 sample).
+        none_unchecked = not_found.height - unchecked
     return CheckResult(
         "R1 relay vs on-chain proposer payment (reported)",
         True,
@@ -544,7 +551,7 @@ def check_r1_relays(
             "r1c_breaking_blocks": breaking.to_dicts(),
             "unexplained_by_relay": by_relay,
             "not_found_unchecked": unchecked,
-            "not_found_all_answered": answered,
+            "not_found_none_unchecked": none_unchecked,
         },
         reported=True,
     )
@@ -612,6 +619,12 @@ def paths_complete(raw_dir: Path, split: pl.DataFrame, paths: pl.DataFrame) -> b
         return False
     need = split.join(drawn, on="block_number", how="semi").filter(pl.col("cls").is_in(_PAYING))
     return need.join(paths, on="block_number", how="anti").height == 0
+
+
+def holdout2_ready(raw_dir: Path, split: pl.DataFrame, paths: pl.DataFrame) -> bool:
+    """The seed-45 stopping rule is met: its one retry pass is done and every payment path is
+    fetched (forwarder spec section 6: "fetched, then retried once", then the paths)."""
+    return (raw_dir / HOLDOUT2_RETRIED).exists() and paths_complete(raw_dir, split, paths)
 
 
 def settle_decision(

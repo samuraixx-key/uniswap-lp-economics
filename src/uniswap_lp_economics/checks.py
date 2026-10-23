@@ -169,13 +169,20 @@ def check_a3(aligned: pl.DataFrame, horizons: tuple[int, ...] = HORIZONS_S) -> C
     )
 
 
+# A reference older than this is a hole in the Binance data, not a quiet market: the longest gap
+# between two ETHUSDC trades in the window is 169 s (C5).
+MAX_REF_AGE_S = 600
+
+
 def check_a4(
     aligned: pl.DataFrame,
     ref_first_us: int,
     end_us: int,
     horizons: tuple[int, ...] = HORIZONS_S,
 ) -> CheckResult:
-    """A reference may be missing only outside the Binance data (plan Ruling 6)."""
+    """A reference may be missing only outside the Binance data (plan Ruling 6), and the
+    time-zero reference may not be older than MAX_REF_AGE_S (a gap in the trade data would
+    otherwise leave swaps with a valid but stale price)."""
     summary: dict[str, Any] = {}
     unexpected = 0
     for h in horizons:
@@ -188,8 +195,13 @@ def check_a4(
         summary[f"unexpected_null_{h}s"] = bad
         unexpected += bad
     summary["stale_ref_over_5s_at_0s"] = aligned.filter(pl.col("cex_age_s_0") > STALE_S).height
+    too_old = aligned.filter(pl.col("cex_age_s_0") > MAX_REF_AGE_S).height
+    summary[f"refs_older_than_{MAX_REF_AGE_S}s_at_0s"] = too_old
+    summary["max_ref_age_s_at_0s"] = aligned["cex_age_s_0"].max()
     return CheckResult(
-        "A4 Binance reference coverage", unexpected == 0 and aligned.height > 0, summary
+        "A4 Binance reference coverage",
+        unexpected == 0 and too_old == 0 and aligned.height > 0,
+        summary,
     )
 
 

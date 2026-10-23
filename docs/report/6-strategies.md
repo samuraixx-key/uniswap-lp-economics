@@ -38,7 +38,7 @@ section 1):
   strategy. It wrote them to
   [`results/strategy_freeze.json`](https://github.com/samuraixx-key/uniswap-lp-economics/blob/main/results/strategy_freeze.json),
   which was committed (`f565e41`) and tagged `strategy-preregistered` before any August–September
-  result existed. The report run reads every July value from that file and never rewrites it.
+  strategy result existed. The report run reads every July value from that file and never rewrites it.
 - **Two gates first.** S2 replays the window through the counterfactual pool at 5 bp with nothing
   replaced and reproduces the real pool exactly (534,377 swaps, 0 mismatches). S1 scores all 7,874
   window-active positions with the new range formula and matches the engine within a relative
@@ -104,7 +104,7 @@ flagged (peak share of active liquidity above 5%). Full return table:
 
 <figure markdown>
 
-![Model-only fee curves: arbitrage-side fees ÷ LVR rising with the fee from about 0.12 at 1 bp to 0.66 at 100 bp, with the dynamic rules at their average fee and the real pool's 0.43 at 5 bp; and whole-pool fees ÷ LVR at constant volume crossing 1 at about 8.6 bp, with the share of other volume the pool could lose before LPs are no better off than at 5 bp](../../results/figures/15_fee_curves.svg)
+![Model-only fee curves: arbitrage-side fees ÷ LVR rising with the fee from about 0.12 at 1 bp to 0.66 at 100 bp, with the dynamic rules at the fee they charged the arbitrage and the real pool's 0.43 at 5 bp; and whole-pool fees ÷ LVR at constant volume crossing 1 at about 8.6 bp, with the share of other volume the pool could lose before LPs are no better off than at 5 bp](../../results/figures/15_fee_curves.svg)
 
 </figure>
 
@@ -118,9 +118,12 @@ direction, not level.
   43% of its other volume before LPs are no better off than at 5 bp. That assumes removed flow
   takes its fees and LVR with it in proportion; it is the room that shortcut leaves, not a forecast.
 - **The mechanism shows up, untested.** The arbitrage-side ratio rises with the fee, from 0.12 at
-  1 bp to 0.66 at 100 bp. Volatility-scaled fees beat a fixed fee of the same average: k = 4 with a
-  25-block half-life averages 7.1 bp and reaches 0.53, against 0.38 for a fixed 7.5 bp. An oracle
-  fee that reads Binance (an upper bound, in no test) averages 37.8 bp and reaches 0.66.
+  1 bp to 0.66 at 100 bp. A volatility-scaled fee does better than a fixed one charging the
+  arbitrage as much: k = 4 with a 25-block half-life averages 7.1 bp over blocks but charges the
+  arbitrage 10.8 bp, since it is high when the arbitrage trades, and reaches 0.53, against 0.42
+  for a fixed 10 bp and 0.47 for a fixed 15 bp. An oracle fee set to the gap the arbitrage would
+  close is no upper bound: it leaves the arbitrage no profit below its 100 bp cap, so the arbitrage
+  pays 100 bp and the rule matches the fixed 100 bp fee (0.66).
 - **The protocol cut is the largest single lever, and arithmetic, not a model.** Full range's
   fees ÷ LVR over August–September is 0.755 at the actual cut of 1/4, 0.906 at 1/10 and 1.007 with
   no cut.

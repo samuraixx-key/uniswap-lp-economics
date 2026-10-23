@@ -116,7 +116,7 @@ def analysis_input_hashes(raw: Path, interim: Path, labels_csv: Path) -> dict[st
         *sorted((raw / transfers.TRANSFERS_DIR).glob("*.parquet")),
     ]
     hashes = {p.relative_to(raw.parent).as_posix(): validate.file_hash(p) for p in files}
-    hashes[f"labels/{labels_csv.name}"] = validate.file_hash(labels_csv)
+    hashes[f"labels/{labels_csv.name}"] = validate.text_hash(labels_csv)
     return hashes
 
 

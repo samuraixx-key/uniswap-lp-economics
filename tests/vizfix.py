@@ -353,6 +353,7 @@ def strategy_frames(summary: dict[str, Any]) -> dict[str, Any]:
                 {
                     "rule": f"fixed_{f:g}bp",
                     "avg_fee_bp": f,
+                    "arb_fee_bp": f,
                     "arb_ratio": a,
                     "d_arb": a - base,
                     "d_arb_lo": a - base - 0.01,
@@ -362,12 +363,17 @@ def strategy_frames(summary: dict[str, Any]) -> dict[str, Any]:
                     "ref_offset_s": off,
                 }
             )
-    for rule, avg in (("vol_k2_h25", 4.0), ("move_k1", 5.7), ("oracle", 37.8)):
+    for rule, avg, charged in (
+        ("vol_k2_h25", 4.0, 6.0),
+        ("move_k1", 5.7, 6.4),
+        ("oracle", 37.8, 100.0),
+    ):
         a = 0.1 + 0.15 * (avg / 100) ** 0.3
         fees.append(
             {
                 "rule": rule,
                 "avg_fee_bp": avg,
+                "arb_fee_bp": charged,
                 "arb_ratio": a,
                 "d_arb": a - 0.33,
                 "d_arb_lo": a - 0.34,

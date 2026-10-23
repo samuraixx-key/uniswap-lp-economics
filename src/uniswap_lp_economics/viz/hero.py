@@ -452,12 +452,14 @@ def hero(r: Results, size: tuple[float, float] = CANVAS) -> Figure:
         fig.text(sx, yy, big, fontsize=24, fontweight="bold", color=c, va="top")
         fig.text(sx, yy - 0.07, small, fontsize=9.3, color=p.muted, va="top", linespacing=1.35)
     took = "more than all of it" if bp > gross else f"{pct(bp / gross)} of it"
+    lp_fees = next(v for label, v, _ in st.dests if label == "LP fees")
     frame(
         fig,
         f"Where {usd(lvr)} of arbitrage went",
         f"LVR on searcher swaps, Uniswap V3 USDC/WETH 0.05%, {window_label(r.daily)}. "
-        f"{pct(fees / lvr)} came back to the pool as swap fees; of the searchers' {usd(gross)} "
-        f"gross profit, builders and proposers took {took}.",
+        f"{pct(lp_fees / lvr)} went to LPs as fees and {pct((fees - lp_fees) / lvr)} to the "
+        f"protocol; of the searchers' {usd(gross)} gross profit, builders and proposers took "
+        f"{took}.",
         _footnote(drawn, moved, kept),
     )
     _place_end_labels(fig, ax, labels)  # frame() resized the axes: restack at the final size

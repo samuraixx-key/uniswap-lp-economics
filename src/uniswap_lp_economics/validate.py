@@ -356,6 +356,12 @@ def file_hash(path: Path) -> str:
     return digest.hexdigest()[:16]
 
 
+def text_hash(path: Path) -> str:
+    """`file_hash` of a git-tracked text file read with LF line endings: a Windows checkout
+    (core.autocrlf) has CRLF where every other checkout has LF."""
+    return hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest()[:16]
+
+
 def git_commit() -> str:
     out = subprocess.run(
         ["git", "describe", "--always", "--dirty"], capture_output=True, text=True, cwd=config.ROOT

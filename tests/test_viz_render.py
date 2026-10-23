@@ -146,3 +146,15 @@ def test_no_text_runs_off_the_canvas(tmp_path: Path, stem: str) -> None:
         style.svg_bytes(fig)
     w, h = fig.bbox.width, fig.bbox.height
     assert all(b.x0 >= -1 and b.x1 <= w + 1 and b.y0 >= -1 and b.y1 <= h + 1 for b in boxes)
+
+
+def test_ulpe_figures_refuses_after_a_failed_step(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    results = write_results(tmp_path, fixture_frames())
+    monkeypatch.setattr(render.config, "RESULTS_DIR", results)
+    for name in ("analysis_checks", "lp_checks", "strategy_checks"):
+        (results / f"{name}.json").write_text('{"status": "PASS"}', encoding="utf-8")
+    (results / "lp_checks.json").write_text('{"status": "FAIL"}', encoding="utf-8")
+    with pytest.raises(RuntimeError, match="lp_checks.json status is FAIL"):
+        render.run_figures()

@@ -24,6 +24,7 @@ from uniswap_lp_economics.data import blocks as bq_blocks
 from uniswap_lp_economics.io import read_exact, write_exact, write_text_atomic
 from uniswap_lp_economics.lp import analyze as lp_analysis_module
 from uniswap_lp_economics.lp import payouts
+from uniswap_lp_economics.lp.checks import HOLDOUT2_DECISION_FILE
 from uniswap_lp_economics.lp.positions import build_positions
 from uniswap_lp_economics.rpc import RpcClient
 from uniswap_lp_economics.strategy import analyze as strategy_analysis_module
@@ -233,10 +234,14 @@ def fetch_relays() -> None:
         )
     else:
         print("holdout waits for `ulpe fetch-builders` (last-transaction table missing)")
-    # Only the seed-45 round is retried (the published rounds never change), and only on a run
-    # that found its draw already on disk: "fetched, then retried once (fetch-relays run twice)".
-    if drawn_before:
+    # Only the seed-45 round is retried (the published rounds never change), once, on the run
+    # after its draw: "fetched, then retried once (fetch-relays run twice)". A frozen decision
+    # means the stopping rule is already met.
+    retried = config.RAW_DIR / relays.HOLDOUT2_RETRIED
+    frozen = (config.RAW_DIR / HOLDOUT2_DECISION_FILE).exists()
+    if drawn_before and not retried.exists() and not frozen:
         relays.retry_unchecked(config.RAW_DIR, rounds=(relays.HOLDOUT2_ROUND,))
+        write_text_atomic(retried, datetime.now(UTC).isoformat(timespec="seconds") + "\n")
 
 
 def _block_classes() -> pl.DataFrame:
@@ -326,6 +331,7 @@ ALL_STEPS = (
     "fetch-builders",
     "fetch-payout-code",
     "fetch-relays",
+    "fetch-relays",  # again: the seed-45 holdout's one retry pass, as its stopping rule says
     "fetch-timing",
     "fetch-paths",
     "fetch-futures",
@@ -384,7 +390,7 @@ def run_step(name: str, confirm_cost: bool) -> str:
     elif name == "figures":
         try:
             return viz_render.run_figures()
-        except FileNotFoundError as e:
+        except (FileNotFoundError, RuntimeError) as e:
             raise SystemExit(str(e)) from None
     else:
         raise ValueError(f"unknown pipeline step {name!r}")

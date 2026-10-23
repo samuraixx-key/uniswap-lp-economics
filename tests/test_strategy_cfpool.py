@@ -271,6 +271,9 @@ def test_arbitrage_closes_the_gap() -> None:
     assert run.daily["n_arb"].to_list() == [1] and run.counts["arb_trades"] == 1
     assert set(run.steps["source"]) == {"arb"} and set(run.steps["log_index"]) == {-1}
     assert run.daily["lvr_arb_usd"][0] > 0 and run.daily["fee_arb_total_usd"][0] > 0
+    # the fee the arbitrage was charged, per dollar it put in (gross of the fee): 5 bp here
+    charged = run.daily["fee_arb_total_usd"][0] / run.daily["arb_in_usd"][0]
+    assert charged == pytest.approx(0.0005, rel=1e-3)
     none = run_pool(ci, FixedFee(500), replace=True, min_profit_gas=10**30)
     assert none.counts["below_min_profit"] == 1 and none.counts["arb_trades"] == 0
     assert none.daily["n_arb"].to_list() == [0]

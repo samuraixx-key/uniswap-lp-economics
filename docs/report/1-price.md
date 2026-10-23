@@ -5,7 +5,7 @@
 
 **On Binance.** The pool follows one block later: per-block returns correlate **0.59** with
 Binance's move in the block before, and only 0.06 within the same block. The gaps this leaves are
-small (median 3.08 bp) and closed fast, mostly by the first block that can react.
+small (median 3.08 bp) and closed fast: half of those wider than 5 bp within two blocks.
 
 </div>
 
@@ -58,7 +58,8 @@ correlation stays between −0.01 and 0.02. The pool's move in a block tracks Bi
   the 659,799 blocks start outside the ±5 bp fee band.
 - An AR(1) fit of the gap gives φ = 0.69: a half-life of 1.85 blocks (22.2 s).
 - Searchers close 74% of the 70,290 gaps wider than 5 bp and 92% of the 12,583 wider than 10 bp.
-  The median gap lasts 12 s: until the first block that can react.
+  Half of the gaps wider than 5 bp close within 24 s (two blocks) and half of those wider than
+  10 bp within 12 s, the first block that can react.
 
 <div class="admonition warning" markdown>
 <p class="admonition-title">Read with care</p>
@@ -79,10 +80,10 @@ the only reference venue. [All limitations →](../how/limitations.md#price-disc
 </details>
 
 <details class="success" markdown>
-<summary>Checks A1–A6 passed before these numbers were written</summary>
+<summary>Checks A1–A4 passed before these numbers were written</summary>
 
-`ulpe analyze` writes these results only after the gated checks A1–A4 pass (A5–A6 are reported;
-all six passed): every swap is re-simulated within tolerance, the block series is complete, and trader + LP + protocol markouts sum to zero on
+`ulpe analyze` writes these results only after the gated checks A1–A4 pass (A5–A6 only report,
+they have no pass rule): every swap is re-simulated within tolerance, the block series is complete, and trader + LP + protocol markouts sum to zero on
 every swap.
 
 </details>

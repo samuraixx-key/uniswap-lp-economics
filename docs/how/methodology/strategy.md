@@ -134,9 +134,12 @@ swaps, 0 mismatches.
 | fixed | f | 1, 2.5, 5 (baseline), 7.5, 10, 15, 20, 30, 50, 100 bp |
 | volatility | clamp(k × √EWMA(r²), 1 bp, 100 bp); r = the pool's block-to-block log return, EWMA decay 0.5^(1/h) per block, started at 0 | k ∈ {1, 2, 4}, h ∈ {25, 150, 900} blocks (about 5 min, 30 min, 3 h) |
 | move | clamp(5 bp + k × \|r of the previous block\|, 1 bp, 100 bp) | k ∈ {0.5, 1, 2, 4} |
-| oracle (upper bound) | clamp(max(5 bp, \|ln(P_pool / P_ref)\| at block start), 1 bp, 100 bp) | none |
+| oracle | clamp(max(5 bp, \|ln(P_pool / P_ref)\| at block start), 1 bp, 100 bp) | none |
 
-Each rule is reported with its average charged fee (mean over blocks). Every grid point is
+Each rule is reported with two fees: the mean over blocks (`avg_fee_bp`), and the fee charged to
+the arbitrage, its fees over what it put in, fee included (`arb_fee_bp`). The second is spec
+6.5's "average charged fee": a dynamic rule charges most in the blocks that trade, so the block
+mean understates it, and figure 15 places each rule at it. Every grid point is
 reported; none is selected on July. The fixed levels run at the 0 s and +1 s references, the
 dynamic rules at 0 s.
 
@@ -230,6 +233,10 @@ fees − LVR: the benchmark is the free continuous hedge.
    mint and one exit, so no difference against full range changes.
 5. **A re-centring segment starts at the block start**, before the block's simulated arbitrage
    and events.
+6. **The oracle fee is clamped to 100 bp** like the other rules (spec 6.5 gives it no clamp). Set
+   to the gap the arbitrage would close, it leaves the arbitrage no profit below the clamp, so
+   the arbitrage trades only at 100 bp: on the arbitrage side the rule is the fixed 100 bp fee,
+   not an upper bound.
 6. **The fee runs use 4 worker processes by default** (about 1.35 GB of memory each), not one per
    core.
 7. **The report files were regenerated once, after the freeze, to make re-runs byte-identical.**

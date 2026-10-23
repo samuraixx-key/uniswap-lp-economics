@@ -21,6 +21,8 @@ RELAY_FILE = "relays.parquet"
 HOLDOUT_FILE = "relay_holdout.parquet"
 HOLDOUT2_FILE = "relay_holdout_2.parquet"  # the seed-45 holdout (forwarder spec section 5)
 HOLDOUT2_ROUND = "holdout2"
+# Written once the seed-45 stopping rule's one retry pass is done ("fetched, then retried once")
+HOLDOUT2_RETRIED = "relay_holdout_2.retried"
 # Rounds already published: their rows in the relay file never change (forwarder spec section 5).
 PUBLISHED_ROUNDS = ("seen", "retry", "holdout")
 PATH = "/relay/v1/data/bidtraces/proposer_payload_delivered"

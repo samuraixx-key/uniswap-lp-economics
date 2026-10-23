@@ -353,6 +353,14 @@ def strategy_analysis(
             gates + results, results_dir, meta, stem="strategy_checks", title="Strategy checks"
         )
         write_freeze(freeze_path, {**payload, **meta, "input_hashes": hashes})
+        # Report results from an earlier freeze no longer match this one: drop them, so
+        # `ulpe figures` refuses until the report run rebuilds them.
+        summary_path = results_dir / "summary.json"
+        summary = (
+            json.loads(summary_path.read_text(encoding="utf-8")) if summary_path.exists() else {}
+        )
+        if summary.pop("strategy", None) is not None:
+            report.write_summary(summary, results_dir)
         print(
             f"July frozen: commit results/{FREEZE_FILE}, tag it {PREREG_TAG}, "
             "then run ulpe strategy again"
@@ -553,7 +561,7 @@ def _verdict_label(rule: str, offset: float) -> str:
     if offset != 0:
         return "sensitivity (+1 s)"
     if rule == OracleFee().name:
-        return "upper bound (not tested)"
+        return "oracle (not tested): arbitrage pays the 100 bp cap"
     if rule.startswith(("vol_", "move_")):
         return "reported in full (not tested)"
     return "baseline"
@@ -622,7 +630,7 @@ def _report(
     arb = (["fee_arb_pl"], ["lvr_arb_pl"])
 
     def sums(daily: pl.DataFrame) -> dict[str, float]:
-        cols = [*_PL, "fee_pips_sum", "n_blocks"]
+        cols = [*_PL, "fee_pips_sum", "n_blocks", "fee_arb_total_usd", "arb_in_usd"]
         return {
             c: float(v)
             for c, v in stats.on_grid(daily, p.days, cols)
@@ -652,6 +660,11 @@ def _report(
                 "rule": rule,
                 "avg_fee_bp": s["fee_pips_sum"] / s["n_blocks"] / 100
                 if s["n_blocks"]
+                else math.nan,
+                # what the arbitrage was charged per dollar it traded: dynamic rules charge
+                # most in the blocks that trade, so this sits above the block average
+                "arb_fee_bp": s["fee_arb_total_usd"] / s["arb_in_usd"] * 1e4
+                if s["arb_in_usd"]
                 else math.nan,
                 "arb_ratio": _ratio(s["fee_arb_pl"], s["lvr_arb_pl"]),
                 "d_arb": pr.point,
@@ -710,6 +723,7 @@ def _report(
     fee_cols = [
         "rule",
         "avg_fee_bp",
+        "arb_fee_bp",
         "arb_ratio",
         "d_arb",
         "d_arb_lo",
@@ -752,9 +766,10 @@ def _hedge(
 
 
 def run_strategy() -> str:
-    """Refuses unless validation passed, `ulpe lp` wrote summary.json["lp"] and the processed LP
-    files exist."""
+    """Refuses unless validation passed, the latest `ulpe lp` passed its checks and wrote
+    summary.json["lp"], and the processed LP files exist."""
     validate.require_validated()
+    report.require_passed(config.RESULTS_DIR, "lp_checks", "lp")
     summary = config.RESULTS_DIR / "summary.json"
     if not summary.exists() or "lp" not in json.loads(summary.read_text(encoding="utf-8")):
         raise RuntimeError(f'{summary} has no "lp" results; run `ulpe lp` first')

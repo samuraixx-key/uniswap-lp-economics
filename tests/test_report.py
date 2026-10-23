@@ -4,11 +4,13 @@ from datetime import date
 from pathlib import Path
 
 import polars as pl
+import pytest
 
 from uniswap_lp_economics.report import (
     LIMITATION_TEXT,
     markdown_table,
     metrics_table,
+    require_passed,
     write_summary,
     write_table,
 )
@@ -44,3 +46,14 @@ def test_write_summary_cleans_values(tmp_path: Path) -> None:
         "y": [None, 1.0],
         "d": "2026-07-01",
     }
+
+
+def test_require_passed_refuses_unless_the_checks_file_says_pass(tmp_path: Path) -> None:
+    # a failed step leaves its previous outputs on disk; the next step must not consume them
+    with pytest.raises(RuntimeError, match="analysis_checks.json"):
+        require_passed(tmp_path, "analysis_checks", "analyze")  # missing
+    (tmp_path / "analysis_checks.json").write_text('{"status": "FAIL"}', encoding="utf-8")
+    with pytest.raises(RuntimeError, match="FAIL"):
+        require_passed(tmp_path, "analysis_checks", "analyze")
+    (tmp_path / "analysis_checks.json").write_text('{"status": "PASS"}', encoding="utf-8")
+    require_passed(tmp_path, "analysis_checks", "analyze")

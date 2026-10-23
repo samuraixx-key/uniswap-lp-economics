@@ -122,7 +122,8 @@ Available arbitrage ignores gas, Binance depth and fees beyond the 1 bp sensitiv
 gap that stays open again at each block start. Failed bot transactions emit no swap, so their gas
 is missed (another reason kept is an upper bound); multi-pool transactions are reported gross only.
 bloXroute's max-profit relay, down throughout, left 188 sampled blocks and 75 and 78 blocks of the
-two holdouts without an answer.
+two holdouts without an answer; 41 more sampled blocks were fetched before relay failures were
+recorded, so up to 229 may lack its answer.
 [All limitations →](../how/limitations.md#price-discovery-and-markouts-sub-project-2)
 
 </details>
