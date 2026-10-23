@@ -68,6 +68,11 @@ markdown_extensions:
 
 nav:
   - Home: index.md
+  - Report:
+      - report/index.md
+      - 1. Where is the price set?: report/1-price.md
+      - 2. Who has edge against the pool?: report/2-edge.md
+      - 3. The arbitrage auction: report/3-auction.md
   - How I worked:
       - how/index.md
       - Why these choices: how/choices.md
