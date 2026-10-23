@@ -191,7 +191,7 @@ def test_reported_checks_r1_and_r2() -> None:
     s = r1.summary
     assert (s["sampled"], s["found_on_a_relay"], s["compared_with_on_chain"]) == (4, 3, 2)
     assert (s["match_within_1_wei"], s["match_within_1pct"]) == (1, 2)
-    assert s["not_found_unchecked"] is None and s["not_found_all_answered"] is None
+    assert s["not_found_unchecked"] is None and s["not_found_none_unchecked"] is None
     seen = s["by_round"]["seen"]  # a file with no round column: everything is seen
     assert seen[PAID] == {
         **_ZERO,
@@ -318,7 +318,7 @@ def test_r1_counts_not_found_blocks_by_relay_coverage() -> None:
     )
     r1 = check_r1_relays(relays, split, NO_USD)
     assert r1.summary["not_found_unchecked"] == 2
-    assert r1.summary["not_found_all_answered"] == 1
+    assert r1.summary["not_found_none_unchecked"] == 1
     paid = r1.summary["by_round"]["seen"][PAID]
     # PROPOSER is not the last transaction's to_address (0xee): compared, not matched.
     assert paid == {

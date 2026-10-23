@@ -527,10 +527,12 @@ def check_r1_relays(
         }
     not_found = base.filter(~pl.col("found"))
     unchecked: int | None = None
-    answered: int | None = None
+    none_unchecked: int | None = None
     if "relays_unchecked" in relays.columns:
         unchecked = int(not_found["relays_unchecked"].is_not_null().sum())
-        answered = not_found.height - unchecked
+        # No relay recorded as unanswered. Not "every relay answered": rows fetched before
+        # failures were tracked carry a null too (the first 200 rows of the seed-42 sample).
+        none_unchecked = not_found.height - unchecked
     return CheckResult(
         "R1 relay vs on-chain proposer payment (reported)",
         True,
@@ -549,7 +551,7 @@ def check_r1_relays(
             "r1c_breaking_blocks": breaking.to_dicts(),
             "unexplained_by_relay": by_relay,
             "not_found_unchecked": unchecked,
-            "not_found_all_answered": answered,
+            "not_found_none_unchecked": none_unchecked,
         },
         reported=True,
     )
