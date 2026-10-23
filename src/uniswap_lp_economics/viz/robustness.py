@@ -150,7 +150,7 @@ def reference_and_timing(r: Results) -> Figure:
             if p50 is not None and median is not None
             else ""
         )
-        + f". Dashed: the protocol's fee cut ({usd(-cut)}).",
+        + f". Purple line: the protocol's fee cut ({usd(-cut)}).",
         (
             f"Winning bids: 10th–90th percentile on the {timing['n_timed']:,} of "
             f"{timing['n_queried']:,} sampled blocks that Titan, Flashbots or Aestus delivered "

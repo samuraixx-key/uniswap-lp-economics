@@ -212,7 +212,7 @@ events.
 
 **A3: trader + LP + protocol fee = 0.** For every swap and horizon with a markout, the absolute
 residual must be below 1e-6 USD; a row with a markout but a null or NaN residual fails. Result:
-2,671,386 values, largest residual 2.205524651799351e-11 USD.
+2,671,386 values, largest residual 6.991740519879386e-12 USD.
 *Proves:* no missing or misaligned LP or fee column at any horizon. *Does not prove:* that the
 reference price is right; the identity holds by construction.
 
@@ -225,7 +225,7 @@ Also reports the swaps whose 0 s reference is older than 5 s. Result: no unexpec
 swaps with a 0 s reference older than 5 s (covered by the `exclude_stale_over_5s` variant).
 *Proves:* no swap inside the data lacks a reference or has one from across a data gap.
 
-**A5: label coverage (reported).** Notional share of `other_contract` (0.10897229175784204) and of
+**A5: label coverage (reported).** Notional share of `other_contract` (0.10897229175784207) and of
 every label, and the top unlabelled transaction targets.
 
 **A6: builder payments (reported).** Over the 110,989 top-bot transactions: 56,724 internal

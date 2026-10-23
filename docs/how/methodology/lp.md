@@ -243,8 +243,9 @@ Per window-active position, in USD ([`results/positions.csv`](https://github.com
   at the snapshot pool price. This compares the LP with holding the deposited tokens.
 - **Rate:** `bp_per_day = pnl_rebal / (twv × days) × 10⁴` (and `bp_per_day_hold` with `pnl_hold`).
   `twv`, the time-weighted value, is the mean of the position's USD value at each UTC hour start in
-  `[t_start, t_exit)`: its liquidity at that time, as token amounts at the pool price of the block
-  in force, valued at that block's `P_cex` (Ruling 5). A position open at no hour start uses the
+  `[t_start, t_exit)`: its liquidity at that time, as token amounts at the pool price at the start
+  of the last block at or before the hour, valued at that block's `P_cex` (Ruling 5; the price before
+  that block's swaps, at most one block stale). A position open at no hour start uses the
   value of its first in-window deposit (or of its start holdings) at that block's price. `days` is
   `(t_exit − t_start) / 86,400 s`; a `jit` position counts one 12 s slot.
 - **Groups** ([`results/lp_groups.md`](https://github.com/samuraixx-key/uniswap-lp-economics/blob/main/results/lp_groups.md)), by LP type, range width, holding
@@ -374,7 +375,8 @@ inputs changes no file. The style (palette, Inter font, title block) is in `viz/
 | 13 Reference and timing | `reference_robustness.csv`, `summary.json` `lp.robustness`, `lp.protocol_fees_usd` |
 
 **Episode selection (figure 2).** The day with the largest measured LVR (0 s; the earliest on
-ties); within it, the 20-block stretch with the largest absolute Binance log move; the figure shows
+ties); within it, the largest absolute Binance log move between a block and the block 20 later
+(a 21-block stretch); the figure shows
 32 blocks starting 4 blocks before that stretch (fewer at the day's edges).
 
 **JIT block selection (figure 11).** Among JIT positions whose own transactions (mint and burn) also

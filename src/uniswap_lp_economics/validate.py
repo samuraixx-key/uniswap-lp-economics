@@ -207,6 +207,16 @@ def check_c4(ticks: pl.DataFrame, meta: dict[str, int]) -> CheckResult:
     )
 
 
+# The Binance files validation reads: the window's trades and 1-second candles.
+# `fetch-price-history` later saves 1-minute klines (lifetime P&L) into the same folder; they are
+# not validation inputs.
+BINANCE_INPUTS = ("ETHUSDC-aggTrades-*.zip", "ETHUSDT-1s-*.zip")
+
+
+def binance_inputs(binance_dir: Path) -> list[Path]:
+    return sorted(p for pattern in BINANCE_INPUTS for p in binance_dir.glob(pattern))
+
+
 def check_c5(
     raw_logs: pl.DataFrame, events: pl.DataFrame, trades: pl.DataFrame, binance_dir: Path
 ) -> CheckResult:
@@ -218,7 +228,7 @@ def check_c5(
     outside = raw_logs.filter((ts < start) | (ts >= end)).height
     other = events.filter(pl.col("event") == "other").height
     bad_sums = []
-    zips = sorted(binance_dir.glob("*.zip"))
+    zips = binance_inputs(binance_dir)
     for z in zips:
         checksum = z.with_name(z.name + ".CHECKSUM")
         if (
@@ -376,7 +386,7 @@ def input_hashes(raw: Path, interim: Path) -> dict[str, str]:
         raw / "tickbook_snapshot.parquet",
         raw / "snapshot_meta.json",
         *sorted(raw.glob("onchain_sample*.parquet")),
-        *sorted((raw / "binance").glob("*.zip")),
+        *binance_inputs(raw / "binance"),
         *sorted(interim.glob("*.parquet")),
     ]
     root = raw.parent

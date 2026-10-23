@@ -45,6 +45,11 @@ the pool's full history is needed to know their state and their LP:
 and 1-minute klines for July–September, from data.binance.vision, checksum-verified (the hedge
 instrument). No new BigQuery query.
 
+**Third-party data in the repository.** Two figure-data files, `results/figure_data/episode_cex.csv`
+and the `p_cex` column of `episode_blocks.csv`, hold raw Binance trade prices from
+data.binance.vision. They are Binance's data, included only to draw figure 2, and are not covered
+by the repository's MIT licence. Every other file in `results/` holds derived statistics.
+
 ## Validation
 
 Full report: [`data_validation/validation_report.md`](https://github.com/samuraixx-key/uniswap-lp-economics/blob/main/data_validation/validation_report.md)

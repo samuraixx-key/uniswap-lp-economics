@@ -1,4 +1,6 @@
+import hashlib
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 
 import polars as pl
@@ -11,6 +13,7 @@ from uniswap_lp_economics.validate import (
     c2_tick_ok,
     check_c3,
     check_c4,
+    check_c5,
     check_c6,
     file_hash,
     input_hashes,
@@ -304,13 +307,16 @@ def test_input_hashes_cover_every_input(tmp_path: Path) -> None:
         raw / "snapshot_meta.json",
         raw / "onchain_samples.parquet",
         raw / "onchain_sample_ticks.parquet",
-        raw / "binance" / "x.zip",
+        raw / "binance" / "ETHUSDC-aggTrades-2026-07.zip",
+        raw / "binance" / "ETHUSDT-1s-2026-07.zip",
         interim / "events.parquet",
         interim / "swaps.parquet",
         interim / "cex_ethusdc.parquet",
     ]
     for p in names:
         p.write_bytes(p.name.encode())
+    # `fetch-price-history` (after validate) saves 1-minute klines here; validation never reads them
+    (raw / "binance" / "ETHUSDT-1m-2021-05.zip").write_bytes(b"later")
     hashes = input_hashes(raw, interim)
     assert set(hashes) == {p.relative_to(tmp_path).as_posix() for p in names}
     assert all(len(h) == 16 for h in hashes.values())
@@ -343,3 +349,36 @@ def test_text_hash_is_the_same_for_every_line_ending(tmp_path: Path) -> None:
     lf.write_bytes(b"address,name\n0xab,bot\n")
     crlf.write_bytes(b"address,name\r\n0xab,bot\r\n")
     assert text_hash(crlf) == text_hash(lf) == file_hash(lf)
+
+
+def _c5_inputs(tmp_path: Path) -> tuple[pl.DataFrame, pl.DataFrame, pl.DataFrame, Path]:
+    binance = tmp_path / "binance"
+    binance.mkdir()
+    z = binance / "ETHUSDC-aggTrades-2026-07.zip"
+    z.write_bytes(b"trades")
+    digest = hashlib.sha256(b"trades").hexdigest()
+    (binance / (z.name + ".CHECKSUM")).write_text(f"{digest}  {z.name}\n")
+    (binance / "ETHUSDT-1m-2021-05.zip").write_bytes(b"klines")  # no checksum: not a C5 input
+    ts = datetime(2026, 7, 2, tzinfo=UTC)
+    logs = pl.DataFrame(
+        {"block_number": [1, 2], "log_index": [0, 0], "from_address": ["0xa", "0xb"]}
+    ).with_columns(block_timestamp=pl.lit(ts))
+    events = pl.DataFrame({"event": ["swap", "mint"]})
+    trades = pl.DataFrame({"ts_us": [0, 1_000_000]})
+    return logs, events, trades, binance
+
+
+def test_c5_passes_on_clean_inputs_and_fails_on_each_defect(tmp_path: Path) -> None:
+    logs, events, trades, binance = _c5_inputs(tmp_path)
+    ok = check_c5(logs, events, trades, binance)
+    assert ok.passed and ok.summary["binance_files"] == 1
+    assert not check_c5(pl.concat([logs, logs.head(1)]), events, trades, binance).passed
+    late = logs.with_columns(block_timestamp=pl.lit(datetime(2026, 10, 1, tzinfo=UTC)))
+    assert not check_c5(late, events, trades, binance).passed
+    unjoined = logs.with_columns(from_address=pl.lit(None, dtype=pl.String))
+    assert not check_c5(unjoined, events, trades, binance).passed
+    (binance / "ETHUSDC-aggTrades-2026-07.zip.CHECKSUM").write_text("0" * 64)
+    assert not check_c5(logs, events, trades, binance).passed
+    empty = tmp_path / "none"
+    empty.mkdir()
+    assert not check_c5(logs, events, trades, empty).passed

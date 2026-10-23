@@ -28,8 +28,8 @@ uv run ulpe all --confirm-cost    # the whole pipeline: fetch anything missing, 
 
 Sub-project 3 runs two sets of paid BigQuery queries, once each. The position history scans about
 3 TB (dry run 2.98 TB) and is billed once: its first stage writes a BigQuery table that a re-run
-reuses for 7 days, and the downloaded files are skipped afterwards. The three builder queries scan
-about 0.66 TB in total. A Google Cloud free-trial credit covered both for us. Without
+reuses for 7 days, and the downloaded files are skipped afterwards. The four builder queries scan
+about 676 GB in total. A Google Cloud free-trial credit covered both for us. Without
 `--confirm-cost`, `ulpe all` issues no billable BigQuery query: it runs every step whose data is
 already on disk, and stops with a message at the first BigQuery step whose output is missing (pool
 logs, blocks, history or builder tables). `ulpe fetch-history` on its own also refuses to query
