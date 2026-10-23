@@ -23,4 +23,22 @@ page: the answer first, then the evidence, then the caveats.</p>
 
     [Chapter 3 →](3-auction.md)
 
+-   **4. The passive market maker's P&L**
+
+    LP fees fall $1.06M short of LVR; $0.88M of that is the protocol's cut.
+
+    [Chapter 4 →](4-lp-pnl.md)
+
+-   **5. Is it the reference price?**
+
+    Mostly not: a later read deepens the loss, and it turns positive only 3 s before the slot.
+
+    [Chapter 5 →](5-reference.md)
+
+-   **6. Can an LP do better?**
+
+    Not by range or hedge (pre-registered); the fee is the lever, but untested.
+
+    [Chapter 6 →](6-strategies.md)
+
 </div>

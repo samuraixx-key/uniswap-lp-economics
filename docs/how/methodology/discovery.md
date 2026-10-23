@@ -46,7 +46,7 @@ The net ratio reported (`kept_over_top_bot_gross` in
 transactions. The spec's `kept / captured` would divide the top bots' single-pool result by all
 searchers' 0 s markouts, mixing two populations, so it is not reported.
 
-Required limitation text (also in the report, `results/arbitrage.md` and `results/bot_profit.md`):
+Required limitation text (also in [the report](../../report/3-auction.md), `results/arbitrage.md` and `results/bot_profit.md`):
 
 > Builder payments are detected only as direct ETH transfers from the bot contract to the block's fee recipient within the same transaction. Payments routed elsewhere (another contract, a separate transaction in the bundle, off-chain agreements) are missed, so the reported net profit is an **upper bound** on what the bots keep. Binance-side trading fees, inventory and hedging costs are not observed.
 

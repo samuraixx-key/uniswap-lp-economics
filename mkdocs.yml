@@ -73,6 +73,9 @@ nav:
       - 1. Where is the price set?: report/1-price.md
       - 2. Who has edge against the pool?: report/2-edge.md
       - 3. The arbitrage auction: report/3-auction.md
+      - 4. The passive market maker's P&L: report/4-lp-pnl.md
+      - 5. Is it the reference price?: report/5-reference.md
+      - 6. Can an LP do better?: report/6-strategies.md
   - How I worked:
       - how/index.md
       - Why these choices: how/choices.md

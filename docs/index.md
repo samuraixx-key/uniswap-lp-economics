@@ -26,6 +26,8 @@ the pool, who pays for it, and where the money ends up.</p>
     <span class="caveat">Caveat: block resolution (12 s). This shows when the pool reacts, not who
     discovers the price within a block.</span>
 
+    [Chapter 1 →](report/1-price.md)
+
 -   **Bots have the edge**
 
     <span class="big"><span class="pos">+2.86 bp</span> vs <span class="neg">−10.66 bp</span></span>
@@ -34,6 +36,8 @@ the pool, who pays for it, and where the money ends up.</p>
 
     <span class="caveat">Caveat: against Binance's last trade at the block time. Read 2 s
     earlier, the bots' edge is 1.80 bp.</span>
+
+    [Chapter 2 →](report/2-edge.md)
 
 -   **The LP loses; block producers collect**
 
@@ -44,6 +48,8 @@ the pool, who pays for it, and where the money ends up.</p>
     <span class="caveat">Caveat: $0.88M of the gap is the protocol's quarter of the fees. Before
     that cut, the shortfall is $0.18M and its interval includes zero.</span>
 
+    [Chapters 3–4 →](report/3-auction.md)
+
 </div>
 
 <div class="admonition question" markdown>
@@ -51,7 +57,7 @@ the pool, who pays for it, and where the money ends up.</p>
 
 **No.** Passive LP in this pool doesn't pay after the protocol's cut. An hourly hedge cuts a
 full-range position's daily P&L spread from $16.4k to $160 per $1M, which changes the risk, not
-the edge.
+the edge. [The strategy test →](report/6-strategies.md)
 
 </div>
 
@@ -75,3 +81,6 @@ the edge.
     Data checks gate every result, and a re-run reproduces every result file byte for byte.
 
 </div>
+
+[Read the report :material-arrow-right:](report/index.md){ .md-button .md-button--primary }
+[How I worked :material-arrow-right:](how/index.md){ .md-button }

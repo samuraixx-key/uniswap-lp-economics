@@ -64,7 +64,7 @@ Every label keeps its sign in all four variants up to 5 minutes; in every varian
 interval excludes zero at every horizon, except intent settlement at 1 h. Reading Binance 2 s
 earlier lowers the searchers' 0 s edge from 2.86 to 1.80 bp but leaves 12 s almost unchanged
 (3.57 against 3.58). The ETHUSDT column also carries the USDT/USDC rate. For the LP result, see
-chapter 5.
+[chapter 5](5-reference.md).
 
 </details>
 

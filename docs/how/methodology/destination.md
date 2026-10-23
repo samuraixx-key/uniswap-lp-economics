@@ -85,7 +85,7 @@ split (proposer 594,782.47, 0.1435; builder margin 848,648.09, 0.2048), which li
 pair: most of these blocks paid their proposer from a payout address, and paid less than either
 method assumed.
 
-Required limitation text (also in the report and `results/lvr_destination.md`):
+Required limitation text (also in [the report](../../report/3-auction.md) and `results/lvr_destination.md`):
 
 > The split of builder payments between builder and proposer uses each block's ratio of proposer payment to builder revenue; how a builder prices an individual transaction is not observed. Proposer payments are identified as the block's last transaction, sent by the fee recipient or by a payout address learned from chain data, and tested on a blind stratified relay sample; blocks where neither applies give the proposer the whole builder revenue.
 
