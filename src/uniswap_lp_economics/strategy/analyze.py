@@ -7,6 +7,7 @@ value taken from the file, which it never rewrites.
 
 import json
 import math
+import multiprocessing
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import asdict, dataclass
 from datetime import UTC, date, datetime
@@ -177,7 +178,11 @@ def fee_runs(ci: CfInputs, min_profit_gas: int, workers: int = DEFAULT_WORKERS) 
         finally:
             _init_worker(None)
     else:
-        with ProcessPoolExecutor(workers, initializer=_init_worker, initargs=(ci,)) as ex:
+        # spawn, not Linux's default fork: forking after polars starts its threads deadlocks
+        spawn = multiprocessing.get_context("spawn")
+        with ProcessPoolExecutor(
+            workers, mp_context=spawn, initializer=_init_worker, initargs=(ci,)
+        ) as ex:
             out = list(ex.map(_fee_run, jobs))
     return {(rule.name, off): o for (rule, off, _), o in zip(jobs, out, strict=True)}
 
