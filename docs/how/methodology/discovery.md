@@ -218,10 +218,12 @@ reference price is right; the identity holds by construction.
 
 **A4: reference coverage (Ruling 6).** Per horizon, the swaps without a reference. A null is allowed
 only when `t0 + h` is at or after the window end or before the first Binance trade; any other null
-fails. Also reports the swaps whose 0 s reference is older than 5 s. Result: no unexpected null;
-0, 0, 10, 35 and 454 nulls at 0, 12, 60, 300 and 3,600 s; 73,139 swaps with a 0 s reference older
-than 5 s (covered by the `exclude_stale_over_5s` variant).
-*Proves:* no swap inside the data silently lacks a reference.
+fails. A 0 s reference older than 600 s also fails: a hole in the Binance data would otherwise
+leave the swaps in it a valid but stale price (the longest gap between two trades is 169 s).
+Also reports the swaps whose 0 s reference is older than 5 s. Result: no unexpected null;
+0, 0, 10, 35 and 454 nulls at 0, 12, 60, 300 and 3,600 s; oldest 0 s reference 117.8 s; 73,139
+swaps with a 0 s reference older than 5 s (covered by the `exclude_stale_over_5s` variant).
+*Proves:* no swap inside the data lacks a reference or has one from across a data gap.
 
 **A5: label coverage (reported).** Notional share of `other_contract` (0.10897229175784204) and of
 every label, and the top unlabelled transaction targets.

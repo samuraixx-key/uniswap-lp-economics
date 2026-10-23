@@ -32,12 +32,12 @@ their trades into the block.
 
 - Strategy tests and their pass/fail rules were frozen with a git tag before the strategy tests
   were run: `strategy-preregistered`
-  ([freeze](results/strategy_freeze.json), [at the tag](https://github.com/samuraixx-key/uniswap-lp-economics/blob/strategy-preregistered/results/strategy_freeze.json);
-  [spec](docs/specs/2026-10-21-strategy-experiment-design.md), [at the tag](https://github.com/samuraixx-key/uniswap-lp-economics/blob/strategy-preregistered/docs/superpowers/specs/2026-10-21-strategy-experiment-design.md)).
+  ([freeze](results/strategy_freeze.json), [at the tag](https://raw.githubusercontent.com/samuraixx-key/uniswap-lp-economics/strategy-preregistered/results/strategy_freeze.json);
+  [spec](docs/specs/2026-10-21-strategy-experiment-design.md), [at the tag](https://raw.githubusercontent.com/samuraixx-key/uniswap-lp-economics/strategy-preregistered/docs/superpowers/specs/2026-10-21-strategy-experiment-design.md)).
 - A check that failed, reported as failed: the first proposer-split test, `holdout-preregistered`
-  ([spec](docs/specs/2026-10-21-proposer-payments-design.md), [at the tag](https://github.com/samuraixx-key/uniswap-lp-economics/blob/holdout-preregistered/docs/superpowers/specs/2026-10-21-proposer-payments-design.md)).
+  ([spec](docs/specs/2026-10-21-proposer-payments-design.md), [at the tag](https://raw.githubusercontent.com/samuraixx-key/uniswap-lp-economics/holdout-preregistered/docs/superpowers/specs/2026-10-21-proposer-payments-design.md)).
   A new check, written down before a fresh holdout, `forwarder-preregistered`
-  ([spec](docs/specs/2026-10-21-forwarder-recipient-check-design.md), [at the tag](https://github.com/samuraixx-key/uniswap-lp-economics/blob/forwarder-preregistered/docs/superpowers/specs/2026-10-21-forwarder-recipient-check-design.md)),
+  ([spec](docs/specs/2026-10-21-forwarder-recipient-check-design.md), [at the tag](https://raw.githubusercontent.com/samuraixx-key/uniswap-lp-economics/forwarder-preregistered/docs/superpowers/specs/2026-10-21-forwarder-recipient-check-design.md)),
   passed 290 of 290; the first decision stays on file.
 - August–September is out of sample for every parameter, but not for me: I'd seen the window's
   totals when I wrote the test.

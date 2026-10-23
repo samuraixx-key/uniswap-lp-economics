@@ -70,7 +70,8 @@
   20). Blocks left unexplained ($630.11 of builder dollars, 0.044%) give the proposer the whole
   builder revenue. The sum (34.8%) does not depend on the split. The relay sample found 771 of
   1,000 blocks; bloXroute's max-profit relay, down throughout, left 188 of them and 75 and 78
-  blocks of the two holdouts without an answer.
+  blocks of the two holdouts without an answer. 41 more not-found blocks of the sample were
+  fetched before relay failures were recorded, so up to 229 may lack a bloXroute answer.
 - **Path dependence.** P&L against holding, in the window and over a lifetime (53.5% of positions
   beat holding; 78% of those with a life of 180 days or more), depends on the price path over each
   position's life, and so on when it opened and closed.

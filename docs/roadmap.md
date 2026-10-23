@@ -36,7 +36,8 @@ follows the forwarder, written down before a fresh seed-45 holdout, passed 290 o
 states one split; the first decision stays on file as the record of the first test.
 
 - **bloXroute max-profit** did not answer for 341 sampled blocks (188 of the original sample, 75
-  and 78 of the two holdouts); whether the unexplained blocks are bloXroute-built stays open.
+  and 78 of the two holdouts), and 41 more of the sample were fetched before relay failures were
+  recorded; whether the unexplained blocks are bloXroute-built stays open.
 - **OKX order book** (ETH-USDC full L2, 2.9 GB) as a true mid, if the trade-side proxy is
   questioned.
 - The end-to-end synthetic world lacks a transferred NFT (Phase 5 added exact-output and to-price

@@ -142,19 +142,20 @@ results. Its per-swap and per-block working tables go to `DATA_DIR/processed` (g
 refuses to query without `--confirm-cost` and stops before querying if a dry run exceeds its
 700 GB cap. `fetch-relays` is resumable and skips a relay after three consecutive failed blocks.
 Once `fetch-builders` has run it draws each holdout and writes it to disk before any of its relay
-calls (a copy of the relay file is kept first); a run that finds the seed-45 draw already on disk
-retries its blocks a relay never answered. Rows of the earlier rounds are never re-queried or
-changed: a write that would change them is refused. The first `lp` after every seed-45 block has
-a relay row and a payment path freezes the proposer-split decision. `lp` refuses to run unless
-validation passed on the interim files on disk and the `analyze` outputs exist; if a check L1–L7
-fails it writes the checks file and no results.
+calls (a copy of the relay file is kept first); the next run retries, once, the seed-45 blocks a
+relay never answered (`ulpe all` runs `fetch-relays` twice for this). Rows of the earlier rounds are never re-queried or
+changed: a write that would change them is refused. The first `lp` after the retry pass, once every
+seed-45 block has a relay row and a payment path, freezes the proposer-split decision. `lp` refuses to run unless
+validation passed on the interim files on disk, the latest `analyze` passed its checks and its
+outputs exist; if a check L1–L7 fails it writes the checks file and no results.
 
 </details>
 
 <details class="note" markdown>
 <summary>Notes: strategy</summary>
 
-`strategy` refuses to run unless `lp` has written its results. Checks S1 and S2 run first; if one
+`strategy` refuses to run unless the latest `lp` passed its checks and wrote its results. Checks
+S1 and S2 run first; if one
 fails it writes `results/strategy_checks.md` and no results. With no freeze file it computes July
 only and writes the freeze; commit it (here: tagged `strategy-preregistered`) before the second
 run. The second run reads every July value from the freeze, stops if any input file it hashed
@@ -165,7 +166,9 @@ one, the first `ulpe all` writes the July freeze and then stops at `figures`, wh
 `ulpe strategy` (the report results do not exist yet); commit and tag the freeze, then run
 `ulpe strategy` (or `ulpe all`) again. The report run checks the freeze's input hashes; a fresh
 `ulpe analyze` and `ulpe lp` rewrite the hashed processed files byte-identically (verified
-2026-10-22), so re-running the pipeline keeps matching the committed freeze. `ulpe analyze`
+2026-10-22), so re-running the pipeline keeps matching the committed freeze. The package pins
+polars to 16 threads (the file layout follows the thread count) and hashes the tracked label
+file with LF line endings, so this holds on any machine with the locked dependencies. `ulpe analyze`
 keeps `summary.json`'s `lp` and `strategy` results only when its own results are unchanged (run
 timestamps aside); otherwise it drops them, so `ulpe strategy` and `ulpe figures` refuse to run
 until `ulpe lp` and `ulpe strategy` run again. The fee runs use 4 worker processes by default
@@ -176,7 +179,8 @@ until `ulpe lp` and `ulpe strategy` run again. The fee runs use 4 worker process
 <details class="note" markdown>
 <summary>Notes: figures</summary>
 
-`figures` reads only `results/` (it needs no data download) and takes seconds.
+`figures` reads only `results/` (it needs no data download), refuses unless the analysis, LP and
+strategy checks all passed, and takes seconds.
 `results/figures/00_hero.png` is the repository's social preview image, set by hand under
 Settings → General → Social preview.
 

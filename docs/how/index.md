@@ -11,9 +11,9 @@ are never moved, so anyone can read each rule as it stood at its commit.
 
 | Tag | What was frozen | What happened |
 |---|---|---|
-| [`holdout-preregistered`](https://github.com/samuraixx-key/uniswap-lp-economics/blob/holdout-preregistered/docs/superpowers/specs/2026-10-21-proposer-payments-design.md) | The proposer-split rule and its pass bar, before a blind relay holdout | **Failed** the recipient check (45.7%). Reported as failed; the two-sided split was kept |
-| [`forwarder-preregistered`](https://github.com/samuraixx-key/uniswap-lp-economics/blob/forwarder-preregistered/docs/superpowers/specs/2026-10-21-forwarder-recipient-check-design.md) | A new recipient check that follows payments through forwarders, before a fresh holdout | **Passed** 290 of 290, so one proposer/builder split |
-| [`strategy-preregistered`](https://github.com/samuraixx-key/uniswap-lp-economics/blob/strategy-preregistered/results/strategy_freeze.json) | Strategy tests, margins and every July value, in a freeze file | Range test **inconclusive**; fee test **not tested** (the model failed its July calibration; fee numbers are model-only) |
+| [`holdout-preregistered`](https://raw.githubusercontent.com/samuraixx-key/uniswap-lp-economics/holdout-preregistered/docs/superpowers/specs/2026-10-21-proposer-payments-design.md) | The proposer-split rule and its pass bar, before a blind relay holdout | **Failed** the recipient check (45.7%). Reported as failed; the two-sided split was kept |
+| [`forwarder-preregistered`](https://raw.githubusercontent.com/samuraixx-key/uniswap-lp-economics/forwarder-preregistered/docs/superpowers/specs/2026-10-21-forwarder-recipient-check-design.md) | A new recipient check that follows payments through forwarders, before a fresh holdout | **Passed** 290 of 290, so one proposer/builder split |
+| [`strategy-preregistered`](https://raw.githubusercontent.com/samuraixx-key/uniswap-lp-economics/strategy-preregistered/results/strategy_freeze.json) | Strategy tests, margins and every July value, in a freeze file | Range test **inconclusive**; fee test **not tested** (the model failed its July calibration; fee numbers are model-only) |
 
 ## A check that failed stays failed
 
