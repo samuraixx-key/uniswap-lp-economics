@@ -19,6 +19,12 @@ Where the project stands and what comes next. Each piece of work has a design sp
 Later chart polish (light theme only, numbered panel headers, the two-stage hero) was merged
 without a separate spec; the chart spec was updated to match.
 
+Phase 6, report and release: the README became a project website on GitHub Pages (home, a
+six-chapter report, How I worked with the full methodology, Reproduce; built from `docs/` by
+`mkdocs.yml`), a whole-project review before going public fixed 15 findings and a batch of smaller
+items (PRs #3 and #4), and v1.0 was tagged with a `CITATION.cff`. Its working spec was internal and
+is not published.
+
 Sub-project 4's answer: the headline holds. LP fees − LVR is −$0.92M to −$1.10M across
 references at the block timestamp, −$1.31M at the median winning-bid time (+0.98 s), and turns
 positive only if prices are read more than 3 s before the slot.
@@ -29,6 +35,8 @@ failed its July calibration (model-only: LPs break even at about 8.6 bp at const
 an hourly hedge cuts the daily spread about 100-fold without changing fees − LVR.
 
 ## Next
+
+- **Project 2:** a funding-rate basis backtester (Hyperliquid, dYdX, Binance), in its own repo.
 
 Who keeps the profit is settled: proposer-payment detection kept a two-sided split when its
 first pre-registered recipient check failed on a forwarding contract (45.7%), and the check that
@@ -44,10 +52,6 @@ states one split; the first decision stays on file as the record of the first te
   swaps).
 - EIP-7702 delegated EOAs must count as wallets in any new owner classification (payout
   recipients already do this).
-- `ulpe analyze` rewrites `summary.json` from scratch and drops the `strategy` key until
-  `ulpe strategy` runs again. That's harmless in pipeline order but a trap when running one step by
-  hand. Fix it the next time `analyze` is touched: keep any existing `strategy` key on rewrite
-  (a few lines plus one test).
 - S1 passes on the real data with a thin margin (9.4e-10 against `S1_REL_TOL = 1e-9`). It may fail
   on another machine. The tolerance was pre-registered, so it stays as it is; note this if a re-run
   elsewhere fails S1.
@@ -58,13 +62,6 @@ states one split; the first decision stays on file as the record of the first te
 
 - The website rounds numbers for reading (`$551k`, `$1.06M`); the exact values stay in
   `results/`. If `results/` ever changes, re-check every number on the site against it.
-
-## Later
-
-- **Phase 6, report:** the project website on GitHub Pages (home, a six-chapter report, How I
-  worked with the full methodology, Reproduce), built from `docs/` by `mkdocs.yml`, and a tagged
-  `v1.0` release.
-- **Project 2:** a funding-rate basis backtester (Hyperliquid, dYdX, Binance), in its own repo.
 
 ## Backlog (after v1.0)
 
@@ -92,14 +89,16 @@ From the pre-public review (2026-10-23); none changes a published number or clai
 
 ## Manual steps
 
-- Pages: after making the repository public and before the next push to `main`, set Settings →
-  Pages → Source to "GitHub Actions", then run the Pages workflow by hand (`workflow_dispatch`).
-  Until then every site link 404s.
-- Social preview: upload `results/figures/00_hero.png` under Settings → General → Social preview
-  (offered once the repository is public).
+Done on 2026-10-23, kept here in case the repository is ever recreated:
+
+- Pages: Settings → Pages → Source set to "GitHub Actions", then the Pages workflow run by hand
+  (`workflow_dispatch`) for the first deploy.
+- Social preview: `results/figures/00_hero.png` uploaded under Settings → General → Social preview.
 
 ## Release checks
 
 - Secret scan before going public (2026-10-23): gitleaks 8.30.1 over all refs (`--log-opts=--all`),
   234 commits up to `10f9b4a`, no leaks found; searches of all history for RPC keys, private keys
   and `.env` or credentials files found none.
+- Second scan, after the review fixes (2026-10-23): gitleaks over all refs, 262 commits up to
+  `d1af290`, no leaks found; no commit message carries an AI co-author trailer.

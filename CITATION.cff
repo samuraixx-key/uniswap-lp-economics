@@ -1,0 +1,16 @@
+cff-version: 1.2.0
+message: "If you use this work, please cite it as below."
+title: "Who makes money on Uniswap V3?"
+abstract: >-
+  A trade-by-trade study of the Uniswap V3 USDC/WETH 0.05% pool on Ethereum, July to September 2026,
+  marked out against Binance: who has edge against the pool, who pays for it, and where the money
+  ends up, with pre-registered tests.
+type: software
+authors:
+  - family-names: Nagata
+    given-names: Enrico
+version: "1.0"
+date-released: 2026-10-24
+license: MIT
+repository-code: "https://github.com/samuraixx-key/uniswap-lp-economics"
+url: "https://samuraixx-key.github.io/uniswap-lp-economics/"

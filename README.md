@@ -55,5 +55,5 @@ the edge.
 [Full report](https://samuraixx-key.github.io/uniswap-lp-economics/report/) · [How I worked](https://samuraixx-key.github.io/uniswap-lp-economics/how/) · [Why these choices](https://samuraixx-key.github.io/uniswap-lp-economics/how/choices/) ·
 [Methodology](https://samuraixx-key.github.io/uniswap-lp-economics/how/methodology/) · [Limitations](https://samuraixx-key.github.io/uniswap-lp-economics/how/limitations/) · [Reproduce](https://samuraixx-key.github.io/uniswap-lp-economics/reproduce/)
 
-MIT licence (two figure-data files hold Binance prices: see the data page). Research only; not
+MIT licence (two figure-data files hold Binance prices: see the [data page](https://samuraixx-key.github.io/uniswap-lp-economics/how/data/)). Research only; not
 financial advice.
